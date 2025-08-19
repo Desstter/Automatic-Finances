@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.automaticfinances.data.repo.TransactionWithCategory
 import com.example.automaticfinances.system.ServiceManager
+import com.example.automaticfinances.ui.components.IntelligenceInsightsCard
 import kotlinx.coroutines.flow.StateFlow
 import java.text.NumberFormat
 import java.util.*
@@ -118,6 +119,20 @@ fun HomeScreen(
                             numberFormat = nf,
                             currentMonth = state.currentMonth,
                             onViewHistoryClick = onViewHistoryClick
+                        )
+                    }
+                }
+                
+                // Intelligence Insights Card (only if intelligence is active)
+                if (state.intelligenceActive) {
+                    item {
+                        IntelligenceInsightsCard(
+                            totalPreferences = state.totalPreferences,
+                            overallAccuracy = state.overallAccuracy,
+                            categoryStats = state.categoryAccuracyStats,
+                            onViewSuggestions = {
+                                // Navigate to suggestions screen - será implementado
+                            }
                         )
                     }
                 }

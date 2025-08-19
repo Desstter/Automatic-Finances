@@ -3,11 +3,13 @@ package com.example.automaticfinances.data.repo
 import com.example.automaticfinances.data.db.AppDatabase
 import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.db.CategoryWithCount
+import com.example.automaticfinances.data.db.CategorySuggestion
 import com.example.automaticfinances.data.db.DefaultCategories
 import kotlinx.coroutines.flow.Flow
 
 class CategoryRepository {
     private val dao = AppDatabase.get().categoryDao()
+    private val preferenceRepo = UserCategoryPreferenceRepository()
     
     fun getAllActive(): Flow<List<Category>> = dao.getAllActive()
     
@@ -57,9 +59,51 @@ class CategoryRepository {
     }
     
     suspend fun getDefaultCategoryId(transactionType: String, description: String): Long? {
-        val categories = dao.getAllActiveSync()
+        // 1. PRIORIDAD: Verificar si el usuario ya tiene una preferencia aprendida
+        val userPreference = preferenceRepo.getPreferenceForMerchant(description)
+        if (userPreference != null && userPreference.confidence > 0.6f) {
+            return userPreference.categoryId
+        }
         
-        // Auto-categorización inteligente basada en palabras clave
+        // 2. FALLBACK: Usar sistema de reglas por palabras clave
+        return getKeywordBasedCategoryId(description)
+    }
+    
+    suspend fun getIntelligentCategorySuggestion(description: String): CategorySuggestion? {
+        // Primero verificar aprendizaje del usuario
+        val suggestion = preferenceRepo.suggestCategory(description)
+        if (suggestion != null && suggestion.confidence > 0.5f) {
+            return suggestion
+        }
+        
+        // Si no hay aprendizaje, usar palabras clave pero con menor confianza
+        val keywordCategoryId = getKeywordBasedCategoryId(description)
+        if (keywordCategoryId != null) {
+            val categories = dao.getAllActiveSync()
+            val category = categories.find { it.id == keywordCategoryId }
+            if (category != null) {
+                return CategorySuggestion(
+                    categoryId = category.id,
+                    categoryName = category.name,
+                    categoryIcon = category.icon,
+                    confidence = 0.4f, // Menor confianza para reglas
+                    reason = "Palabras clave detectadas",
+                    merchantKey = description
+                )
+            }
+        }
+        
+        return null
+    }
+    
+    suspend fun learnFromUserCategoryChoice(merchant: String, categoryId: Long) {
+        preferenceRepo.learnFromUserChoice(merchant, categoryId)
+    }
+    
+    suspend fun getCategoryAccuracyStats() = preferenceRepo.getCategoryAccuracyStats()
+    
+    private suspend fun getKeywordBasedCategoryId(description: String): Long? {
+        val categories = dao.getAllActiveSync()
         val descriptionLower = description.lowercase()
         
         return when {

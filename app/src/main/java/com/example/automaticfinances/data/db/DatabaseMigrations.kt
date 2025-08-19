@@ -100,3 +100,42 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_type ON transactions(type)")
     }
 }
+
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Crear tabla user_category_preferences para aprendizaje inteligente
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS user_category_preferences (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                merchantKey TEXT NOT NULL,
+                categoryId INTEGER NOT NULL,
+                confidence REAL NOT NULL DEFAULT 1.0,
+                frequency INTEGER NOT NULL DEFAULT 1,
+                lastUsed INTEGER NOT NULL DEFAULT ${System.currentTimeMillis()},
+                source TEXT NOT NULL DEFAULT 'user',
+                isActive INTEGER NOT NULL DEFAULT 1,
+                FOREIGN KEY(categoryId) REFERENCES categories(id) ON DELETE CASCADE
+            )
+        """)
+        
+        // Crear índices para performance optimizada
+        database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_user_category_preferences_merchantKey ON user_category_preferences(merchantKey)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_user_category_preferences_categoryId ON user_category_preferences(categoryId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_user_category_preferences_lastUsed ON user_category_preferences(lastUsed)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_user_category_preferences_frequency ON user_category_preferences(frequency)")
+        
+        // Poblar con datos existentes de transacciones para inicializar el aprendizaje
+        database.execSQL("""
+            INSERT OR IGNORE INTO user_category_preferences (merchantKey, categoryId, frequency, source)
+            SELECT 
+                LOWER(TRIM(REPLACE(description, '  ', ' '))) as merchantKey,
+                categoryId,
+                COUNT(*) as frequency,
+                'auto' as source
+            FROM transactions 
+            WHERE categoryId IS NOT NULL 
+            GROUP BY LOWER(TRIM(REPLACE(description, '  ', ' '))), categoryId
+            HAVING COUNT(*) >= 2
+        """)
+    }
+}

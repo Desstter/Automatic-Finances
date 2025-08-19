@@ -31,6 +31,12 @@ class TransactionRepository {
         dao.getTotalByCategoryAndDateRange(categoryId, startDate, endDate)
     
     suspend fun getMonthlyTotal(year: Int, month: Int): Long = dao.getMonthlyTotal(year, month)
+    
+    suspend fun getTransactionsWithCategoriesSync(): List<TransactionWithCategory> = dao.getTransactionsWithCategoriesSync()
+    
+    suspend fun updateTransactionCategory(transactionId: String, categoryId: Long) {
+        dao.updateCategory(transactionId, categoryId)
+    }
 }
 
 data class TransactionWithCategory(

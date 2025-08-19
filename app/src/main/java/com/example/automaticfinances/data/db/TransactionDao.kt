@@ -63,4 +63,15 @@ interface TransactionDao {
         WHERE ts BETWEEN :from AND :to AND (type = :type OR :type = 'ALL')
     """)
     fun sumByType(from: Long, to: Long, type: String): Flow<Long>
+    
+    @Query("""
+        SELECT t.*, c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
+        FROM transactions t
+        LEFT JOIN categories c ON t.categoryId = c.id
+        ORDER BY t.date DESC, t.time DESC
+    """)
+    suspend fun getTransactionsWithCategoriesSync(): List<TransactionWithCategory>
+    
+    @Query("UPDATE transactions SET categoryId = :categoryId WHERE id = :transactionId")
+    suspend fun updateCategory(transactionId: String, categoryId: Long)
 }

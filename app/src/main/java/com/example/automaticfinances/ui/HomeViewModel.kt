@@ -6,6 +6,8 @@ import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.TransactionWithCategory
+import com.example.automaticfinances.data.repo.UserCategoryPreferenceRepository
+import com.example.automaticfinances.data.db.CategoryAccuracy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,18 +32,25 @@ data class HomeState(
     val dateFilterStart: String? = null,
     val dateFilterEnd: String? = null,
     val minAmountFilter: Long? = null,
-    val maxAmountFilter: Long? = null
+    val maxAmountFilter: Long? = null,
+    // Intelligence data
+    val intelligenceActive: Boolean = false,
+    val totalPreferences: Int = 0,
+    val overallAccuracy: Float = 0f,
+    val categoryAccuracyStats: List<CategoryAccuracy> = emptyList()
 )
 
 class HomeViewModel : ViewModel() {
     private val transactionRepository = TransactionRepository()
     private val categoryRepository = CategoryRepository()
+    private val preferenceRepository = UserCategoryPreferenceRepository()
     
     private val _state = MutableStateFlow(HomeState())
     val state: StateFlow<HomeState> = _state.asStateFlow()
     
     init {
         loadData()
+        loadIntelligenceData()
     }
     
     private fun loadData(isRefresh: Boolean = false) {
@@ -196,5 +205,27 @@ class HomeViewModel : ViewModel() {
             showFilters = false
         )
         loadData()
+    }
+    
+    private fun loadIntelligenceData() {
+        viewModelScope.launch {
+            try {
+                val totalPreferences = preferenceRepository.getTotalPreferences()
+                val overallAccuracy = preferenceRepository.getOverallAccuracy()
+                val categoryStats = categoryRepository.getCategoryAccuracyStats()
+                
+                _state.value = _state.value.copy(
+                    intelligenceActive = totalPreferences > 0,
+                    totalPreferences = totalPreferences,
+                    overallAccuracy = overallAccuracy,
+                    categoryAccuracyStats = categoryStats
+                )
+                
+                Log.d("HomeViewModel", "Intelligence data loaded: $totalPreferences preferences, ${(overallAccuracy * 100).toInt()}% accuracy")
+                
+            } catch (e: Exception) {
+                Log.e("HomeViewModel", "Error loading intelligence data", e)
+            }
+        }
     }
 }
