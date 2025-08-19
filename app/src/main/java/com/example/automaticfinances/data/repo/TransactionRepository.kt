@@ -37,6 +37,17 @@ class TransactionRepository {
     suspend fun updateTransactionCategory(transactionId: String, categoryId: Long) {
         dao.updateCategory(transactionId, categoryId)
     }
+    
+    // New methods for Financial Insights
+    suspend fun getMonthlySpentTotal(year: Int, month: Int): Long {
+        return dao.getMonthlyTotal(year, month)
+    }
+    
+    suspend fun getSpentByCategoryInMonth(categoryId: Long, year: Int, month: Int): Long {
+        val startDate = String.format("%04d-%02d-01", year, month)
+        val endDate = String.format("%04d-%02d-31", year, month) // Simplified, good enough for 20/80
+        return dao.getTotalByCategoryAndDateRange(categoryId, startDate, endDate)
+    }
 }
 
 data class TransactionWithCategory(

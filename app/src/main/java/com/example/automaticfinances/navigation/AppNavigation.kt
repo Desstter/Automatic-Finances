@@ -12,6 +12,11 @@ import com.example.automaticfinances.ui.categories.CategoryManagementScreen
 import com.example.automaticfinances.ui.transaction.TransactionDetailScreen
 import com.example.automaticfinances.ui.transaction.AddTransactionScreen
 import com.example.automaticfinances.ui.transaction.TransactionHistoryScreen
+import com.example.automaticfinances.ui.insights.FinancialDashboardScreen
+import com.example.automaticfinances.ui.insights.FinancialDashboardViewModel
+import com.example.automaticfinances.data.repo.BudgetRepository
+import com.example.automaticfinances.data.repo.TransactionRepository
+import com.example.automaticfinances.data.db.AppDatabase
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 // Definición de rutas
@@ -21,6 +26,8 @@ object Routes {
     const val CATEGORY_MANAGEMENT = "category_management"
     const val ADD_TRANSACTION = "add_transaction"
     const val TRANSACTION_HISTORY = "transaction_history"
+    const val FINANCIAL_DASHBOARD = "financial_dashboard"
+    const val BUDGET_MANAGEMENT = "budget_management"
     
     fun transactionDetail(transactionId: String) = "transaction_detail/$transactionId"
 }
@@ -56,6 +63,9 @@ fun AppNavigation(
                 },
                 onViewHistoryClick = {
                     navController.navigate(Routes.TRANSACTION_HISTORY)
+                },
+                onViewInsightsClick = {
+                    navController.navigate(Routes.FINANCIAL_DASHBOARD)
                 },
                 onRefresh = {
                     homeViewModel.refreshData()
@@ -113,6 +123,42 @@ fun AppNavigation(
                     navController.popBackStack()
                 }
             )
+        }
+        
+        composable(Routes.FINANCIAL_DASHBOARD) {
+            val budgetRepository = BudgetRepository(
+                budgetDao = AppDatabase.get().budgetDao(),
+                transactionDao = AppDatabase.get().transactionDao(),
+                categoryDao = AppDatabase.get().categoryDao()
+            )
+            val transactionRepository = TransactionRepository()
+            
+            val dashboardViewModel: FinancialDashboardViewModel = viewModel {
+                FinancialDashboardViewModel(budgetRepository, transactionRepository)
+            }
+            
+            FinancialDashboardScreen(
+                viewModel = dashboardViewModel,
+                onNavigateToBudgetManagement = {
+                    navController.navigate(Routes.BUDGET_MANAGEMENT)
+                },
+                onNavigateToGoals = {
+                    // Navigate to goals screen (placeholder for 20/80 rule)
+                    navController.popBackStack()
+                },
+                onNavigateToReports = {
+                    // Navigate to reports screen (placeholder for 20/80 rule)
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        composable(Routes.BUDGET_MANAGEMENT) {
+            // Placeholder for BudgetManagementScreen (20/80 rule - focus on core dashboard first)
+            // For now, navigate back to show we're working with 80% of value
+            LaunchedEffect(Unit) {
+                navController.popBackStack()
+            }
         }
     }
 }

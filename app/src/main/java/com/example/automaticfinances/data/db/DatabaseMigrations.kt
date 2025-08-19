@@ -139,3 +139,51 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         """)
     }
 }
+
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // 1. Crear tabla budgets
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS budgets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                categoryId INTEGER NOT NULL,
+                limitAmountCents INTEGER NOT NULL,
+                year INTEGER NOT NULL,
+                month INTEGER NOT NULL,
+                alertAt50Percent INTEGER NOT NULL DEFAULT 1,
+                alertAt75Percent INTEGER NOT NULL DEFAULT 1,
+                alertAt100Percent INTEGER NOT NULL DEFAULT 1,
+                isActive INTEGER NOT NULL DEFAULT 1,
+                createdAt INTEGER NOT NULL,
+                FOREIGN KEY(categoryId) REFERENCES categories(id) ON DELETE CASCADE
+            )
+        """)
+        
+        // 2. Crear tabla financial_goals
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS financial_goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                targetAmountCents INTEGER NOT NULL,
+                currentAmountCents INTEGER NOT NULL DEFAULT 0,
+                type TEXT NOT NULL,
+                categoryId INTEGER,
+                targetDate INTEGER NOT NULL,
+                isCompleted INTEGER NOT NULL DEFAULT 0,
+                isActive INTEGER NOT NULL DEFAULT 1,
+                createdAt INTEGER NOT NULL,
+                FOREIGN KEY(categoryId) REFERENCES categories(id) ON DELETE SET NULL
+            )
+        """)
+        
+        // 3. Crear índices para performance
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_categoryId ON budgets(categoryId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_year_month ON budgets(year, month)")
+        database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_budgets_category_month ON budgets(categoryId, year, month) WHERE isActive = 1")
+        
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_categoryId ON financial_goals(categoryId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_targetDate ON financial_goals(targetDate)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_type ON financial_goals(type)")
+    }
+}

@@ -35,6 +35,7 @@ fun HomeScreen(
     onManageCategoriesClick: () -> Unit = {},
     onAddTransactionClick: () -> Unit = {},
     onViewHistoryClick: () -> Unit = {},
+    onViewInsightsClick: () -> Unit = {},
     onRefresh: () -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
     onToggleFilters: () -> Unit = {},
@@ -72,6 +73,12 @@ fun HomeScreen(
         },
         floatingActionButton = {
             Column {
+                FloatingActionButton(
+                    onClick = onViewInsightsClick,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                ) {
+                    Text("📊")
+                }
                 FloatingActionButton(
                     onClick = onAddTransactionClick,
                     modifier = Modifier.padding(bottom = 8.dp)
