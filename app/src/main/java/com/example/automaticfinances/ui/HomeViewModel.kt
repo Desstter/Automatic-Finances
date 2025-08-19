@@ -22,9 +22,15 @@ data class HomeState(
     val totalMonthCOP: Long = 0L,
     val selectedCategoryFilter: Long? = null,
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val error: String? = null,
     val currentMonth: String = LocalDate.now().format(DateTimeFormatter.ofPattern("MMMM yyyy")),
-    val showFilters: Boolean = false
+    val showFilters: Boolean = false,
+    val searchQuery: String = "",
+    val dateFilterStart: String? = null,
+    val dateFilterEnd: String? = null,
+    val minAmountFilter: Long? = null,
+    val maxAmountFilter: Long? = null
 )
 
 class HomeViewModel : ViewModel() {
@@ -38,9 +44,13 @@ class HomeViewModel : ViewModel() {
         loadData()
     }
     
-    private fun loadData() {
+    private fun loadData(isRefresh: Boolean = false) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true, error = null)
+            if (isRefresh) {
+                _state.value = _state.value.copy(isRefreshing = true, error = null)
+            } else {
+                _state.value = _state.value.copy(isLoading = true, error = null)
+            }
             
             try {
                 // Combinar categorías y transacciones en un solo flow
@@ -49,32 +59,21 @@ class HomeViewModel : ViewModel() {
                     transactionRepository.getTransactionsWithCategories()
                 ) { categories, transactions ->
                     Pair(categories, transactions)
-                }.collectLatest { (categories, transactions) ->
-                    Log.d("HomeViewModel", "Received ${categories.size} categories and ${transactions.size} transactions")
-                    transactions.forEach { tx ->
-                        Log.d("HomeViewModel", "Transaction: ${tx.id}, type=${tx.type}, source=${tx.source}, date=${tx.date}, amount=${tx.amountCents}")
-                    }
+                }.collectLatest { (categories, allTransactions) ->
+                    Log.d("HomeViewModel", "Received ${categories.size} categories and ${allTransactions.size} transactions")
                     
                     val currentDate = LocalDate.now()
                     val monthStart = currentDate.withDayOfMonth(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
                     val monthEnd = currentDate.withDayOfMonth(currentDate.lengthOfMonth()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
                     
-                    Log.d("HomeViewModel", "Month range: $monthStart to $monthEnd")
-                    
                     // Calcular total del mes
-                    val monthlyTransactions = transactions.filter { transaction ->
+                    val monthlyTransactions = allTransactions.filter { transaction ->
                         transaction.date >= monthStart && transaction.date <= monthEnd
                     }
-                    Log.d("HomeViewModel", "Monthly transactions: ${monthlyTransactions.size}")
                     val monthlyTotal = monthlyTransactions.sumOf { it.amountCents }
-                    Log.d("HomeViewModel", "Monthly total: $monthlyTotal cents")
                     
-                    // Aplicar filtro de categoría si está seleccionado
-                    val filteredTransactions = if (_state.value.selectedCategoryFilter != null) {
-                        transactions.filter { it.categoryId == _state.value.selectedCategoryFilter }
-                    } else {
-                        transactions
-                    }
+                    // Aplicar todos los filtros
+                    val filteredTransactions = applyFilters(allTransactions)
                     
                     Log.d("HomeViewModel", "Filtered transactions: ${filteredTransactions.size}")
                     
@@ -82,7 +81,8 @@ class HomeViewModel : ViewModel() {
                         categories = categories,
                         transactions = filteredTransactions,
                         totalMonthCOP = monthlyTotal,
-                        isLoading = false
+                        isLoading = false,
+                        isRefreshing = false
                     )
                 }
                 
@@ -90,10 +90,45 @@ class HomeViewModel : ViewModel() {
                 Log.e("HomeViewModel", "Error loading data", e)
                 _state.value = _state.value.copy(
                     isLoading = false,
+                    isRefreshing = false,
                     error = "Error al cargar datos: ${e.message}"
                 )
             }
         }
+    }
+    
+    private fun applyFilters(transactions: List<TransactionWithCategory>): List<TransactionWithCategory> {
+        var filtered = transactions
+        
+        // Filtro de categoría
+        _state.value.selectedCategoryFilter?.let { categoryId ->
+            filtered = filtered.filter { it.categoryId == categoryId }
+        }
+        
+        // Filtro de búsqueda
+        if (_state.value.searchQuery.isNotBlank()) {
+            filtered = filtered.filter { 
+                it.description.contains(_state.value.searchQuery, ignoreCase = true)
+            }
+        }
+        
+        // Filtro de fecha
+        _state.value.dateFilterStart?.let { startDate ->
+            filtered = filtered.filter { it.date >= startDate }
+        }
+        _state.value.dateFilterEnd?.let { endDate ->
+            filtered = filtered.filter { it.date <= endDate }
+        }
+        
+        // Filtro de monto
+        _state.value.minAmountFilter?.let { minAmount ->
+            filtered = filtered.filter { it.amountCents >= minAmount }
+        }
+        _state.value.maxAmountFilter?.let { maxAmount ->
+            filtered = filtered.filter { it.amountCents <= maxAmount }
+        }
+        
+        return filtered
     }
     
     fun filterByCategory(categoryId: Long?) {
@@ -119,12 +154,47 @@ class HomeViewModel : ViewModel() {
     
     fun refreshData() {
         Log.d("HomeViewModel", "Manual refresh requested")
-        loadData()
+        loadData(isRefresh = true)
     }
 
     fun forceRefresh() {
         Log.d("HomeViewModel", "Force refresh - clearing state and reloading")
         _state.value = HomeState()
+        loadData()
+    }
+    
+    // Nuevas funciones para búsqueda y filtros
+    fun updateSearchQuery(query: String) {
+        _state.value = _state.value.copy(searchQuery = query)
+        loadData() // Recargar con el nuevo filtro
+    }
+    
+    fun setDateFilter(startDate: String?, endDate: String?) {
+        _state.value = _state.value.copy(
+            dateFilterStart = startDate,
+            dateFilterEnd = endDate
+        )
+        loadData()
+    }
+    
+    fun setAmountFilter(minAmount: Long?, maxAmount: Long?) {
+        _state.value = _state.value.copy(
+            minAmountFilter = minAmount,
+            maxAmountFilter = maxAmount
+        )
+        loadData()
+    }
+    
+    fun clearAllFilters() {
+        _state.value = _state.value.copy(
+            selectedCategoryFilter = null,
+            searchQuery = "",
+            dateFilterStart = null,
+            dateFilterEnd = null,
+            minAmountFilter = null,
+            maxAmountFilter = null,
+            showFilters = false
+        )
         loadData()
     }
 }

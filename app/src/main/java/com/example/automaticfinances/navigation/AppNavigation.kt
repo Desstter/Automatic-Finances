@@ -56,6 +56,27 @@ fun AppNavigation(
                 },
                 onViewHistoryClick = {
                     navController.navigate(Routes.TRANSACTION_HISTORY)
+                },
+                onRefresh = {
+                    homeViewModel.refreshData()
+                },
+                onSearchQueryChange = { query ->
+                    homeViewModel.updateSearchQuery(query)
+                },
+                onToggleFilters = {
+                    homeViewModel.toggleFilters()
+                },
+                onClearFilters = {
+                    homeViewModel.clearAllFilters()
+                },
+                onDateFilterChange = { startDate, endDate ->
+                    homeViewModel.setDateFilter(startDate, endDate)
+                },
+                onAmountFilterChange = { minAmount, maxAmount ->
+                    homeViewModel.setAmountFilter(minAmount, maxAmount)
+                },
+                onCategoryFilterChange = { categoryId ->
+                    homeViewModel.filterByCategory(categoryId)
                 }
             )
         }
