@@ -32,14 +32,42 @@ object BancolombiaParser {
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
     )
 
+    // Regex para ingresos - transferencias recibidas
+    private val ingresoTransferenciaRegex = Regex(
+        """Bancolombia:\s*(?:Recibiste|Te\s+transfirieron)\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?desde\s+.*?\s+a\s+tu\s+cuenta\s+\*(\d{4})\s+el\s+(\d{2}/\d{2}/\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+
+    // Regex para depósitos/consignaciones
+    private val ingresoDepositoRegex = Regex(
+        """Bancolombia:\s*(?:Depósito|Consignación|Consignaste)\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?en\s+tu\s+cuenta\s+\*(\d{4})\s+el\s+(\d{2}/\d{2}/\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+
+    // Regex para ingresos de app Bancolombia
+    private val appIngresoRegex = Regex(
+        """(?:Transferencia\s+recibida|Depósito)\s+(?:por\s+)?(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?en\s+\*(\d{4})""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+
     // Regex para otros patrones bancarios comunes (Nequi, DaviPlata, etc.)
     private val nequiRegex = Regex(
         """Nequi:\s*Pagaste\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?en\s+(.+)""",
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
     )
 
+    private val nequiIngresoRegex = Regex(
+        """Nequi:\s*(?:Recibiste|Te\s+enviaron)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?de\s+(.+)""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+
     private val daviRegex = Regex(
         """DaviPlata:\s*Compraste\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?en\s+(.+)""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+
+    private val daviIngresoRegex = Regex(
+        """DaviPlata:\s*(?:Recibiste|Te\s+enviaron)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?de\s+(.+)""",
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
     )
     
@@ -49,7 +77,10 @@ object BancolombiaParser {
         // Primero intentar parsers específicos por contenido
         return tryParseBancolombia(text) ?: 
                tryParseNequi(text) ?: 
-               tryParseDaviPlata(text)
+               tryParseDaviPlata(text) ?:
+               tryParseIngresosBancolombia(text) ?:
+               tryParseIngresosNequi(text) ?:
+               tryParseIngresosDaviPlata(text)
     }
 
     private suspend fun tryParseBancolombia(text: String): Transaction? {
@@ -204,6 +235,147 @@ object BancolombiaParser {
                 source = "notif:daviPlata",
                 rawPreview = text.take(140),
                 categoryId = categoryId
+            )
+        }
+
+        return null
+    }
+
+    private suspend fun tryParseIngresosBancolombia(text: String): Transaction? {
+        if (!text.contains("Bancolombia", ignoreCase = true) && 
+            !text.contains("Recibiste", ignoreCase = true) && 
+            !text.contains("Depósito", ignoreCase = true) &&
+            !text.contains("Consignación", ignoreCase = true)) return null
+
+        // Transferencia recibida con fecha/hora
+        ingresoTransferenciaRegex.find(text)?.let { m ->
+            val amount = toCents(m.groupValues[1])
+            val dstLast4 = m.groupValues[2]
+            val ts = toEpoch(m.groupValues[3], m.groupValues[4])
+            val id = hash("${ts/60000}|$amount|INGRESO_TRANSFERENCIA|$dstLast4")
+            val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
+            
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "INGRESO",
+                description = "Transferencia recibida",
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = null,
+                dstLast4 = dstLast4,
+                source = "notif:sms",
+                rawPreview = text.take(140),
+                categoryId = categoryId,
+                isIncome = true
+            )
+        }
+
+        // Depósito/Consignación con fecha/hora
+        ingresoDepositoRegex.find(text)?.let { m ->
+            val amount = toCents(m.groupValues[1])
+            val dstLast4 = m.groupValues[2]
+            val ts = toEpoch(m.groupValues[3], m.groupValues[4])
+            val id = hash("${ts/60000}|$amount|INGRESO_DEPOSITO|$dstLast4")
+            val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Depósito")
+            
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "INGRESO",
+                description = "Depósito",
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = null,
+                dstLast4 = dstLast4,
+                source = "notif:sms",
+                rawPreview = text.take(140),
+                categoryId = categoryId,
+                isIncome = true
+            )
+        }
+
+        // Ingreso desde app (sin fecha/hora, usar timestamp actual)
+        appIngresoRegex.find(text)?.let { m ->
+            val amount = toCents(m.groupValues[1])
+            val dstLast4 = m.groupValues[2]
+            val ts = System.currentTimeMillis()
+            val id = hash("${ts/60000}|$amount|INGRESO_APP|$dstLast4")
+            val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
+            
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "INGRESO",
+                description = "Transferencia recibida",
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = null,
+                dstLast4 = dstLast4,
+                source = "notif:app",
+                rawPreview = text.take(140),
+                categoryId = categoryId,
+                isIncome = true
+            )
+        }
+
+        return null
+    }
+
+    private suspend fun tryParseIngresosNequi(text: String): Transaction? {
+        if (!text.contains("Nequi", ignoreCase = true) || 
+            !text.contains("Recibiste", ignoreCase = true)) return null
+
+        nequiIngresoRegex.find(text)?.let { m ->
+            val amount = toCents(m.groupValues[1])
+            val sender = norm(m.groupValues[2])
+            val ts = System.currentTimeMillis()
+            val id = hash("${ts/60000}|$amount|INGRESO_NEQUI|$sender")
+            val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
+            
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "INGRESO",
+                description = "Recibido de $sender",
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = "NEQU",
+                dstLast4 = null,
+                source = "notif:nequi",
+                rawPreview = text.take(140),
+                categoryId = categoryId,
+                isIncome = true
+            )
+        }
+
+        return null
+    }
+
+    private suspend fun tryParseIngresosDaviPlata(text: String): Transaction? {
+        if (!text.contains("DaviPlata", ignoreCase = true) || 
+            !text.contains("Recibiste", ignoreCase = true)) return null
+
+        daviIngresoRegex.find(text)?.let { m ->
+            val amount = toCents(m.groupValues[1])
+            val sender = norm(m.groupValues[2])
+            val ts = System.currentTimeMillis()
+            val id = hash("${ts/60000}|$amount|INGRESO_DAVI|$sender")
+            val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
+            
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "INGRESO",
+                description = "Recibido de $sender",
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = "DAVI",
+                dstLast4 = null,
+                source = "notif:daviPlata",
+                rawPreview = text.take(140),
+                categoryId = categoryId,
+                isIncome = true
             )
         }
 

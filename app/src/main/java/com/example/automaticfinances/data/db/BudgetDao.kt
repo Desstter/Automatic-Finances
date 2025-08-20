@@ -32,7 +32,9 @@ interface BudgetDao {
     
     // Analytics queries
     @Query("""
-        SELECT b.*, c.name as categoryName, c.color as categoryColor, c.icon as categoryIcon,
+        SELECT b.id, b.categoryId, b.limitAmountCents, b.year, b.month, 
+               b.alertAt50Percent, b.alertAt75Percent, b.alertAt100Percent,
+               c.name as categoryName, c.color as categoryColor, c.icon as categoryIcon,
                COALESCE(spent.totalSpent, 0) as currentSpentCents
         FROM budgets b 
         INNER JOIN categories c ON b.categoryId = c.id

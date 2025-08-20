@@ -9,6 +9,7 @@ import com.example.automaticfinances.data.repo.AnalyticsRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.models.ChartData
 import com.example.automaticfinances.data.models.ChartType
+import com.example.automaticfinances.data.models.IncomeVsExpenseComparison
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.YearMonth
@@ -90,6 +91,34 @@ class FinancialDashboardViewModel(
                 }
             }
         }
+        
+        // Load income vs expense data
+        viewModelScope.launch {
+            val currentMonth = _state.value.selectedMonth
+            
+            try {
+                val incomeVsExpenseComparison = analyticsRepository.getIncomeVsExpenseComparison(currentMonth)
+                val monthlyIncome = transactionRepository.getMonthlyIncomeTotal(
+                    currentMonth.year,
+                    currentMonth.monthValue
+                )
+                
+                _state.update { 
+                    it.copy(
+                        incomeVsExpenseComparison = incomeVsExpenseComparison,
+                        monthlyIncomeCents = monthlyIncome
+                    ) 
+                }
+            } catch (e: Exception) {
+                // Handle error
+                _state.update { 
+                    it.copy(
+                        incomeVsExpenseComparison = null,
+                        monthlyIncomeCents = 0L
+                    ) 
+                }
+            }
+        }
     }
     
     fun selectMonth(yearMonth: YearMonth) {
@@ -156,5 +185,8 @@ data class FinancialDashboardState(
     val isChartsExpanded: Boolean = false,
     // Selection state
     val selectedCategoryId: Long? = null,
-    val selectedBudgetId: Long? = null
+    val selectedBudgetId: Long? = null,
+    // Income data
+    val incomeVsExpenseComparison: IncomeVsExpenseComparison? = null,
+    val monthlyIncomeCents: Long = 0L
 )

@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [Transaction::class, Category::class, UserCategoryPreference::class, Budget::class, FinancialGoal::class], 
-    version = 4, 
+    version = 6, 
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -22,7 +22,7 @@ abstract class AppDatabase : RoomDatabase() {
         fun init(ctx: Context) {
             if (INSTANCE == null) {
                 INSTANCE = Room.databaseBuilder(ctx, AppDatabase::class.java, "autobook.db")
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
             }
         }

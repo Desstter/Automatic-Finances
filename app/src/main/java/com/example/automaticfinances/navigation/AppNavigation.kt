@@ -17,6 +17,8 @@ import com.example.automaticfinances.ui.insights.FinancialDashboardViewModel
 import com.example.automaticfinances.ui.budget.BudgetManagementScreen
 import com.example.automaticfinances.ui.goals.GoalsScreen
 import com.example.automaticfinances.ui.reports.ReportsScreen
+import com.example.automaticfinances.ui.income.IncomeScreen
+import com.example.automaticfinances.ui.income.AddIncomeScreen
 import com.example.automaticfinances.data.repo.BudgetRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
@@ -35,6 +37,8 @@ object Routes {
     const val GOALS_MANAGEMENT = "goals_management"
     const val REPORTS = "reports"
     const val BUDGET_DETAIL = "budget_detail/{budgetId}"
+    const val INCOME_MANAGEMENT = "income_management"
+    const val ADD_INCOME = "add_income"
     
     fun transactionDetail(transactionId: String) = "transaction_detail/$transactionId"
     fun budgetDetail(budgetId: String) = "budget_detail/$budgetId"
@@ -74,6 +78,9 @@ fun AppNavigation(
                 },
                 onViewInsightsClick = {
                     navController.navigate(Routes.FINANCIAL_DASHBOARD)
+                },
+                onViewIncomesClick = {
+                    navController.navigate(Routes.INCOME_MANAGEMENT)
                 },
                 onRefresh = {
                     homeViewModel.refreshData()
@@ -192,6 +199,28 @@ fun AppNavigation(
             // For now, navigate to budget management screen
             // In a full implementation, this would show budget detail with edit capability
             BudgetManagementScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        composable(Routes.INCOME_MANAGEMENT) {
+            IncomeScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onAddIncomeClick = {
+                    navController.navigate(Routes.ADD_INCOME)
+                },
+                onIncomeClick = { incomeId ->
+                    navController.navigate(Routes.transactionDetail(incomeId))
+                }
+            )
+        }
+        
+        composable(Routes.ADD_INCOME) {
+            AddIncomeScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 }

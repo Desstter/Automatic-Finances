@@ -22,6 +22,9 @@ data class HomeState(
     val transactions: List<TransactionWithCategory> = emptyList(),
     val categories: List<Category> = emptyList(),
     val totalMonthCOP: Long = 0L,
+    val monthlyIncome: Long = 0L,
+    val monthlyExpenses: Long = 0L,
+    val monthlyBalance: Long = 0L,
     val selectedCategoryFilter: Long? = null,
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
@@ -75,11 +78,14 @@ class HomeViewModel : ViewModel() {
                     val monthStart = currentDate.withDayOfMonth(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
                     val monthEnd = currentDate.withDayOfMonth(currentDate.lengthOfMonth()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
                     
-                    // Calcular total del mes
+                    // Calcular totales del mes separados por tipo
                     val monthlyTransactions = allTransactions.filter { transaction ->
                         transaction.date >= monthStart && transaction.date <= monthEnd
                     }
-                    val monthlyTotal = monthlyTransactions.sumOf { it.amountCents }
+                    val monthlyIncome = monthlyTransactions.filter { it.isIncome }.sumOf { it.amountCents }
+                    val monthlyExpenses = monthlyTransactions.filter { !it.isIncome }.sumOf { it.amountCents }
+                    val monthlyTotal = monthlyExpenses // Mantener compatibilidad
+                    val monthlyBalance = monthlyIncome - monthlyExpenses
                     
                     // Aplicar todos los filtros
                     val filteredTransactions = applyFilters(allTransactions)
@@ -90,6 +96,9 @@ class HomeViewModel : ViewModel() {
                         categories = categories,
                         transactions = filteredTransactions,
                         totalMonthCOP = monthlyTotal,
+                        monthlyIncome = monthlyIncome,
+                        monthlyExpenses = monthlyExpenses,
+                        monthlyBalance = monthlyBalance,
                         isLoading = false,
                         isRefreshing = false
                     )

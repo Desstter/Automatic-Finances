@@ -86,4 +86,66 @@ interface TransactionDao {
         WHERE date BETWEEN :startDate AND :endDate
     """)
     suspend fun getTransactionCountForDateRange(startDate: String, endDate: String): Int
+    
+    // ======= INCOME/EXPENSE SPECIFIC QUERIES =======
+    
+    @Query("SELECT * FROM transactions WHERE isIncome = 1 ORDER BY date DESC, time DESC")
+    fun getIncomes(): Flow<List<Transaction>>
+    
+    @Query("SELECT * FROM transactions WHERE isIncome = 0 ORDER BY date DESC, time DESC")
+    fun getExpenses(): Flow<List<Transaction>>
+    
+    @Query("""
+        SELECT t.*, c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
+        FROM transactions t
+        LEFT JOIN categories c ON t.categoryId = c.id
+        WHERE t.isIncome = 1
+        ORDER BY t.date DESC, t.time DESC
+    """)
+    fun getIncomesWithCategories(): Flow<List<TransactionWithCategory>>
+    
+    @Query("""
+        SELECT t.*, c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
+        FROM transactions t
+        LEFT JOIN categories c ON t.categoryId = c.id
+        WHERE t.isIncome = 0
+        ORDER BY t.date DESC, t.time DESC
+    """)
+    fun getExpensesWithCategories(): Flow<List<TransactionWithCategory>>
+    
+    @Query("""
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
+        WHERE isIncome = 1 AND date LIKE printf('%04d-%02d%%', :year, :month)
+    """)
+    suspend fun getMonthlyIncomeTotal(year: Int, month: Int): Long
+    
+    @Query("""
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
+        WHERE isIncome = 0 AND date LIKE printf('%04d-%02d%%', :year, :month)
+    """)
+    suspend fun getMonthlyExpenseTotal(year: Int, month: Int): Long
+    
+    @Query("""
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
+        WHERE isIncome = 1 AND date BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getIncomeTotalForDateRange(startDate: String, endDate: String): Long
+    
+    @Query("""
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
+        WHERE isIncome = 0 AND date BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getExpenseTotalForDateRange(startDate: String, endDate: String): Long
+    
+    @Query("""
+        SELECT COUNT(*) FROM transactions 
+        WHERE isIncome = 1 AND date BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getIncomeCountForDateRange(startDate: String, endDate: String): Int
+    
+    @Query("""
+        SELECT COUNT(*) FROM transactions 
+        WHERE isIncome = 0 AND date BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getExpenseCountForDateRange(startDate: String, endDate: String): Int
 }

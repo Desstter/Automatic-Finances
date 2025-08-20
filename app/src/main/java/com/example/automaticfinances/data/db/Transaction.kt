@@ -2,6 +2,7 @@ package com.example.automaticfinances.data.db
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.time.Instant
 import java.time.ZoneId
@@ -16,6 +17,12 @@ import java.time.format.DateTimeFormatter
             childColumns = ["categoryId"],
             onDelete = ForeignKey.SET_NULL
         )
+    ],
+    indices = [
+        Index(value = ["categoryId"]),
+        Index(value = ["date"]),
+        Index(value = ["isIncome"]),
+        Index(value = ["date", "isIncome"])
     ]
 )
 data class Transaction(
@@ -32,6 +39,7 @@ data class Transaction(
     val source: String,                  // "notif:sms"
     val categoryId: Long? = null,        // FK a categories (nuevo)
     val notes: String = "",              // Notas adicionales del usuario (nuevo)
+    val isIncome: Boolean = false,       // true para ingresos, false para gastos
     val rawPreview: String               // primeros 140 chars del SMS original
 ) {
     companion object {
@@ -47,7 +55,8 @@ data class Transaction(
             dstLast4: String?,
             source: String,
             rawPreview: String,
-            categoryId: Long? = null
+            categoryId: Long? = null,
+            isIncome: Boolean = false
         ): Transaction {
             val instant = Instant.ofEpochMilli(ts)
             val zonedDateTime = instant.atZone(ZoneId.of("America/Bogota"))
@@ -67,6 +76,7 @@ data class Transaction(
                 dstLast4 = dstLast4,
                 source = source,
                 categoryId = categoryId,
+                isIncome = isIncome,
                 rawPreview = rawPreview
             )
         }

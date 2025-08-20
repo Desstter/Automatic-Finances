@@ -2,6 +2,7 @@ package com.example.automaticfinances.data.db
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
@@ -13,6 +14,12 @@ import androidx.room.PrimaryKey
             childColumns = ["categoryId"],
             onDelete = ForeignKey.SET_NULL
         )
+    ],
+    indices = [
+        Index(value = ["categoryId"]),
+        Index(value = ["targetDate"]),
+        Index(value = ["type"]),
+        Index(value = ["isCompleted"])
     ]
 )
 data class FinancialGoal(

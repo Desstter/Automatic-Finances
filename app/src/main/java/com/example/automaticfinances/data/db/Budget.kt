@@ -2,6 +2,7 @@ package com.example.automaticfinances.data.db
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.time.YearMonth
 
@@ -14,6 +15,11 @@ import java.time.YearMonth
             childColumns = ["categoryId"],
             onDelete = ForeignKey.CASCADE
         )
+    ],
+    indices = [
+        Index(value = ["categoryId"]),
+        Index(value = ["year", "month"]),
+        Index(value = ["categoryId", "year", "month"], unique = true)
     ]
 )
 data class Budget(

@@ -187,3 +187,48 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_type ON financial_goals(type)")
     }
 }
+
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Agregar campo isIncome a la tabla transactions
+        database.execSQL("ALTER TABLE transactions ADD COLUMN isIncome INTEGER NOT NULL DEFAULT 0")
+        
+        // Crear índice para mejor performance en queries de ingresos/gastos
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_isIncome ON transactions(isIncome)")
+        
+        // Crear categorías predefinidas para ingresos
+        val incomeCategories = listOf(
+            "('💰 Salario', '#4CAF50', '💰', 1, 1)",
+            "('💼 Freelance', '#2196F3', '💼', 1, 1)", 
+            "('🏪 Ventas', '#FF9800', '🏪', 1, 1)",
+            "('🎁 Regalos', '#E91E63', '🎁', 1, 1)",
+            "('📈 Inversiones', '#9C27B0', '📈', 1, 1)",
+            "('💸 Devoluciones', '#607D8B', '💸', 1, 1)",
+            "('🎯 Bonos', '#795548', '🎯', 1, 1)",
+            "('📋 Otros ingresos', '#9E9E9E', '📋', 1, 1)"
+        )
+        
+        for (category in incomeCategories) {
+            database.execSQL("INSERT INTO categories (name, color, icon, isDefault, isActive) VALUES $category")
+        }
+    }
+}
+
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Agregar índices para optimizar performance
+        
+        // Índices adicionales para transactions (algunos ya existen)
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_isIncome ON transactions(isIncome)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_date_isIncome ON transactions(date, isIncome)")
+        
+        // Índices para budgets
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_year_month ON budgets(year, month)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_category_month ON budgets(categoryId, year, month)")
+        
+        // Índices para financial_goals
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_targetDate ON financial_goals(targetDate)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_type ON financial_goals(type)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_isCompleted ON financial_goals(isCompleted)")
+    }
+}

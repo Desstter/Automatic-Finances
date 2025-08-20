@@ -29,7 +29,8 @@ data class MonthlySpending(
     val yearMonth: YearMonth,
     val totalCents: Long,
     val transactionCount: Int,
-    val averageDailySpending: Long = 0L
+    val averageDailySpending: Long = 0L,
+    val isIncome: Boolean = false
 ) {
     companion object {
         fun create(yearMonth: YearMonth, totalCents: Long, transactionCount: Int): MonthlySpending {
@@ -116,3 +117,51 @@ data class BarChartItem(
     val yPosition: Float,
     val color: String
 )
+
+// ======= INCOME DATA MODELS =======
+
+data class IncomeVsExpenseComparison(
+    val yearMonth: YearMonth,
+    val totalIncomeCents: Long,
+    val totalExpensesCents: Long,
+    val netBalanceCents: Long,
+    val incomePercentage: Float,
+    val expensePercentage: Float
+) {
+    val hasPositiveBalance: Boolean
+        get() = netBalanceCents >= 0
+    
+    val balanceRatio: Float
+        get() = if (totalExpensesCents == 0L) 1f 
+                else (totalIncomeCents.toFloat() / totalExpensesCents.toFloat())
+}
+
+data class IncomeChartData(
+    val categoryIncome: List<CategorySpending> = emptyList(),
+    val incomeVsExpenseTrend: List<MonthlySpending> = emptyList(),
+    val incomeVsExpenseComparison: IncomeVsExpenseComparison? = null,
+    val selectedMonth: YearMonth = YearMonth.now(),
+    val totalIncomeCents: Long = 0L,
+    val isLoading: Boolean = false,
+    val error: String? = null
+)
+
+data class IncomeExpenseBalance(
+    val monthlyIncome: Long,
+    val monthlyExpenses: Long,
+    val netBalance: Long,
+    val savingsRate: Float // percentage of income saved
+) {
+    companion object {
+        fun calculate(income: Long, expenses: Long): IncomeExpenseBalance {
+            val balance = income - expenses
+            val savingsRate = if (income > 0) (balance.toFloat() / income) * 100f else 0f
+            return IncomeExpenseBalance(
+                monthlyIncome = income,
+                monthlyExpenses = expenses,
+                netBalance = balance,
+                savingsRate = maxOf(0f, savingsRate)
+            )
+        }
+    }
+}

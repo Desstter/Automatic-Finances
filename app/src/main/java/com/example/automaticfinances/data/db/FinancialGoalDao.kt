@@ -38,7 +38,9 @@ interface FinancialGoalDao {
     
     // Analytics queries
     @Query("""
-        SELECT fg.*, c.name as categoryName, c.color as categoryColor, c.icon as categoryIcon
+        SELECT fg.id, fg.name, fg.description, fg.targetAmountCents, fg.currentAmountCents, 
+               fg.type, fg.categoryId, fg.targetDate, fg.isCompleted,
+               c.name as categoryName, c.color as categoryColor, c.icon as categoryIcon
         FROM financial_goals fg
         LEFT JOIN categories c ON fg.categoryId = c.id
         WHERE fg.isActive = 1

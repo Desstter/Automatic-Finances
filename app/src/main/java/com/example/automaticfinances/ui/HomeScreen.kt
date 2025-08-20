@@ -36,6 +36,7 @@ fun HomeScreen(
     onAddTransactionClick: () -> Unit = {},
     onViewHistoryClick: () -> Unit = {},
     onViewInsightsClick: () -> Unit = {},
+    onViewIncomesClick: () -> Unit = {},
     onRefresh: () -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
     onToggleFilters: () -> Unit = {},
@@ -80,6 +81,13 @@ fun HomeScreen(
                     Text("📊")
                 }
                 FloatingActionButton(
+                    onClick = onViewIncomesClick,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                    containerColor = Color(0xFF4CAF50)
+                ) {
+                    Text("💰", color = Color.White)
+                }
+                FloatingActionButton(
                     onClick = onAddTransactionClick,
                     modifier = Modifier.padding(bottom = 8.dp)
                 ) {
@@ -119,15 +127,17 @@ fun HomeScreen(
                 }
                 
                 // Monthly Total Card (only if there are transactions)
-                if (state.totalMonthCOP > 0) {
-                    item {
-                        CompactMonthlyTotalCard(
-                            totalAmount = state.totalMonthCOP,
-                            numberFormat = nf,
-                            currentMonth = state.currentMonth,
-                            onViewHistoryClick = onViewHistoryClick
-                        )
-                    }
+                // Balance Summary Card
+                item {
+                    MonthlyBalanceCard(
+                        monthlyIncome = state.monthlyIncome,
+                        monthlyExpenses = state.monthlyExpenses,
+                        monthlyBalance = state.monthlyBalance,
+                        numberFormat = nf,
+                        currentMonth = state.currentMonth,
+                        onViewHistoryClick = onViewHistoryClick,
+                        onViewIncomesClick = onViewIncomesClick
+                    )
                 }
                 
                 // Intelligence Insights Card (only if intelligence is active)
@@ -1128,6 +1138,126 @@ fun EmptyTransactionsState(
                     Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Limpiar Filtros")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MonthlyBalanceCard(
+    monthlyIncome: Long,
+    monthlyExpenses: Long,
+    monthlyBalance: Long,
+    numberFormat: NumberFormat,
+    currentMonth: String,
+    onViewHistoryClick: () -> Unit,
+    onViewIncomesClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (monthlyBalance >= 0) {
+                Color(0xFF4CAF50).copy(alpha = 0.1f)
+            } else {
+                Color(0xFFF44336).copy(alpha = 0.1f)
+            }
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Balance ${currentMonth}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = numberFormat.format(monthlyBalance / 100.0),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (monthlyBalance >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                    )
+                }
+                
+                Text(
+                    text = if (monthlyBalance >= 0) "📈" else "📉",
+                    style = MaterialTheme.typography.displaySmall
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Income and Expenses Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Income Card
+                Card(
+                    modifier = Modifier.weight(1f),
+                    onClick = onViewIncomesClick,
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "💰",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "Ingresos",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = numberFormat.format(monthlyIncome / 100.0),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF4CAF50)
+                        )
+                    }
+                }
+                
+                // Expenses Card
+                Card(
+                    modifier = Modifier.weight(1f),
+                    onClick = onViewHistoryClick,
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFF44336).copy(alpha = 0.1f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "💸",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "Gastos",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = numberFormat.format(monthlyExpenses / 100.0),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFF44336)
+                        )
+                    }
                 }
             }
         }

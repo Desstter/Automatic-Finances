@@ -66,7 +66,11 @@ class CategoryRepository {
         }
         
         // 2. FALLBACK: Usar sistema de reglas por palabras clave
-        return getKeywordBasedCategoryId(description)
+        return if (transactionType == "INGRESO") {
+            getIncomeKeywordBasedCategoryId(description)
+        } else {
+            getExpenseKeywordBasedCategoryId(description)
+        }
     }
     
     suspend fun getIntelligentCategorySuggestion(description: String): CategorySuggestion? {
@@ -77,7 +81,7 @@ class CategoryRepository {
         }
         
         // Si no hay aprendizaje, usar palabras clave pero con menor confianza
-        val keywordCategoryId = getKeywordBasedCategoryId(description)
+        val keywordCategoryId = getExpenseKeywordBasedCategoryId(description)
         if (keywordCategoryId != null) {
             val categories = dao.getAllActiveSync()
             val category = categories.find { it.id == keywordCategoryId }
@@ -102,7 +106,7 @@ class CategoryRepository {
     
     suspend fun getCategoryAccuracyStats() = preferenceRepo.getCategoryAccuracyStats()
     
-    private suspend fun getKeywordBasedCategoryId(description: String): Long? {
+    private suspend fun getExpenseKeywordBasedCategoryId(description: String): Long? {
         val categories = dao.getAllActiveSync()
         val descriptionLower = description.lowercase()
         
@@ -170,6 +174,71 @@ class CategoryRepository {
                 categories.find { it.name == "Ropa" }?.id
             
             else -> categories.find { it.name == "Otros" }?.id
+        }
+    }
+    
+    private suspend fun getIncomeKeywordBasedCategoryId(description: String): Long? {
+        val categories = dao.getAllActiveSync()
+        val descriptionLower = description.lowercase()
+        
+        return when {
+            // Salario/Nómina
+            descriptionLower.contains("salario") ||
+            descriptionLower.contains("nomina") ||
+            descriptionLower.contains("sueldo") ||
+            descriptionLower.contains("pago laboral") -> 
+                categories.find { it.name == "💰 Salario" }?.id
+                
+            // Freelance/Trabajo independiente
+            descriptionLower.contains("freelance") ||
+            descriptionLower.contains("honorarios") ||
+            descriptionLower.contains("consultoria") ||
+            descriptionLower.contains("trabajo independiente") -> 
+                categories.find { it.name == "💼 Freelance" }?.id
+                
+            // Ventas
+            descriptionLower.contains("venta") ||
+            descriptionLower.contains("vendido") ||
+            descriptionLower.contains("comercio") ||
+            descriptionLower.contains("negocio") -> 
+                categories.find { it.name == "🏪 Ventas" }?.id
+                
+            // Regalos/Donaciones
+            descriptionLower.contains("regalo") ||
+            descriptionLower.contains("donacion") ||
+            descriptionLower.contains("obsequio") ||
+            descriptionLower.contains("familiar") -> 
+                categories.find { it.name == "🎁 Regalos" }?.id
+                
+            // Inversiones/Dividendos
+            descriptionLower.contains("dividendo") ||
+            descriptionLower.contains("inversion") ||
+            descriptionLower.contains("rendimiento") ||
+            descriptionLower.contains("ganancia") -> 
+                categories.find { it.name == "📈 Inversiones" }?.id
+                
+            // Devoluciones/Reembolsos
+            descriptionLower.contains("devolucion") ||
+            descriptionLower.contains("reembolso") ||
+            descriptionLower.contains("reintegro") ||
+            descriptionLower.contains("cancelacion") -> 
+                categories.find { it.name == "💸 Devoluciones" }?.id
+                
+            // Bonos/Premios
+            descriptionLower.contains("bono") ||
+            descriptionLower.contains("premio") ||
+            descriptionLower.contains("incentivo") ||
+            descriptionLower.contains("comision") -> 
+                categories.find { it.name == "🎯 Bonos" }?.id
+                
+            // Transferencia recibida (genérico)
+            descriptionLower.contains("transferencia") ||
+            descriptionLower.contains("recibido") ||
+            descriptionLower.contains("deposito") ||
+            descriptionLower.contains("consignacion") -> 
+                categories.find { it.name == "💰 Salario" }?.id // Default para transferencias
+                
+            else -> categories.find { it.name == "📋 Otros ingresos" }?.id
         }
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.automaticfinances.ui.components.*
 import com.example.automaticfinances.ui.components.charts.FinancialChartsSection
+import com.example.automaticfinances.ui.components.charts.IncomeVsExpenseChart
 import com.example.automaticfinances.data.db.BudgetStatus
 import com.example.automaticfinances.data.db.BudgetSummary
 import java.time.YearMonth
@@ -97,6 +98,15 @@ fun FinancialDashboardScreen(
                     onBudgetClick = viewModel::onBudgetClicked,
                     initialExpanded = state.isChartsExpanded
                 )
+            }
+            
+            // Income vs Expense Chart
+            if (state.incomeVsExpenseComparison != null) {
+                item {
+                    IncomeVsExpenseChart(
+                        comparison = state.incomeVsExpenseComparison!!
+                    )
+                }
             }
             
             // Budget Status Section
