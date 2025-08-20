@@ -6,7 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -64,7 +64,7 @@ fun BudgetManagementScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 }
             )
@@ -177,7 +177,7 @@ private fun MonthSelector(
     onMonthChanged: (YearMonth) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale("es", "CO"))
+    val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("es-CO"))
     
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -219,7 +219,7 @@ private fun BudgetSummaryCard(
     selectedMonth: YearMonth,
     modifier: Modifier = Modifier
 ) {
-    val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
+    val nf = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO")) }
     val totalBudget = budgets.sumOf { it.limitAmountCents }
     val activeBudgets = budgets.count { it.isActive }
     
@@ -284,7 +284,7 @@ private fun BudgetManagementCard(
     onToggleActive: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
+    val nf = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO")) }
     
     Card(
         modifier = modifier.fillMaxWidth(),

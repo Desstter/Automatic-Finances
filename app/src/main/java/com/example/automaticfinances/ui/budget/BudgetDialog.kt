@@ -3,6 +3,7 @@ package com.example.automaticfinances.ui.budget
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,8 +41,8 @@ fun BudgetDialog(
     var expandedCategory by remember { mutableStateOf(false) }
     var showError by remember { mutableStateOf(false) }
     
-    val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
-    val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale("es", "CO"))
+    val nf = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO")) }
+    val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("es-CO"))
     
     val selectedCategory = categories.find { it.id == selectedCategoryId }
     val isEdit = budget != null
@@ -96,7 +97,7 @@ fun BudgetDialog(
                                     )
                                 },
                                 modifier = Modifier
-                                    .menuAnchor()
+                                    .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
                                     .fillMaxWidth(),
                                 colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
                             )

@@ -135,7 +135,7 @@ private fun MonthSelector(
     onMonthChanged: (YearMonth) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale("es", "CO"))
+    val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("es-CO"))
     
     Card(
         modifier = modifier.fillMaxWidth(),

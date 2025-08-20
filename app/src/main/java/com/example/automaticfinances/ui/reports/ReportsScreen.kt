@@ -5,7 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -74,7 +74,7 @@ fun ReportsScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 },
                 actions = {
@@ -213,7 +213,7 @@ private fun ReportsSummarySection(
     selectedPeriod: ReportPeriod,
     modifier: Modifier = Modifier
 ) {
-    val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
+    val nf = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO")) }
     
     summary?.let { 
         Card(
@@ -345,7 +345,7 @@ private fun CategoryBreakdownSection(
     breakdown: List<CategoryBreakdown>,
     modifier: Modifier = Modifier
 ) {
-    val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
+    val nf = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO")) }
     
     Card(
         modifier = modifier.fillMaxWidth()
@@ -424,7 +424,7 @@ private fun MonthlyTrendsSection(
     trends: List<MonthlyTrend>,
     modifier: Modifier = Modifier
 ) {
-    val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
+    val nf = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO")) }
     
     Card(
         modifier = modifier.fillMaxWidth()
@@ -486,8 +486,8 @@ private fun TopTransactionsSection(
     transactions: List<TopTransaction>,
     modifier: Modifier = Modifier
 ) {
-    val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
-    val dateFormat = remember { SimpleDateFormat("dd/MM", Locale("es", "CO")) }
+    val nf = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO")) }
+    val dateFormat = remember { SimpleDateFormat("dd/MM", Locale.forLanguageTag("es-CO")) }
     
     Card(
         modifier = modifier.fillMaxWidth()

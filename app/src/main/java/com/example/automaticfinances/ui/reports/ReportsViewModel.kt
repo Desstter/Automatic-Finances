@@ -143,7 +143,7 @@ class ReportsViewModel(
             
             val trends = mutableListOf<MonthlyTrend>()
             val currentMonth = YearMonth.now()
-            val formatter = DateTimeFormatter.ofPattern("MMM yyyy", Locale("es", "CO"))
+            val formatter = DateTimeFormatter.ofPattern("MMM yyyy", Locale.forLanguageTag("es-CO"))
             
             for (i in monthsToLoad - 1 downTo 0) {
                 val month = currentMonth.minusMonths(i.toLong())
