@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.automaticfinances.ui.components.*
+import com.example.automaticfinances.ui.components.charts.FinancialChartsSection
 import com.example.automaticfinances.data.db.BudgetStatus
 import com.example.automaticfinances.data.db.BudgetSummary
 import java.time.YearMonth
@@ -83,6 +84,17 @@ fun FinancialDashboardScreen(
                     previousMonthSpent = state.previousMonthSpentCents,
                     onBudgetClick = onNavigateToBudgetManagement,
                     onSpendingClick = onNavigateToReports
+                )
+            }
+            
+            // Financial Charts Section
+            item {
+                FinancialChartsSection(
+                    chartData = state.chartData,
+                    onChartTypeChanged = viewModel::selectChartType,
+                    onCategoryClick = viewModel::onCategoryClicked,
+                    onBudgetClick = viewModel::onBudgetClicked,
+                    initialExpanded = state.isChartsExpanded
                 )
             }
             

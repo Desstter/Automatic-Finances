@@ -5,20 +5,33 @@ import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.db.*
 import com.example.automaticfinances.data.repo.BudgetRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
+import com.example.automaticfinances.data.repo.AnalyticsRepository
+import com.example.automaticfinances.data.repo.CategoryRepository
+import com.example.automaticfinances.data.models.ChartData
+import com.example.automaticfinances.data.models.ChartType
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.YearMonth
 
 class FinancialDashboardViewModel(
     private val budgetRepository: BudgetRepository,
-    private val transactionRepository: TransactionRepository
+    private val transactionRepository: TransactionRepository,
+    private val categoryRepository: CategoryRepository
 ) : ViewModel() {
+    
+    // Create analytics repository
+    private val analyticsRepository = AnalyticsRepository(
+        transactionRepository = transactionRepository,
+        budgetRepository = budgetRepository,
+        categoryRepository = categoryRepository
+    )
     
     private val _state = MutableStateFlow(FinancialDashboardState())
     val state: StateFlow<FinancialDashboardState> = _state.asStateFlow()
     
     init {
         loadDashboardData()
+        loadChartData()
     }
     
     fun loadDashboardData() {
@@ -82,10 +95,46 @@ class FinancialDashboardViewModel(
     fun selectMonth(yearMonth: YearMonth) {
         _state.update { it.copy(selectedMonth = yearMonth) }
         loadDashboardData()
+        loadChartData()
     }
     
     fun refreshData() {
         loadDashboardData()
+        loadChartData()
+    }
+    
+    // Chart-related methods
+    fun loadChartData() {
+        viewModelScope.launch {
+            val currentMonth = _state.value.selectedMonth
+            
+            analyticsRepository.getChartDataForMonth(currentMonth)
+                .collect { chartData ->
+                    _state.update { it.copy(chartData = chartData) }
+                }
+        }
+    }
+    
+    fun selectChartType(chartType: ChartType) {
+        _state.update { 
+            it.copy(selectedChartType = chartType) 
+        }
+    }
+    
+    fun onCategoryClicked(categoryId: Long) {
+        // Handle category click - could navigate to category details
+        // Implementation depends on navigation requirements
+    }
+    
+    fun onBudgetClicked(budgetId: Long) {
+        // Handle budget click - could navigate to budget management
+        // Implementation depends on navigation requirements
+    }
+    
+    fun toggleChartsExpanded() {
+        _state.update { 
+            it.copy(isChartsExpanded = !it.isChartsExpanded) 
+        }
     }
 }
 
@@ -96,5 +145,9 @@ data class FinancialDashboardState(
     val monthlySpentCents: Long = 0L,
     val previousMonthSpentCents: Long? = null,
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    // Chart-related state
+    val chartData: ChartData = ChartData(),
+    val selectedChartType: ChartType = ChartType.PIE_CATEGORY_SPENDING,
+    val isChartsExpanded: Boolean = false
 )

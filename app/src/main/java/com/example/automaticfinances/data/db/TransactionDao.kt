@@ -74,4 +74,16 @@ interface TransactionDao {
     
     @Query("UPDATE transactions SET categoryId = :categoryId WHERE id = :transactionId")
     suspend fun updateCategory(transactionId: String, categoryId: Long)
+    
+    @Query("""
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
+        WHERE categoryId IS NULL AND date BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getUncategorizedTotalForDateRange(startDate: String, endDate: String): Long?
+    
+    @Query("""
+        SELECT COUNT(*) FROM transactions 
+        WHERE date BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getTransactionCountForDateRange(startDate: String, endDate: String): Int
 }
