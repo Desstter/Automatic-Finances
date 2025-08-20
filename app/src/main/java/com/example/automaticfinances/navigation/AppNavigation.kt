@@ -16,6 +16,7 @@ import com.example.automaticfinances.ui.insights.FinancialDashboardScreen
 import com.example.automaticfinances.ui.insights.FinancialDashboardViewModel
 import com.example.automaticfinances.data.repo.BudgetRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
+import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.db.AppDatabase
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -132,9 +133,10 @@ fun AppNavigation(
                 categoryDao = AppDatabase.get().categoryDao()
             )
             val transactionRepository = TransactionRepository()
+            val categoryRepository = CategoryRepository()
             
             val dashboardViewModel: FinancialDashboardViewModel = viewModel {
-                FinancialDashboardViewModel(budgetRepository, transactionRepository)
+                FinancialDashboardViewModel(budgetRepository, transactionRepository, categoryRepository)
             }
             
             FinancialDashboardScreen(

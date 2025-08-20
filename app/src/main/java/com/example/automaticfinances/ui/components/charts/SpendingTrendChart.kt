@@ -104,6 +104,9 @@ fun SpendingTrendChart(
                 containerColor = MaterialTheme.colorScheme.surface
             )
         ) {
+            val primaryColor = MaterialTheme.colorScheme.primary
+            val surfaceColor = MaterialTheme.colorScheme.surface
+            
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -114,7 +117,7 @@ fun SpendingTrendChart(
                         .fillMaxSize()
                         .pointerInput(chartPoints) {
                             detectTapGestures { offset ->
-                                val nearestPointIndex = findNearestPoint(offset, chartPoints, size)
+                                val nearestPointIndex = findNearestPoint(offset, chartPoints, Size(size.width.toFloat(), size.height.toFloat()))
                                 if (nearestPointIndex != -1) {
                                     selectedPointIndex = nearestPointIndex
                                     touchPosition = offset
@@ -131,8 +134,8 @@ fun SpendingTrendChart(
                     drawInteractiveTrendChart(
                         points = chartPoints,
                         canvasSize = size,
-                        primaryColor = MaterialTheme.colorScheme.primary,
-                        surfaceColor = MaterialTheme.colorScheme.surface,
+                        primaryColor = primaryColor,
+                        surfaceColor = surfaceColor,
                         lineAnimation = lineAnimation.value,
                         pointAnimations = pointAnimations.map { it.value },
                         selectedPointIndex = selectedPointIndex
@@ -271,7 +274,7 @@ private fun YAxisLabels(
     maxValue: Long,
     modifier: Modifier = Modifier
 ) {
-    val nf = remember { NumberFormat.getCompactNumberInstance(Locale("es", "CO"), NumberFormat.Style.SHORT) }
+    val nf = remember { NumberFormat.getInstance(Locale("es", "CO")) }
     val steps = 4
     val range = maxValue - minValue
     val stepValue = range / steps

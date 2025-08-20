@@ -276,6 +276,7 @@ private fun BudgetComparisonBar(
                         spentAmountCents = spent,
                         barColor = barColor,
                         backgroundColor = Color.Gray.copy(alpha = 0.2f),
+                        errorColor = Color(0xFFF44336),
                         canvasSize = size
                     )
                 }
@@ -404,6 +405,7 @@ private fun DrawScope.drawBudgetComparisonBar(
     spentAmountCents: Long,
     barColor: Color,
     backgroundColor: Color,
+    errorColor: Color,
     canvasSize: Size
 ) {
     val cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
@@ -433,7 +435,7 @@ private fun DrawScope.drawBudgetComparisonBar(
     if (spentAmountCents > budgetAmountCents) {
         val overflowWidth = 4.dp.toPx()
         drawRect(
-            color = MaterialTheme.colorScheme.error,
+            color = errorColor,
             topLeft = Offset(canvasSize.width - overflowWidth, 0f),
             size = Size(overflowWidth, canvasSize.height)
         )

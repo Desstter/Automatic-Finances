@@ -5,6 +5,7 @@ import com.example.automaticfinances.data.models.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.first
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
@@ -99,7 +100,7 @@ class AnalyticsRepository(
         
         return budgetStatuses.first().map { budgetStatus ->
             BudgetComparison.fromBudgetStatus(budgetStatus)
-        }.sortedByDescending { it.utilizationPercentage }
+        }.sortedByDescending { budgetComparison -> budgetComparison.utilizationPercentage }
     }
     
     fun getChartDataForMonth(yearMonth: YearMonth): Flow<ChartData> = flow {

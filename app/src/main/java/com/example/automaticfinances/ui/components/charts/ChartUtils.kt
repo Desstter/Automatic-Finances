@@ -17,7 +17,7 @@ object ChartUtils {
     
     // Colombian peso formatter
     val colombianPesoFormatter: NumberFormat = NumberFormat.getCurrencyInstance(Locale("es", "CO"))
-    val compactFormatter: NumberFormat = NumberFormat.getCompactNumberInstance(Locale("es", "CO"), NumberFormat.Style.SHORT)
+    val compactFormatter: NumberFormat = NumberFormat.getInstance(Locale("es", "CO"))
     
     // Common chart colors
     object Colors {

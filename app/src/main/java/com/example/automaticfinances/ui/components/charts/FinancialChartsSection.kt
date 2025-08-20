@@ -7,6 +7,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -141,7 +148,7 @@ private fun ChartsHeaderSection(
             }
         ) {
             Icon(
-                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                 contentDescription = null // Description is on the button itself
             )
         }
@@ -196,19 +203,19 @@ private fun ChartTypeTabs(
         ChartTypeTab(
             type = ChartType.PIE_CATEGORY_SPENDING,
             title = "Distribución",
-            icon = Icons.Default.PieChart,
+            icon = Icons.Default.Info,
             description = "Por categoría"
         ),
         ChartTypeTab(
             type = ChartType.LINE_MONTHLY_TREND,
             title = "Tendencia",
-            icon = Icons.Default.TrendingUp,
+            icon = Icons.Default.Info,
             description = "Mensual"
         ),
         ChartTypeTab(
             type = ChartType.BAR_BUDGET_COMPARISON,
             title = "Presupuestos",
-            icon = Icons.Default.BarChart,
+            icon = Icons.Default.Info,
             description = "vs. Gastado"
         )
     )
@@ -217,7 +224,7 @@ private fun ChartTypeTabs(
         selectedTabIndex = tabs.indexOfFirst { it.type == selectedType },
         modifier = modifier.semantics {
             contentDescription = "Selector de tipo de gráfico financiero"
-            role = Role.TabList
+            role = Role.Tab
         },
         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -225,7 +232,7 @@ private fun ChartTypeTabs(
             if (tabPositions.isNotEmpty()) {
                 TabRowDefaults.Indicator(
                     modifier = Modifier
-                        .tabIndicatorOffset(tabPositions[tabs.indexOfFirst { it.type == selectedType }])
+                        .wrapContentSize(Alignment.BottomStart)
                         .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)),
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -308,37 +315,28 @@ private fun ChartContentSection(
                 )
             }
             else -> {
-                AnimatedContent(
-                    targetState = chartType,
-                    transitionSpec = {
-                        fadeIn(animationSpec = tween(300)) with 
-                        fadeOut(animationSpec = tween(300))
-                    },
-                    label = "ChartTypeTransition"
-                ) { currentType ->
-                    when (currentType) {
-                        ChartType.PIE_CATEGORY_SPENDING -> {
-                            SpendingPieChart(
-                                categorySpending = chartData.categorySpending,
-                                onSectorClick = { categorySpending ->
-                                    onCategoryClick(categorySpending.categoryId)
-                                }
-                            )
-                        }
-                        ChartType.LINE_MONTHLY_TREND -> {
-                            SpendingTrendChart(
-                                monthlySpending = chartData.monthlyTrend,
-                                onPointClick = { /* Handle month click if needed */ }
-                            )
-                        }
-                        ChartType.BAR_BUDGET_COMPARISON -> {
-                            BudgetComparisonChart(
-                                budgetComparisons = chartData.budgetComparisons,
-                                onBudgetClick = { budgetComparison ->
-                                    onBudgetClick(budgetComparison.budgetStatus.budget.id)
-                                }
-                            )
-                        }
+                when (chartType) {
+                    ChartType.PIE_CATEGORY_SPENDING -> {
+                        SpendingPieChart(
+                            categorySpending = chartData.categorySpending,
+                            onSectorClick = { categorySpending ->
+                                onCategoryClick(categorySpending.categoryId)
+                            }
+                        )
+                    }
+                    ChartType.LINE_MONTHLY_TREND -> {
+                        SpendingTrendChart(
+                            monthlySpending = chartData.monthlyTrend,
+                            onPointClick = { /* Handle month click if needed */ }
+                        )
+                    }
+                    ChartType.BAR_BUDGET_COMPARISON -> {
+                        BudgetComparisonChart(
+                            budgetComparisons = chartData.budgetComparisons,
+                            onBudgetClick = { budgetComparison ->
+                                onBudgetClick(budgetComparison.budgetStatus.budget.id)
+                            }
+                        )
                     }
                 }
             }
