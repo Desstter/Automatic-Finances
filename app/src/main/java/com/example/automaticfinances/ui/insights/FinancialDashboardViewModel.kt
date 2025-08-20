@@ -122,13 +122,17 @@ class FinancialDashboardViewModel(
     }
     
     fun onCategoryClicked(categoryId: Long) {
-        // Handle category click - could navigate to category details
-        // Implementation depends on navigation requirements
+        _state.update { 
+            it.copy(selectedCategoryId = categoryId) 
+        }
+        // Additional logic can be added here for category-specific actions
     }
     
     fun onBudgetClicked(budgetId: Long) {
-        // Handle budget click - could navigate to budget management
-        // Implementation depends on navigation requirements
+        _state.update { 
+            it.copy(selectedBudgetId = budgetId) 
+        }
+        // Additional logic can be added here for budget-specific actions
     }
     
     fun toggleChartsExpanded() {
@@ -149,5 +153,8 @@ data class FinancialDashboardState(
     // Chart-related state
     val chartData: ChartData = ChartData(),
     val selectedChartType: ChartType = ChartType.PIE_CATEGORY_SPENDING,
-    val isChartsExpanded: Boolean = false
+    val isChartsExpanded: Boolean = false,
+    // Selection state
+    val selectedCategoryId: Long? = null,
+    val selectedBudgetId: Long? = null
 )

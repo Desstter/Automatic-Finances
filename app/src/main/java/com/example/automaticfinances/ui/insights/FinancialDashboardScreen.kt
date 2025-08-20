@@ -29,6 +29,7 @@ fun FinancialDashboardScreen(
     onNavigateToBudgetManagement: () -> Unit = {},
     onNavigateToGoals: () -> Unit = {},
     onNavigateToReports: () -> Unit = {},
+    onNavigateToBudgetDetail: (budgetId: Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -103,7 +104,9 @@ fun FinancialDashboardScreen(
                 item {
                     BudgetStatusSection(
                         budgetStatuses = state.budgetStatuses,
-                        onBudgetClick = { /* Navigate to budget detail */ }
+                        onBudgetClick = { budgetStatus ->
+                            onNavigateToBudgetDetail(budgetStatus.budget.id)
+                        }
                     )
                 }
             } else {

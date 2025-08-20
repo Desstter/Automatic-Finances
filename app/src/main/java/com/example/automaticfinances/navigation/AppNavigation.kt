@@ -14,6 +14,9 @@ import com.example.automaticfinances.ui.transaction.AddTransactionScreen
 import com.example.automaticfinances.ui.transaction.TransactionHistoryScreen
 import com.example.automaticfinances.ui.insights.FinancialDashboardScreen
 import com.example.automaticfinances.ui.insights.FinancialDashboardViewModel
+import com.example.automaticfinances.ui.budget.BudgetManagementScreen
+import com.example.automaticfinances.ui.goals.GoalsScreen
+import com.example.automaticfinances.ui.reports.ReportsScreen
 import com.example.automaticfinances.data.repo.BudgetRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
@@ -29,8 +32,12 @@ object Routes {
     const val TRANSACTION_HISTORY = "transaction_history"
     const val FINANCIAL_DASHBOARD = "financial_dashboard"
     const val BUDGET_MANAGEMENT = "budget_management"
+    const val GOALS_MANAGEMENT = "goals_management"
+    const val REPORTS = "reports"
+    const val BUDGET_DETAIL = "budget_detail/{budgetId}"
     
     fun transactionDetail(transactionId: String) = "transaction_detail/$transactionId"
+    fun budgetDetail(budgetId: String) = "budget_detail/$budgetId"
 }
 
 @Composable
@@ -145,22 +152,50 @@ fun AppNavigation(
                     navController.navigate(Routes.BUDGET_MANAGEMENT)
                 },
                 onNavigateToGoals = {
-                    // Navigate to goals screen (placeholder for 20/80 rule)
-                    navController.popBackStack()
+                    navController.navigate(Routes.GOALS_MANAGEMENT)
                 },
                 onNavigateToReports = {
-                    // Navigate to reports screen (placeholder for 20/80 rule)
-                    navController.popBackStack()
+                    navController.navigate(Routes.REPORTS)
+                },
+                onNavigateToBudgetDetail = { budgetId ->
+                    navController.navigate(Routes.budgetDetail(budgetId.toString()))
                 }
             )
         }
         
         composable(Routes.BUDGET_MANAGEMENT) {
-            // Placeholder for BudgetManagementScreen (20/80 rule - focus on core dashboard first)
-            // For now, navigate back to show we're working with 80% of value
-            LaunchedEffect(Unit) {
-                navController.popBackStack()
-            }
+            BudgetManagementScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        composable(Routes.GOALS_MANAGEMENT) {
+            GoalsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        composable(Routes.REPORTS) {
+            ReportsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        composable(Routes.BUDGET_DETAIL) { backStackEntry ->
+            val budgetId = backStackEntry.arguments?.getString("budgetId") ?: ""
+            // For now, navigate to budget management screen
+            // In a full implementation, this would show budget detail with edit capability
+            BudgetManagementScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
         }
     }
 }
