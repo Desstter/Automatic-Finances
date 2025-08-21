@@ -12,6 +12,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.text.NumberFormat
 import java.util.*
 import kotlin.math.roundToInt
 
@@ -240,51 +241,149 @@ class ReportsViewModel(
         }
     }
     
-    private fun generateInsights() {
+    private suspend fun generateInsights() {
         val state = _state.value
         val insights = mutableListOf<String>()
+        val currentMonth = YearMonth.now()
         
-        // Category insights
-        val topCategory = state.categoryBreakdown.firstOrNull()
-        if (topCategory != null && topCategory.percentage > 40) {
-            insights.add("El ${topCategory.percentage.roundToInt()}% de tus gastos están en ${topCategory.categoryName}")
-        }
-        
-        // Transaction count insights
-        state.summary?.let { summary ->
-            val avgPerTransaction = if (summary.transactionCount > 0) {
-                summary.totalSpentCents / summary.transactionCount
-            } else 0L
-            
-            if (avgPerTransaction > 50000) { // 500 COP average
-                insights.add("Tu gasto promedio por transacción es alto: $${avgPerTransaction / 100}")
+        try {
+            // ===== EXISTING CATEGORY INSIGHTS (Enhanced) =====
+            val topCategory = state.categoryBreakdown.firstOrNull()
+            if (topCategory != null && topCategory.percentage > 40) {
+                insights.add("🏆 El ${topCategory.percentage.roundToInt()}% de tus gastos están en ${topCategory.categoryName}")
             }
             
-            if (summary.transactionCount > 100) {
-                insights.add("Realizaste ${summary.transactionCount} transacciones en este período")
-            }
-        }
-        
-        // Trend insights
-        val recentTrends = state.monthlyTrends.takeLast(3)
-        if (recentTrends.size >= 2) {
-            val isIncreasing = recentTrends.zipWithNext().all { (prev, current) ->
-                current.totalCents > prev.totalCents
-            }
-            val isDecreasing = recentTrends.zipWithNext().all { (prev, current) ->
-                current.totalCents < prev.totalCents
+            // ===== SPENDING PATTERNS BY DAY OF WEEK =====
+            val dayPatterns = analyticsRepository.getSpendingPatternsByDayOfWeek(currentMonth)
+            val maxSpendingDay = dayPatterns.maxByOrNull { it.value }
+            if (maxSpendingDay != null && maxSpendingDay.value > 0) {
+                val totalWeekSpending = dayPatterns.values.sum()
+                val dayPercentage = if (totalWeekSpending > 0) {
+                    (maxSpendingDay.value.toFloat() / totalWeekSpending) * 100
+                } else 0f
+                
+                if (dayPercentage > 20) {
+                    insights.add("📅 Gastas más los ${maxSpendingDay.key.lowercase()} (${dayPercentage.roundToInt()}% de la semana)")
+                }
             }
             
-            if (isIncreasing) {
-                insights.add("Tus gastos han estado aumentando consistentemente")
-            } else if (isDecreasing) {
-                insights.add("¡Bien! Tus gastos han estado disminuyendo")
+            // ===== MERCHANT FREQUENCY ANALYSIS =====
+            val merchants = analyticsRepository.getMerchantFrequencyAnalysis(currentMonth)
+            val topMerchant = merchants.firstOrNull()
+            if (topMerchant != null && topMerchant.transactionCount >= 3) {
+                insights.add("🏪 Tu comercio más frecuente es ${topMerchant.merchantName} (${topMerchant.transactionCount} veces)")
             }
-        }
-        
-        // Add general insights
-        if (state.categoryBreakdown.size > 8) {
-            insights.add("Usas muchas categorías diferentes (${state.categoryBreakdown.size})")
+            
+            // ===== TIME OF DAY PATTERNS =====
+            val timePatterns = analyticsRepository.getTimeOfDaySpendingAnalysis(currentMonth)
+            val maxSpendingTime = timePatterns.maxByOrNull { it.value }
+            if (maxSpendingTime != null && maxSpendingTime.value > 0) {
+                val totalTimeSpending = timePatterns.values.sum()
+                val timePercentage = if (totalTimeSpending > 0) {
+                    (maxSpendingTime.value.toFloat() / totalTimeSpending) * 100
+                } else 0f
+                
+                if (timePercentage > 30) {
+                    insights.add("⏰ Gastas más en la ${maxSpendingTime.key.lowercase()}")
+                }
+            }
+            
+            // ===== BUDGET PERFORMANCE INSIGHTS =====
+            try {
+                val budgetComparison = analyticsRepository.getBudgetPerformanceComparison(currentMonth)
+                if (budgetComparison.previousMonthTotalCents > 0) {
+                    if (budgetComparison.isImprovement) {
+                        insights.add("📈 ¡Excelente! Estás ${Math.abs(budgetComparison.changePercentage).roundToInt()}% mejor que el mes pasado")
+                    } else if (budgetComparison.changePercentage > 15) {
+                        insights.add("⚠️ Tus gastos aumentaron ${budgetComparison.changePercentage.roundToInt()}% comparado con el mes anterior")
+                    }
+                }
+                
+                // Budget utilization insights
+                val overBudgetCategories = budgetComparison.budgetUtilizations.filter { it.utilizationPercentage > 100 }
+                if (overBudgetCategories.isNotEmpty()) {
+                    val categoryNames = overBudgetCategories.take(2).map { it.category.name }.joinToString(", ")
+                    insights.add("💸 Has excedido el presupuesto en: $categoryNames")
+                }
+            } catch (e: Exception) {
+                // Budget comparison might fail if no budgets are set
+                Log.d("ReportsViewModel", "No budget data available for comparison")
+            }
+            
+            // ===== SPENDING PREDICTION =====
+            val prediction = analyticsRepository.getSpendingPrediction(currentMonth)
+            if (prediction.confidence > 0.5f && prediction.daysRemaining > 0) {
+                val projectionDiff = prediction.projectedTotalCents - prediction.currentSpentCents
+                if (projectionDiff > 0 && prediction.confidence > 0.7f) {
+                    val nf = NumberFormat.getCurrencyInstance(Locale("es", "CO"))
+                    insights.add("🔮 A este ritmo, gastarás ${nf.format(prediction.projectedTotalCents / 100.0)} este mes")
+                }
+            }
+            
+            // ===== ENHANCED TRANSACTION INSIGHTS =====
+            state.summary?.let { summary ->
+                val avgPerTransaction = if (summary.transactionCount > 0) {
+                    summary.totalSpentCents / summary.transactionCount
+                } else 0L
+                
+                if (avgPerTransaction > 50000) { // 500 COP average
+                    insights.add("💳 Tu gasto promedio por transacción es alto: $${avgPerTransaction / 100}")
+                }
+                
+                if (summary.transactionCount > 100) {
+                    insights.add("📊 Realizaste ${summary.transactionCount} transacciones en este período")
+                } else if (summary.transactionCount > 50) {
+                    insights.add("📊 Tuviste ${summary.transactionCount} transacciones - mantienes un buen control")
+                }
+            }
+            
+            // ===== CATEGORY TREND ANALYSIS =====
+            val topCategoryId = topCategory?.categoryId
+            if (topCategoryId != null) {
+                try {
+                    val trendAnalysis = analyticsRepository.getCategoryTrendAnalysis(topCategoryId, 6)
+                    if (trendAnalysis.isIncreasing && Math.abs(trendAnalysis.trendPercentage) > 20) {
+                        insights.add("📈 Tus gastos en ${topCategory.categoryName} han aumentado ${Math.abs(trendAnalysis.trendPercentage).roundToInt()}%")
+                    } else if (trendAnalysis.isDecreasing && Math.abs(trendAnalysis.trendPercentage) > 20) {
+                        insights.add("📉 ¡Bien! Has reducido gastos en ${topCategory.categoryName} un ${Math.abs(trendAnalysis.trendPercentage).roundToInt()}%")
+                    }
+                } catch (e: Exception) {
+                    Log.d("ReportsViewModel", "Could not analyze trend for category $topCategoryId")
+                }
+            }
+            
+            // ===== ENHANCED MONTHLY TREND INSIGHTS =====
+            val recentTrends = state.monthlyTrends.takeLast(3)
+            if (recentTrends.size >= 2) {
+                val isIncreasing = recentTrends.zipWithNext().all { (prev, current) ->
+                    current.totalCents > prev.totalCents
+                }
+                val isDecreasing = recentTrends.zipWithNext().all { (prev, current) ->
+                    current.totalCents < prev.totalCents
+                }
+                
+                if (isIncreasing) {
+                    insights.add("⬆️ Tus gastos han estado aumentando consistentemente")
+                } else if (isDecreasing) {
+                    insights.add("⬇️ ¡Excelente! Tus gastos han estado disminuyendo")
+                }
+            }
+            
+            // ===== CATEGORY DIVERSITY INSIGHTS =====
+            if (state.categoryBreakdown.size > 8) {
+                insights.add("🎯 Usas muchas categorías diferentes (${state.categoryBreakdown.size}) - considera consolidar algunas")
+            } else if (state.categoryBreakdown.size <= 3) {
+                insights.add("🎯 Tienes un patrón de gastos simple (${state.categoryBreakdown.size} categorías principales)")
+            }
+            
+            // ===== FALLBACK MESSAGE IF NO INSIGHTS =====
+            if (insights.isEmpty()) {
+                insights.add("📊 Continúa registrando transacciones para obtener más insights personalizados")
+            }
+            
+        } catch (e: Exception) {
+            Log.e("ReportsViewModel", "Error generating enhanced insights", e)
+            insights.add("📊 Análisis de gastos disponible próximamente")
         }
         
         _state.update { it.copy(insights = insights) }

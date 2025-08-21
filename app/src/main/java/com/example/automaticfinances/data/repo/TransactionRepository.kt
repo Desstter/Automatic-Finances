@@ -98,6 +98,17 @@ class TransactionRepository {
         val endDate = String.format("%04d-%02d-31", year, month)
         return dao.getIncomeTotalByCategoryAndDateRange(categoryId, startDate, endDate)
     }
+    
+    // ================ DELETION METHODS ================
+    
+    suspend fun deleteTransaction(transactionId: String): Boolean {
+        return try {
+            val deletedRows = dao.deleteById(transactionId)
+            deletedRows > 0
+        } catch (e: Exception) {
+            false
+        }
+    }
 }
 
 data class TransactionWithCategory(

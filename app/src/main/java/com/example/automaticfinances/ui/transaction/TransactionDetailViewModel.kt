@@ -20,7 +20,11 @@ data class TransactionDetailState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val error: String? = null,
-    val isEditMode: Boolean = false
+    val isEditMode: Boolean = false,
+    val isDeleting: Boolean = false,
+    val showDeleteConfirmation: Boolean = false,
+    val deletedTransaction: Transaction? = null,  // For undo functionality
+    val isDeleted: Boolean = false
 )
 
 class TransactionDetailViewModel : ViewModel() {
@@ -132,5 +136,74 @@ class TransactionDetailViewModel : ViewModel() {
     
     fun getCategoryById(categoryId: Long): Category? {
         return _state.value.categories.find { it.id == categoryId }
+    }
+    
+    // ================ DELETION METHODS ================
+    
+    fun showDeleteConfirmation() {
+        _state.value = _state.value.copy(showDeleteConfirmation = true)
+    }
+    
+    fun hideDeleteConfirmation() {
+        _state.value = _state.value.copy(showDeleteConfirmation = false)
+    }
+    
+    fun deleteTransaction() {
+        val currentState = _state.value
+        val transaction = currentState.transaction ?: return
+        
+        viewModelScope.launch {
+            _state.value = currentState.copy(
+                isDeleting = true,
+                showDeleteConfirmation = false,
+                error = null
+            )
+            
+            try {
+                val success = transactionRepository.deleteTransaction(transaction.id)
+                
+                if (success) {
+                    _state.value = _state.value.copy(
+                        isDeleting = false,
+                        isDeleted = true,
+                        deletedTransaction = transaction  // Store for undo
+                    )
+                } else {
+                    _state.value = _state.value.copy(
+                        isDeleting = false,
+                        error = "No se pudo eliminar la transacción"
+                    )
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(
+                    isDeleting = false,
+                    error = "Error al eliminar: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    fun undoDelete() {
+        val deletedTransaction = _state.value.deletedTransaction ?: return
+        
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isLoading = true, error = null)
+            
+            try {
+                transactionRepository.insert(deletedTransaction)
+                
+                _state.value = _state.value.copy(
+                    transaction = deletedTransaction,
+                    isLoading = false,
+                    isDeleted = false,
+                    deletedTransaction = null
+                )
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    error = "Error al restaurar transacción: ${e.message}"
+                )
+            }
+        }
     }
 }

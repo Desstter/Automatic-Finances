@@ -206,4 +206,9 @@ interface TransactionDao {
         WHERE accountId = :accountId AND date >= :fromDate
     """)
     suspend fun getTransactionCountByAccountFromDate(accountId: Long, fromDate: String): Int
+    
+    // ================ DELETION METHODS ================
+    
+    @Query("DELETE FROM transactions WHERE id = :transactionId")
+    suspend fun deleteById(transactionId: String): Int
 }

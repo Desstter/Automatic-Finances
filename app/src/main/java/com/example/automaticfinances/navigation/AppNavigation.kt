@@ -95,6 +95,12 @@ fun AppNavigation(
                 onViewBalancesClick = {
                     navController.navigate(Routes.OPENING_BALANCE_MANAGEMENT)
                 },
+                onBankBalanceClick = {
+                    navController.navigate(Routes.OPENING_BALANCE_MANAGEMENT + "?account_type=bank")
+                },
+                onCashBalanceClick = {
+                    navController.navigate(Routes.OPENING_BALANCE_MANAGEMENT + "?account_type=cash")
+                },
                 onRefresh = {
                     homeViewModel.refreshData()
                 },

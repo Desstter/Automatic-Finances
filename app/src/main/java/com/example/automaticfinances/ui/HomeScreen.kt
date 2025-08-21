@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.automaticfinances.data.repo.TransactionWithCategory
 import com.example.automaticfinances.system.ServiceManager
+import com.example.automaticfinances.system.SystemConfigurationChecker
 import com.example.automaticfinances.ui.components.IntelligenceInsightsCard
 import com.example.automaticfinances.ui.components.BalanceOverviewCard
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +40,8 @@ fun HomeScreen(
     onViewInsightsClick: () -> Unit = {},
     onViewIncomesClick: () -> Unit = {},
     onViewBalancesClick: () -> Unit = {},
+    onBankBalanceClick: () -> Unit = {},
+    onCashBalanceClick: () -> Unit = {},
     onRefresh: () -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
     onToggleFilters: () -> Unit = {},
@@ -54,13 +57,17 @@ fun HomeScreen(
         NumberFormat.getCurrencyInstance(Locale("es", "CO"))
     }
     
-    // Check service status
-    val isServiceRunning by remember {
-        derivedStateOf { ServiceManager.isServiceRunning(context) }
+    // System health monitoring with auto-hide logic
+    val systemHealth by SystemConfigurationChecker.rememberSystemHealth(context)
+    val shouldShowServiceStatus by remember(systemHealth) {
+        derivedStateOf { 
+            SystemConfigurationChecker.shouldShowServiceStatus(context)
+        }
     }
-    val isListenerEnabled by remember {
-        derivedStateOf { ServiceManager.isNotificationListenerEnabled(context) }
-    }
+    
+    // Legacy service status for backward compatibility
+    val isServiceRunning = systemHealth.isServiceRunning
+    val isListenerEnabled = systemHealth.isListenerEnabled
     
     Scaffold(
         topBar = { 
@@ -92,13 +99,15 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
             ) {
-                // Service Status Card
-                item {
-                    CompactServiceStatusCard(
-                        isServiceRunning = isServiceRunning,
-                        isListenerEnabled = isListenerEnabled,
-                        onOpenNotifAccess = onOpenNotifAccess
-                    )
+                // Service Status Card (only when issues detected or grace period)
+                if (shouldShowServiceStatus) {
+                    item {
+                        CompactServiceStatusCard(
+                            isServiceRunning = isServiceRunning,
+                            isListenerEnabled = isListenerEnabled,
+                            onOpenNotifAccess = onOpenNotifAccess
+                        )
+                    }
                 }
                 
                 // Balance Overview Card - Bank, Cash, Total balances
@@ -110,12 +119,8 @@ fun HomeScreen(
                         monthlyIncome = state.monthlyIncome,
                         monthlyExpenses = state.monthlyExpenses,
                         numberFormat = nf,
-                        onBankClick = {
-                            // TODO: Navigate to bank transactions or account details
-                        },
-                        onCashClick = {
-                            // TODO: Navigate to cash transactions or account details
-                        },
+                        onBankClick = onBankBalanceClick,
+                        onCashClick = onCashBalanceClick,
                         onViewHistoryClick = onViewHistoryClick,
                         onViewBalancesClick = onViewBalancesClick
                     )

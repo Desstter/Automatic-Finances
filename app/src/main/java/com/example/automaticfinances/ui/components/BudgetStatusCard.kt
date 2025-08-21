@@ -1,5 +1,8 @@
 package com.example.automaticfinances.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -23,18 +26,41 @@ fun BudgetStatusCard(
 ) {
     val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
     
-    val alertColor = when (budgetStatus.alertLevel) {
-        BudgetAlertLevel.SAFE -> Color(0xFF4CAF50)
-        BudgetAlertLevel.WARNING -> Color(0xFFFFC107)
-        BudgetAlertLevel.CRITICAL -> Color(0xFFFF9800)
-        BudgetAlertLevel.OVER_BUDGET -> MaterialTheme.colorScheme.error
+    // Progress-based color system
+    val progressPercentage = budgetStatus.percentageUsed
+    val progressColor = when {
+        progressPercentage <= 50f -> MaterialTheme.colorScheme.primary
+        progressPercentage <= 75f -> MaterialTheme.colorScheme.tertiary
+        progressPercentage <= 90f -> MaterialTheme.colorScheme.secondary
+        progressPercentage < 100f -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.error
     }
     
-    val alertText = when (budgetStatus.alertLevel) {
-        BudgetAlertLevel.SAFE -> "En buen estado"
-        BudgetAlertLevel.WARNING -> "Precaución"
-        BudgetAlertLevel.CRITICAL -> "Crítico"
-        BudgetAlertLevel.OVER_BUDGET -> "Excedido"
+    // Motivational Spanish messages based on progress
+    val motivationalMessage = when {
+        progressPercentage <= 25f -> "Acabas de empezar este mes"
+        progressPercentage <= 50f -> "Vas por buen camino"
+        progressPercentage <= 75f -> "Estás muy cerca del límite"
+        progressPercentage <= 90f -> "¡Cuidado! Muy cerca del presupuesto"
+        progressPercentage < 100f -> "¡Casi en el límite!"
+        else -> "Presupuesto excedido"
+    }
+    
+    // Message color and icon
+    val messageColor = when {
+        progressPercentage <= 50f -> MaterialTheme.colorScheme.primary
+        progressPercentage <= 75f -> MaterialTheme.colorScheme.tertiary
+        progressPercentage <= 90f -> Color(0xFFFFC107)
+        else -> MaterialTheme.colorScheme.error
+    }
+    
+    val messageIcon = when {
+        progressPercentage <= 25f -> "🌱"
+        progressPercentage <= 50f -> "✅"
+        progressPercentage <= 75f -> "📊"
+        progressPercentage <= 90f -> "⚠️"
+        progressPercentage < 100f -> "🚨"
+        else -> "❌"
     }
     
     Card(
@@ -42,12 +68,13 @@ fun BudgetStatusCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        shape = RoundedCornerShape(16.dp),
         onClick = onClick ?: {}
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Header with category info and alert level
             Row(
@@ -68,20 +95,23 @@ fun BudgetStatusCard(
                     )
                 }
                 
-                Surface(
-                    color = alertColor.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(6.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
                 ) {
                     Text(
-                        text = alertText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = alertColor,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        text = messageIcon,
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${progressPercentage.toInt()}%",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = messageColor
                     )
                 }
             }
-            
-            Spacer(modifier = Modifier.height(12.dp))
             
             // Progress bar
             Column {
@@ -115,26 +145,49 @@ fun BudgetStatusCard(
                         color = MaterialTheme.colorScheme.surfaceVariant
                     ) {}
                     
-                    // Progress bar
-                    val progressWidth = (budgetStatus.percentageUsed / 100f).coerceIn(0f, 1f)
+                    // Animated progress bar
+                    val targetProgress = (budgetStatus.percentageUsed / 100f).coerceIn(0f, 1f)
+                    val animatedProgress by animateFloatAsState(
+                        targetValue = targetProgress,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        ),
+                        label = "progress_animation"
+                    )
+                    
                     Surface(
                         modifier = Modifier
-                            .fillMaxWidth(progressWidth)
+                            .fillMaxWidth(animatedProgress)
                             .fillMaxHeight(),
-                        color = alertColor
+                        color = progressColor
                     ) {}
                 }
                 
-                Spacer(modifier = Modifier.height(4.dp))
-                
-                Text(
-                    text = "${budgetStatus.percentageUsed.toInt()}% usado",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // Motivational message
+                Surface(
+                    color = messageColor.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = messageIcon,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = motivationalMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = messageColor
+                        )
+                    }
+                }
             }
-            
-            Spacer(modifier = Modifier.height(12.dp))
             
             // Additional info
             Row(
@@ -173,7 +226,6 @@ fun BudgetStatusCard(
             
             // Projection warning if over budget projected
             if (budgetStatus.projectedSpentCents > budgetStatus.budget.limitAmountCents && budgetStatus.daysLeftInMonth > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
                     shape = RoundedCornerShape(6.dp)

@@ -128,36 +128,6 @@ fun BalanceOverviewCard(
                 onViewHistoryClick = onViewHistoryClick
             )
             
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Opening Balance Button
-            OutlinedButton(
-                onClick = onViewBalancesClick,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "⚖️",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = "Configurar Balance Inicial",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Icon(
-                        imageVector = Icons.Default.ArrowForward,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
         }
     }
 }
@@ -174,11 +144,17 @@ private fun AccountBalanceItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Visual indicator for balance configuration needed
+    val needsConfiguration = balance == 0L
+    val displayColor = if (needsConfiguration) MaterialTheme.colorScheme.outline else color
     Card(
         onClick = onClick,
         modifier = modifier,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+            containerColor = if (needsConfiguration) 
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            else 
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -191,11 +167,11 @@ private fun AccountBalanceItem(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(color.copy(alpha = 0.2f)),
+                    .background(displayColor.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = icon,
+                    text = if (needsConfiguration) "⚙️" else icon,
                     style = MaterialTheme.typography.titleLarge
                 )
             }
@@ -203,9 +179,9 @@ private fun AccountBalanceItem(
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = title,
+                text = if (needsConfiguration) "Configurar $title" else title,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (needsConfiguration) displayColor else MaterialTheme.colorScheme.onSurfaceVariant
             )
             
             Text(
@@ -216,7 +192,7 @@ private fun AccountBalanceItem(
                 },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = if (balance >= 0) color else MaterialTheme.colorScheme.error
+                color = if (needsConfiguration) displayColor else (if (balance >= 0) color else MaterialTheme.colorScheme.error)
             )
         }
     }
