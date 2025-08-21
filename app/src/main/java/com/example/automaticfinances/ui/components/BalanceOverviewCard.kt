@@ -28,6 +28,7 @@ fun BalanceOverviewCard(
     onBankClick: () -> Unit = {},
     onCashClick: () -> Unit = {},
     onViewHistoryClick: () -> Unit = {},
+    onViewBalancesClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showBalances by remember { mutableStateOf(true) }
@@ -126,6 +127,37 @@ fun BalanceOverviewCard(
                 numberFormat = numberFormat,
                 onViewHistoryClick = onViewHistoryClick
             )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Opening Balance Button
+            OutlinedButton(
+                onClick = onViewBalancesClick,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "⚖️",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = "Configurar Balance Inicial",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
         }
     }
 }

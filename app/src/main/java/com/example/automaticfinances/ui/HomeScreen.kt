@@ -38,6 +38,7 @@ fun HomeScreen(
     onViewHistoryClick: () -> Unit = {},
     onViewInsightsClick: () -> Unit = {},
     onViewIncomesClick: () -> Unit = {},
+    onViewBalancesClick: () -> Unit = {},
     onRefresh: () -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
     onToggleFilters: () -> Unit = {},
@@ -115,7 +116,8 @@ fun HomeScreen(
                         onCashClick = {
                             // TODO: Navigate to cash transactions or account details
                         },
-                        onViewHistoryClick = onViewHistoryClick
+                        onViewHistoryClick = onViewHistoryClick,
+                        onViewBalancesClick = onViewBalancesClick
                     )
                 }
                 

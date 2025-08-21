@@ -36,9 +36,10 @@ class TransactionDetailViewModel : ViewModel() {
             
             try {
                 val transaction = transactionRepository.getById(transactionId)
-                val categories = categoryRepository.getAllActiveSync()
                 
                 if (transaction != null) {
+                    // Filter categories based on transaction type (income vs expense)
+                    val categories = categoryRepository.getActiveSyncByType(transaction.isIncome)
                     _state.value = _state.value.copy(
                         transaction = transaction,
                         categories = categories,

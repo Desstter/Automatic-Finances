@@ -178,4 +178,32 @@ interface TransactionDao {
         WHERE isIncome = 0 AND categoryId = :categoryId AND date BETWEEN :startDate AND :endDate
     """)
     suspend fun getExpenseCountByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Int
+    
+    // ================ OPENING BALANCE SUPPORT METHODS ================
+    
+    @Query("""
+        SELECT * FROM transactions 
+        WHERE accountId = :accountId AND date BETWEEN :startDate AND :endDate
+        ORDER BY date ASC, time ASC
+    """)
+    suspend fun getByAccountAndDateRangeSync(accountId: Long, startDate: String, endDate: String): List<Transaction>
+    
+    @Query("""
+        SELECT COUNT(*) FROM transactions 
+        WHERE accountId = :accountId AND date BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getTransactionCountByAccountAndDateRange(accountId: Long, startDate: String, endDate: String): Int
+    
+    @Query("""
+        SELECT * FROM transactions 
+        WHERE accountId = :accountId AND date >= :fromDate
+        ORDER BY date ASC, time ASC
+    """)
+    suspend fun getByAccountFromDate(accountId: Long, fromDate: String): List<Transaction>
+    
+    @Query("""
+        SELECT COUNT(*) FROM transactions 
+        WHERE accountId = :accountId AND date >= :fromDate
+    """)
+    suspend fun getTransactionCountByAccountFromDate(accountId: Long, fromDate: String): Int
 }

@@ -373,3 +373,99 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_accountId_date ON transactions(accountId, date)")
     }
 }
+
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // 1. Create opening_balances table
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS opening_balances (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                accountId INTEGER NOT NULL,
+                effectiveDate TEXT NOT NULL,
+                balanceCents INTEGER NOT NULL,
+                note TEXT NOT NULL DEFAULT '',
+                isActive INTEGER NOT NULL DEFAULT 1,
+                createdAt INTEGER NOT NULL,
+                FOREIGN KEY(accountId) REFERENCES accounts(id) ON DELETE CASCADE
+            )
+        """)
+        
+        // 2. Create indices for opening_balances
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_accountId ON opening_balances(accountId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_effectiveDate ON opening_balances(effectiveDate)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_isActive ON opening_balances(isActive)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_accountId_effectiveDate ON opening_balances(accountId, effectiveDate)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_accountId_isActive ON opening_balances(accountId, isActive)")
+        
+        // 3. Optionally initialize opening balances with current account balances
+        // This preserves existing balances as the "opening" balance from today
+        val currentTime = System.currentTimeMillis()
+        val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+        
+        // Get all active accounts and create opening balances for them
+        val accountsCursor = database.query("SELECT id, balanceCents FROM accounts WHERE isActive = 1")
+        
+        while (accountsCursor.moveToNext()) {
+            val accountId = accountsCursor.getLong(0)
+            val balanceCents = accountsCursor.getLong(1)
+            
+            database.execSQL("""
+                INSERT INTO opening_balances (accountId, effectiveDate, balanceCents, note, isActive, createdAt)
+                VALUES ($accountId, '$today', $balanceCents, 'Balance inicial automático', 1, $currentTime)
+            """)
+        }
+        accountsCursor.close()
+    }
+}
+
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // 1. Add isIncome field to categories table
+        database.execSQL("ALTER TABLE categories ADD COLUMN isIncome INTEGER NOT NULL DEFAULT 0")
+        
+        // 2. Update existing income categories to mark them as income
+        // Categories that are clearly income-related
+        val incomeKeywords = listOf(
+            "Salario", "Freelance", "Ventas", "Regalos", "Inversiones", 
+            "Devoluciones", "Bonos", "ingresos"
+        )
+        
+        for (keyword in incomeKeywords) {
+            database.execSQL("""
+                UPDATE categories 
+                SET isIncome = 1 
+                WHERE name LIKE '%$keyword%' AND isDefault = 1
+            """)
+        }
+        
+        // 3. Remove outdated income categories with emojis in names and create proper ones
+        database.execSQL("""
+            UPDATE categories 
+            SET isActive = 0 
+            WHERE name LIKE '💰%' OR name LIKE '💼%' OR name LIKE '🏪%' 
+               OR name LIKE '🎁%' OR name LIKE '📈%' OR name LIKE '💸%' 
+               OR name LIKE '🎯%' OR name LIKE '📋%'
+        """)
+        
+        // 4. Insert new clean income categories
+        val newIncomeCategories = listOf(
+            "('Salario', '#4CAF50', '💰', 1, 1, 1)",
+            "('Bonos', '#2196F3', '🎁', 1, 1, 1)",
+            "('Venta personal', '#FF9800', '🛒', 1, 1, 1)",
+            "('Regalo', '#E91E63', '🎀', 1, 1, 1)",
+            "('Subsidio', '#9C27B0', '🏛️', 1, 1, 1)",
+            "('Otros ingresos', '#607D8B', '💸', 1, 1, 1)"
+        )
+        
+        for (category in newIncomeCategories) {
+            database.execSQL("""
+                INSERT OR IGNORE INTO categories (name, color, icon, isDefault, isActive, isIncome) 
+                VALUES $category
+            """)
+        }
+        
+        // 5. Create index for better performance on income/expense queries
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_categories_isIncome ON categories(isIncome)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_categories_isIncome_isActive ON categories(isIncome, isActive)")
+    }
+}

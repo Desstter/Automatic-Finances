@@ -1,5 +1,6 @@
 package com.example.automaticfinances.ui.reports
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.repo.TransactionRepository
@@ -31,6 +32,8 @@ class ReportsViewModel(
                 val period = _state.value.selectedPeriod
                 val (startDate, endDate) = getDateRange(period)
                 
+                Log.d("ReportsViewModel", "Loading reports for period $period: $startDate to $endDate")
+                
                 // Load summary data
                 loadSummaryData(startDate, endDate, period)
                 
@@ -46,8 +49,10 @@ class ReportsViewModel(
                 // Generate insights
                 generateInsights()
                 
+                Log.d("ReportsViewModel", "Reports loaded successfully")
                 _state.update { it.copy(isLoading = false) }
             } catch (e: Exception) {
+                Log.e("ReportsViewModel", "Error loading reports", e)
                 _state.update { 
                     it.copy(
                         error = "Error cargando reportes: ${e.message}",
@@ -68,30 +73,47 @@ class ReportsViewModel(
             val startDateStr = startDate.toString()
             val endDateStr = endDate.toString()
             
-            // Collect transactions as Flow
-            transactionRepository.getByDateRange(startDateStr, endDateStr)
-                .collect { transactions ->
-                    val totalSpent = transactions.sumOf { it.amountCents }
-                    val transactionCount = transactions.size
-                    val categoriesUsed = transactions.mapNotNull { it.categoryId }.distinct().size
-                    
-                    val daysDiff = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate).toInt() + 1
-                    val dailyAverage = if (daysDiff > 0) totalSpent / daysDiff else 0L
-                    
-                    // Calculate percentage change
-                    val percentageChange = calculatePercentageChange(period, totalSpent)
-                    
-                    val summary = ReportsSummary(
-                        totalSpentCents = totalSpent,
-                        dailyAverageCents = dailyAverage,
-                        transactionCount = transactionCount,
-                        categoriesUsed = categoriesUsed,
-                        percentageChange = percentageChange
-                    )
-                    
-                    _state.update { it.copy(summary = summary) }
-                }
+            Log.d("ReportsViewModel", "Loading summary data for range: $startDateStr to $endDateStr")
+            
+            // Use first() instead of collect to get single emission and complete
+            val transactions = transactionRepository.getByDateRange(startDateStr, endDateStr).first()
+            
+            // Separate income and expenses for proper reporting
+            val expenses = transactions.filter { !it.isIncome }
+            val incomes = transactions.filter { it.isIncome }
+            
+            val totalSpent = expenses.sumOf { it.amountCents }
+            val totalIncome = incomes.sumOf { it.amountCents }
+            val netBalance = totalIncome - totalSpent
+            
+            val transactionCount = transactions.size
+            val expenseCount = expenses.size
+            val incomeCount = incomes.size
+            val categoriesUsed = expenses.mapNotNull { it.categoryId }.distinct().size
+            
+            val daysDiff = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate).toInt() + 1
+            val dailyAverage = if (daysDiff > 0) totalSpent / daysDiff else 0L
+            
+            // Calculate percentage change
+            val percentageChange = calculatePercentageChange(period, totalSpent)
+            
+            Log.d("ReportsViewModel", "Summary loaded: ${transactions.size} transactions, ${expenses.size} expenses, ${incomes.size} incomes")
+            
+            val summary = ReportsSummary(
+                totalSpentCents = totalSpent,
+                totalIncomeCents = totalIncome,
+                netBalanceCents = netBalance,
+                dailyAverageCents = dailyAverage,
+                transactionCount = transactionCount,
+                expenseCount = expenseCount,
+                incomeCount = incomeCount,
+                categoriesUsed = categoriesUsed,
+                percentageChange = percentageChange
+            )
+            
+            _state.update { it.copy(summary = summary) }
         } catch (e: Exception) {
+            Log.e("ReportsViewModel", "Error loading summary data", e)
             // Handle error, but don't fail the entire load
         }
     }
@@ -101,33 +123,39 @@ class ReportsViewModel(
             val startDateStr = startDate.toString()
             val endDateStr = endDate.toString()
             
-            transactionRepository.getByDateRange(startDateStr, endDateStr)
-                .collect { transactions ->
-                    val categories = categoryRepository.getAllActiveSync()
-                    val totalSpent = transactions.sumOf { it.amountCents }
+            Log.d("ReportsViewModel", "Loading category breakdown for range: $startDateStr to $endDateStr")
+            
+            // Use first() to get single emission and complete
+            val transactions = transactionRepository.getByDateRange(startDateStr, endDateStr).first()
+            
+            // Only consider expenses for category breakdown (not income)
+            val expenseTransactions = transactions.filter { !it.isIncome }
+            
+            val categories = categoryRepository.getAllActiveSync()
+            val totalSpent = expenseTransactions.sumOf { it.amountCents }
+            
+            val breakdown = expenseTransactions
+                .groupBy { it.categoryId }
+                .map { (categoryId, categoryTransactions) ->
+                    val category = categories.find { it.id == categoryId }
+                    val amount = categoryTransactions.sumOf { it.amountCents }
+                    val percentage = if (totalSpent > 0) (amount.toFloat() / totalSpent.toFloat()) * 100f else 0f
                     
-                    val breakdown = transactions
-                        .groupBy { it.categoryId }
-                        .map { (categoryId, categoryTransactions) ->
-                            val category = categories.find { it.id == categoryId }
-                            val amount = categoryTransactions.sumOf { it.amountCents }
-                            val percentage = if (totalSpent > 0) (amount.toFloat() / totalSpent.toFloat()) * 100f else 0f
-                            
-                            CategoryBreakdown(
-                                categoryId = categoryId ?: 0L,
-                                categoryName = category?.name ?: "Sin categoría",
-                                categoryIcon = category?.icon ?: "📂",
-                                amountCents = amount,
-                                transactionCount = categoryTransactions.size,
-                                percentage = percentage
-                            )
-                        }
-                        .sortedByDescending { it.amountCents }
-                    
-                    _state.update { it.copy(categoryBreakdown = breakdown) }
+                    CategoryBreakdown(
+                        categoryId = categoryId ?: 0L,
+                        categoryName = category?.name ?: "Sin categoría",
+                        categoryIcon = category?.icon ?: "📂",
+                        amountCents = amount,
+                        transactionCount = categoryTransactions.size,
+                        percentage = percentage
+                    )
                 }
+                .sortedByDescending { it.amountCents }
+            
+            Log.d("ReportsViewModel", "Category breakdown loaded: ${breakdown.size} categories")
+            _state.update { it.copy(categoryBreakdown = breakdown) }
         } catch (e: Exception) {
-            // Handle error
+            Log.e("ReportsViewModel", "Error loading category breakdown", e)
         }
     }
     
@@ -181,28 +209,34 @@ class ReportsViewModel(
             val startDateStr = startDate.toString()
             val endDateStr = endDate.toString()
             
-            transactionRepository.getByDateRange(startDateStr, endDateStr)
-                .collect { transactions ->
-                    val categories = categoryRepository.getAllActiveSync()
-                    
-                    val topTransactions = transactions
-                        .sortedByDescending { it.amountCents }
-                        .take(10)
-                        .map { transaction ->
-                            val category = categories.find { it.id == transaction.categoryId }
-                            TopTransaction(
-                                id = transaction.id,
-                                description = transaction.description,
-                                amountCents = transaction.amountCents,
-                                timestamp = transaction.ts,
-                                categoryName = category?.name ?: "Sin categoría"
-                            )
-                        }
-                    
-                    _state.update { it.copy(topTransactions = topTransactions) }
+            Log.d("ReportsViewModel", "Loading top transactions for range: $startDateStr to $endDateStr")
+            
+            // Use first() to get single emission and complete
+            val transactions = transactionRepository.getByDateRange(startDateStr, endDateStr).first()
+            
+            val categories = categoryRepository.getAllActiveSync()
+            
+            // Get top expenses (not including income)
+            val topTransactions = transactions
+                .filter { !it.isIncome } // Only expenses for "top spending" list
+                .sortedByDescending { it.amountCents }
+                .take(10)
+                .map { transaction ->
+                    val category = categories.find { it.id == transaction.categoryId }
+                    TopTransaction(
+                        id = transaction.id,
+                        description = transaction.description,
+                        amountCents = transaction.amountCents,
+                        timestamp = transaction.ts,
+                        categoryName = category?.name ?: "Sin categoría",
+                        isIncome = transaction.isIncome
+                    )
                 }
+            
+            Log.d("ReportsViewModel", "Top transactions loaded: ${topTransactions.size} transactions")
+            _state.update { it.copy(topTransactions = topTransactions) }
         } catch (e: Exception) {
-            // Handle error
+            Log.e("ReportsViewModel", "Error loading top transactions", e)
         }
     }
     
@@ -262,16 +296,15 @@ class ReportsViewModel(
             val prevStartDateStr = prevStartDate.toString()
             val prevEndDateStr = prevEndDate.toString()
             
-            var prevTotal = 0L
-            transactionRepository.getByDateRange(prevStartDateStr, prevEndDateStr)
-                .collect { transactions ->
-                    prevTotal = transactions.sumOf { it.amountCents }
-                }
+            // Use first() to get single emission and complete
+            val prevTransactions = transactionRepository.getByDateRange(prevStartDateStr, prevEndDateStr).first()
+            val prevTotal = prevTransactions.filter { !it.isIncome }.sumOf { it.amountCents } // Only expenses
             
             if (prevTotal > 0) {
                 ((currentTotal.toFloat() - prevTotal.toFloat()) / prevTotal.toFloat()) * 100f
             } else null
         } catch (e: Exception) {
+            Log.e("ReportsViewModel", "Error calculating percentage change", e)
             null
         }
     }
@@ -368,8 +401,12 @@ data class ReportsState(
 
 data class ReportsSummary(
     val totalSpentCents: Long,
+    val totalIncomeCents: Long = 0L,
+    val netBalanceCents: Long = 0L,
     val dailyAverageCents: Long,
     val transactionCount: Int,
+    val expenseCount: Int = 0,
+    val incomeCount: Int = 0,
     val categoriesUsed: Int,
     val percentageChange: Float? = null
 )
@@ -395,5 +432,6 @@ data class TopTransaction(
     val description: String,
     val amountCents: Long,
     val timestamp: Long,
-    val categoryName: String
+    val categoryName: String,
+    val isIncome: Boolean = false
 )

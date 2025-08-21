@@ -14,11 +14,17 @@ interface CategoryDao {
     @Query("SELECT * FROM categories WHERE isActive = 1 ORDER BY isDefault DESC, name ASC")
     fun getAllActive(): Flow<List<Category>>
     
+    @Query("SELECT * FROM categories WHERE isActive = 1 AND isIncome = :isIncome ORDER BY isDefault DESC, name ASC")
+    fun getActiveByType(isIncome: Boolean): Flow<List<Category>>
+    
     @Query("SELECT * FROM categories WHERE id = :id")
     suspend fun getById(id: Long): Category?
     
     @Query("SELECT * FROM categories WHERE isActive = 1 ORDER BY isDefault DESC, name ASC")
     suspend fun getAllActiveSync(): List<Category>
+    
+    @Query("SELECT * FROM categories WHERE isActive = 1 AND isIncome = :isIncome ORDER BY isDefault DESC, name ASC")
+    suspend fun getActiveSyncByType(isIncome: Boolean): List<Category>
     
     @Query("SELECT COUNT(*) FROM categories WHERE isDefault = 1")
     suspend fun countDefaultCategories(): Int
@@ -53,6 +59,16 @@ interface CategoryDao {
         ORDER BY c.isDefault DESC, c.name ASC
     """)
     fun getCategoriesWithTransactionCount(): Flow<List<CategoryWithCount>>
+    
+    @Query("""
+        SELECT c.*, COUNT(t.id) as transactionCount
+        FROM categories c
+        LEFT JOIN transactions t ON c.id = t.categoryId
+        WHERE c.isActive = 1 AND c.isIncome = :isIncome
+        GROUP BY c.id
+        ORDER BY c.isDefault DESC, c.name ASC
+    """)
+    fun getCategoriesWithTransactionCountByType(isIncome: Boolean): Flow<List<CategoryWithCount>>
 }
 
 data class CategoryWithCount(
@@ -62,5 +78,6 @@ data class CategoryWithCount(
     val icon: String,
     val isDefault: Boolean,
     val isActive: Boolean,
+    val isIncome: Boolean,
     val transactionCount: Int
 )

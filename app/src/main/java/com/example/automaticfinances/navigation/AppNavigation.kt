@@ -22,6 +22,8 @@ import com.example.automaticfinances.ui.goals.GoalsScreen
 import com.example.automaticfinances.ui.reports.ReportsScreen
 import com.example.automaticfinances.ui.income.IncomeScreen
 import com.example.automaticfinances.ui.income.AddIncomeScreen
+import com.example.automaticfinances.ui.openingbalance.OpeningBalanceSetupScreen
+import com.example.automaticfinances.ui.openingbalance.OpeningBalanceManagementScreen
 import com.example.automaticfinances.data.repo.BudgetRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
@@ -43,6 +45,8 @@ object Routes {
     const val BUDGET_DETAIL = "budget_detail/{budgetId}"
     const val INCOME_MANAGEMENT = "income_management"
     const val ADD_INCOME = "add_income"
+    const val OPENING_BALANCE_SETUP = "opening_balance_setup"
+    const val OPENING_BALANCE_MANAGEMENT = "opening_balance_management"
     
     fun transactionDetail(transactionId: String) = "transaction_detail/$transactionId"
     fun budgetDetail(budgetId: String) = "budget_detail/$budgetId"
@@ -87,6 +91,9 @@ fun AppNavigation(
                 },
                 onViewIncomesClick = {
                     navController.navigate(Routes.INCOME_MANAGEMENT)
+                },
+                onViewBalancesClick = {
+                    navController.navigate(Routes.OPENING_BALANCE_MANAGEMENT)
                 },
                 onRefresh = {
                     homeViewModel.refreshData()
@@ -229,6 +236,29 @@ fun AppNavigation(
             AddIncomeScreen(
                 onNavigateBack = {
                     navController.popBackStack()
+                }
+            )
+        }
+        
+        composable(Routes.OPENING_BALANCE_SETUP) {
+            OpeningBalanceSetupScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onSetupComplete = {
+                    navController.popBackStack()
+                },
+                isFirstTime = false
+            )
+        }
+        
+        composable(Routes.OPENING_BALANCE_MANAGEMENT) {
+            OpeningBalanceManagementScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToSetup = {
+                    navController.navigate(Routes.OPENING_BALANCE_SETUP)
                 }
             )
         }
