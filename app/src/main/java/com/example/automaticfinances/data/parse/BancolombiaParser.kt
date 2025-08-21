@@ -11,105 +11,187 @@ import java.time.format.DateTimeFormatter
 
 object BancolombiaParser {
 
-    // Regex para SMS tradicionales
+    // -------------------------------------------
+    // Flags y utilidades para Regex
+    // -------------------------------------------
+    private val RX_FLAGS = setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+
+    // -------------------------------------------
+    // Filtros de mensajes inválidos (rechazos, anulaciones, etc.)
+    // -------------------------------------------
+    private val NEGATIVE_MARKERS = listOf(
+        "rechazada", "no aprobada", "reversada", "anulada",
+        "fallida", "cancelada", "declinada", "bloqueada",
+        "preautoriz", "pre-autoriz", "intento de compra"
+    )
+
+    private fun looksInvalid(text: String): Boolean {
+        val t = text.lowercase()
+        return NEGATIVE_MARKERS.any { t.contains(it) }
+    }
+
+    // -------------------------------------------
+    // REGEX — Compras / Transferencias (Bancolombia)
+    // -------------------------------------------
+
+    // Compra SMS clásica Bancolombia
     private val compraRegex = Regex(
-        """Bancolombia:\s*Compraste\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\sen\s+(.+?)\s+con\s+tu\s+T\.?Cred\s+\*(\d{4}),\s+el\s+(\d{2}/\d{2}/\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        """Bancolombia:\s*Compraste\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\ben\s+(.+?)\s+con\s+tu\s+(?:T\.?\s*(?:Cred(?:ito)?|Cr[eé]dito)|T\.?\s*(?:D[eé]bito)|Tarjeta\s+(?:Cr[eé]dito|D[eé]bito))\s*[*Xx]{0,4}(\d{4}),?\s+el\s+(\d{2}[/-]\d{2}[/-]\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
+        RX_FLAGS
     )
 
+    // Transferencia SMS clásica
     private val transRegex = Regex(
-        """Bancolombia:\s*Transferiste\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?desde\s+tu\s+cuenta\s+\*(\d{4})\s+a\s+la\s+cuenta\s+\*(\d+)\s+el\s+(\d{2}/\d{2}/\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        """Bancolombia:\s*Transferiste\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?desde\s+tu\s+cuenta.*?[*Xx]{0,4}(\d{4}).*?(?:hacia|a)\s+la\s+cuenta.*?[*Xx]{0,4}(\d+)\s+el\s+(\d{2}[/-]\d{2}[/-]\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
+        RX_FLAGS
     )
 
-    // Regex para notificaciones de la app Bancolombia (formato más simple)
+    // App: compra
     private val appCompraRegex = Regex(
-        """Compra\s+(?:por\s+)?(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?en\s+(.+?)\s+\*(\d{4})""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        """Compra\s+(?:por\s+)?(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?(?:en\s+|en\s+el\s+comercio\s+)(.+?)\s+(?:con\s+tu\s+tarjeta\s+terminada\s+en\s+|[*Xx]?)(\d{4})\b""",
+        RX_FLAGS
     )
 
+    // App: transferencia
     private val appTransRegex = Regex(
-        """Transferencia\s+(?:por\s+)?(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?desde\s+\*(\d{4})\s+hacia\s+\*(\d+)""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        """Transferencia\s+(?:por\s+)?(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?desde\s+[*Xx]?0*(\d{4}).*?(?:hacia|a)\s+[*Xx]?0*(\d+)""",
+        RX_FLAGS
     )
 
-    // Regex para ingresos - transferencias recibidas
+    // Formato “Bancolombia le informa Transferencia por $... desde cta *XXXX a cta NNN... . dd/mm/yyyy hh:mm”
+    private val smsTransLeInformaRegex = Regex(
+        """Bancolombia\s+le\s+informa\s+Transferencia\s+por\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?desde\s+(?:cta|cuenta)\s+[*Xx]?0*(\d{4})\s+a\s+(?:cta|cuenta)\s+(\d+)\.\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}:\d{2})""",
+        RX_FLAGS
+    )
+
+    // Retiro cajero (ej: Retiraste $50.000,00 en METR_LA70_1 de tu T.Deb **6045 el 19/08/2025 a las 16:11)
+    private val retiroCajeroRegex = Regex(
+        """Bancolombia:\s*Retiraste\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+)\s*.*?\ben\s+(.+?)\s+de\s+tu\s+(?:T\.?\s*Deb(?:ito)?|Tarjeta\s+D[eé]bito|T\.?\s*Cred(?:ito)?|Tarjeta\s+Cr[eé]dito)\s*[*Xx]{0,4}(\d{4})\s+el\s+(\d{2}[/-]\d{2}[/-]\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
+        RX_FLAGS
+    )
+
+    // -------------------------------------------
+    // REGEX — Ingresos (Bancolombia)
+    // -------------------------------------------
+
+    // Nómina (sin last4, y con "en tu cuenta de Ahorros ... el dd/mm/yyyy a las hh:mm")
+    private val ingresoNominaRegex = Regex(
+        """Bancolombia:\s*Recibiste\s+un\s+pago\s+de\s+N[oó]mina\s+de\s+(.+?)\s+por\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?en\s+tu\s+cuenta(?:\s+de\s+\w+)?(?:\s+\*?(\d{4}))?.*?el\s+(\d{2}/\d{2}/\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
+        RX_FLAGS
+    )
+
+    // Transferencia recibida (formato “Bancolombia te informa recepción transferencia de ... por $... en la cuenta *XXXX. dd/mm/yyyy hh:mm”)
+    private val smsIngresoRecepcionRegex = Regex(
+        """Bancolombia\s+te\s+informa\s+recep(?:ci[oó]n)?\s+transferencia\s+de\s+(.+?)\s+por\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+)\s+en\s+la\s+cuenta\s+[*Xx]?0*(\d{4})\.\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}:\d{2})""",
+        RX_FLAGS
+    )
+
+    // Ingreso transferencia con fecha/hora (versión genérica)
     private val ingresoTransferenciaRegex = Regex(
-        """Bancolombia:\s*(?:Recibiste|Te\s+transfirieron)\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?desde\s+.*?\s+a\s+tu\s+cuenta\s+\*(\d{4})\s+el\s+(\d{2}/\d{2}/\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        """Bancolombia:\s*(?:Recibiste|Te\s+transfirieron)\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?a\s+tu\s+cuenta\s+[*Xx]?0*(\d{4})\s+el\s+(\d{2}[/-]\d{2}[/-]\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
+        RX_FLAGS
     )
 
-    // Regex para depósitos/consignaciones
+    // Depósito/Consignación con fecha/hora
     private val ingresoDepositoRegex = Regex(
-        """Bancolombia:\s*(?:Depósito|Consignación|Consignaste)\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?en\s+tu\s+cuenta\s+\*(\d{4})\s+el\s+(\d{2}/\d{2}/\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        """Bancolombia:\s*(?:Dep[oó]sito|Consignaci[oó]n|Consignaste)\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?en\s+tu\s+cuenta\s+[*Xx]?0*(\d{4})\s+el\s+(\d{2}[/-]\d{2}[/-]\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
+        RX_FLAGS
     )
 
-    // Regex para ingresos de app Bancolombia
+    // App ingreso (sin fecha/hora)
     private val appIngresoRegex = Regex(
-        """(?:Transferencia\s+recibida|Depósito)\s+(?:por\s+)?(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?en\s+\*(\d{4})""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        """(?:Transferencia\s+recibida|Dep[oó]sito)\s+(?:por\s+)?(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?en\s+[*Xx]?0*(\d{4})\b""",
+        RX_FLAGS
     )
 
-    // Regex para otros patrones bancarios comunes (Nequi, DaviPlata, etc.)
+    // -------------------------------------------
+    // REGEX — Otros (Nequi / DaviPlata)
+    // -------------------------------------------
     private val nequiRegex = Regex(
-        """Nequi:\s*Pagaste\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?en\s+(.+)""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        """Nequi:\s*(?:Pagaste|Pago)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\ben\s+(.+?)\b""",
+        RX_FLAGS
     )
 
     private val nequiIngresoRegex = Regex(
-        """Nequi:\s*(?:Recibiste|Te\s+enviaron)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?de\s+(.+)""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        """Nequi:\s*(?:Recibiste|Te\s+enviaron)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\bde\s+(.+?)\b""",
+        RX_FLAGS
     )
 
     private val daviRegex = Regex(
-        """DaviPlata:\s*Compraste\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?en\s+(.+)""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        """DaviPlata:\s*(?:Compraste|Pago)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\ben\s+(.+?)\b""",
+        RX_FLAGS
     )
 
     private val daviIngresoRegex = Regex(
-        """DaviPlata:\s*(?:Recibiste|Te\s+enviaron)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?de\s+(.+)""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        """DaviPlata:\s*(?:Recibiste|Te\s+enviaron)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\bde\s+(.+?)\b""",
+        RX_FLAGS
     )
-    
+
+    // -------------------------------------------
+    // REGEX — Fallback genérico (lee todos los mensajes)
+    // -------------------------------------------
+    private val genericCompraRegex = Regex(
+        """\b(Compra(?:ste)?|Pagaste|Pago)\b.*?(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?(?:en\s+|en\s+el\s+comercio\s+)(.+?)\s+(?:con\s+tu\s+.*?(?:terminada\s+en\s+)?|[*Xx]?)(\d{4})\b""",
+        RX_FLAGS
+    )
+
+    // -------------------------------------------
+    // Repos / helpers externos
+    // -------------------------------------------
     private val categoryRepository = CategoryRepository()
     private val accountRepository = AccountRepository()
 
-    // Helper function to get account ID for transaction source
+    // Helper para mapear source -> accountId
     private suspend fun getAccountIdForSource(source: String): Long? {
         return accountRepository.getAccountForTransaction(source)?.id
     }
 
+    // -------------------------------------------
+    // ENTRYPOINTS
+    // -------------------------------------------
     suspend fun tryParse(text: String): Transaction? {
-        // Primero intentar parsers específicos por contenido
-        return tryParseBancolombia(text) ?: 
-               tryParseNequi(text) ?: 
-               tryParseDaviPlata(text) ?:
-               tryParseIngresosBancolombia(text) ?:
-               tryParseIngresosNequi(text) ?:
-               tryParseIngresosDaviPlata(text)
+        if (looksInvalid(text)) return null
+
+        // Orden: Bancolombia → Nequi → DaviPlata → Ingresos → Fallback genérico
+        return tryParseBancolombia(text)
+            ?: tryParseNequi(text)
+            ?: tryParseDaviPlata(text)
+            ?: tryParseIngresosBancolombia(text)
+            ?: tryParseIngresosNequi(text)
+            ?: tryParseIngresosDaviPlata(text)
+            ?: tryParseFallbackGenerico(text)
     }
 
-    private suspend fun tryParseBancolombia(text: String): Transaction? {
-        if (!text.contains("Bancolombia", ignoreCase = true) && 
-            !text.contains("Compra", ignoreCase = true) && 
-            !text.contains("Transferencia", ignoreCase = true)) return null
+    // Versión síncrona para compatibilidad
+    fun tryParseSync(text: String): Transaction? = runBlocking { tryParse(text) }
 
-        // SMS tradicional con formato completo
-        compraRegex.find(text)?.let { m ->
+    // -------------------------------------------
+    // Parsers por emisor
+    // -------------------------------------------
+    private suspend fun tryParseBancolombia(text: String): Transaction? {
+        // Heurística de activación
+        if (
+            !text.contains("Bancolombia", ignoreCase = true) &&
+            !text.contains("Compra", ignoreCase = true) &&
+            !text.contains("Transferencia", ignoreCase = true) &&
+            !text.contains("Retiraste", ignoreCase = true)
+        ) return null
+
+        // Retiro cajero
+        retiroCajeroRegex.find(text)?.let { m ->
             val amount = toCents(m.groupValues[1])
-            val merchant = norm(m.groupValues[2])
+            val atm = norm(m.groupValues[2])
             val last4 = m.groupValues[3]
             val ts = toEpoch(m.groupValues[4], m.groupValues[5])
-            val id = hash("${ts/60000}|$amount|COMPRA|$last4|$merchant")
-            val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
+            val id = stableId(ts, amount, "RETIRO", last4, atm, text)
+            val categoryId = categoryRepository.getDefaultCategoryId("RETIRO", "Retiro cajero")
             val accountId = getAccountIdForSource("notif:sms")
-            
+
             return Transaction.fromTimestamp(
                 id = id,
                 ts = ts,
-                type = "COMPRA",
-                description = merchant,
+                type = "RETIRO",
+                description = "Retiro cajero $atm",
                 amountCents = amount,
                 currency = "COP",
                 srcLast4 = last4,
@@ -121,15 +203,16 @@ object BancolombiaParser {
             )
         }
 
-        transRegex.find(text)?.let { m ->
+        // “Bancolombia le informa Transferencia...”
+        smsTransLeInformaRegex.find(text)?.let { m ->
             val amount = toCents(m.groupValues[1])
             val src = m.groupValues[2]
             val dst = m.groupValues[3].takeLast(4)
             val ts = toEpoch(m.groupValues[4], m.groupValues[5])
-            val id = hash("${ts/60000}|$amount|TRANSFERENCIA|$src")
+            val id = stableId(ts, amount, "TRANSFERENCIA", src, null, text)
             val categoryId = categoryRepository.getDefaultCategoryId("TRANSFERENCIA", "Transferencia")
             val accountId = getAccountIdForSource("notif:sms")
-            
+
             return Transaction.fromTimestamp(
                 id = id,
                 ts = ts,
@@ -146,16 +229,68 @@ object BancolombiaParser {
             )
         }
 
-        // Notificación de app (sin fecha/hora, usar timestamp actual)
+        // Compra SMS tradicional
+        compraRegex.find(text)?.let { m ->
+            val amount = toCents(m.groupValues[1])
+            val merchant = norm(m.groupValues[2])
+            val last4 = m.groupValues[3]
+            val ts = toEpoch(m.groupValues[4], m.groupValues[5])
+            val id = stableId(ts, amount, "COMPRA", last4, merchant, text)
+            val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
+            val accountId = getAccountIdForSource("notif:sms")
+
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "COMPRA",
+                description = merchant,
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = last4,
+                dstLast4 = null,
+                source = "notif:sms",
+                rawPreview = text.take(140),
+                categoryId = categoryId,
+                accountId = accountId
+            )
+        }
+
+        // Transferencia SMS tradicional
+        transRegex.find(text)?.let { m ->
+            val amount = toCents(m.groupValues[1])
+            val src = m.groupValues[2]
+            val dst = m.groupValues[3].takeLast(4)
+            val ts = toEpoch(m.groupValues[4], m.groupValues[5])
+            val id = stableId(ts, amount, "TRANSFERENCIA", src, null, text)
+            val categoryId = categoryRepository.getDefaultCategoryId("TRANSFERENCIA", "Transferencia")
+            val accountId = getAccountIdForSource("notif:sms")
+
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "TRANSFERENCIA",
+                description = "Transferencia a *$dst",
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = src,
+                dstLast4 = dst,
+                source = "notif:sms",
+                rawPreview = text.take(140),
+                categoryId = categoryId,
+                accountId = accountId
+            )
+        }
+
+        // Notificación app: compra
         appCompraRegex.find(text)?.let { m ->
             val amount = toCents(m.groupValues[1])
             val merchant = norm(m.groupValues[2])
             val last4 = m.groupValues[3]
             val ts = System.currentTimeMillis()
-            val id = hash("${ts/60000}|$amount|COMPRA|$last4|$merchant")
+            val id = stableId(ts, amount, "COMPRA", last4, merchant, text)
             val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
             val accountId = getAccountIdForSource("notif:app")
-            
+
             return Transaction.fromTimestamp(
                 id = id,
                 ts = ts,
@@ -172,15 +307,16 @@ object BancolombiaParser {
             )
         }
 
+        // Notificación app: transferencia
         appTransRegex.find(text)?.let { m ->
             val amount = toCents(m.groupValues[1])
             val src = m.groupValues[2]
             val dst = m.groupValues[3].takeLast(4)
             val ts = System.currentTimeMillis()
-            val id = hash("${ts/60000}|$amount|TRANSFERENCIA|$src")
+            val id = stableId(ts, amount, "TRANSFERENCIA", src, null, text)
             val categoryId = categoryRepository.getDefaultCategoryId("TRANSFERENCIA", "Transferencia")
             val accountId = getAccountIdForSource("notif:app")
-            
+
             return Transaction.fromTimestamp(
                 id = id,
                 ts = ts,
@@ -207,10 +343,10 @@ object BancolombiaParser {
             val amount = toCents(m.groupValues[1])
             val merchant = norm(m.groupValues[2])
             val ts = System.currentTimeMillis()
-            val id = hash("${ts/60000}|$amount|COMPRA|nequi|$merchant")
+            val id = stableId(ts, amount, "COMPRA", "NEQU", merchant, text)
             val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
             val accountId = getAccountIdForSource("notif:nequi")
-            
+
             return Transaction.fromTimestamp(
                 id = id,
                 ts = ts,
@@ -237,10 +373,10 @@ object BancolombiaParser {
             val amount = toCents(m.groupValues[1])
             val merchant = norm(m.groupValues[2])
             val ts = System.currentTimeMillis()
-            val id = hash("${ts/60000}|$amount|COMPRA|davi|$merchant")
+            val id = stableId(ts, amount, "COMPRA", "DAVI", merchant, text)
             val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
             val accountId = getAccountIdForSource("notif:daviPlata")
-            
+
             return Transaction.fromTimestamp(
                 id = id,
                 ts = ts,
@@ -261,20 +397,77 @@ object BancolombiaParser {
     }
 
     private suspend fun tryParseIngresosBancolombia(text: String): Transaction? {
-        if (!text.contains("Bancolombia", ignoreCase = true) && 
-            !text.contains("Recibiste", ignoreCase = true) && 
+        if (
+            !text.contains("Bancolombia", ignoreCase = true) &&
+            !text.contains("Recibiste", ignoreCase = true) &&
             !text.contains("Depósito", ignoreCase = true) &&
-            !text.contains("Consignación", ignoreCase = true)) return null
+            !text.contains("Consignación", ignoreCase = true) &&
+            !text.contains("recepcion transferencia", ignoreCase = true)
+        ) return null
 
-        // Transferencia recibida con fecha/hora
+        // Nómina
+        ingresoNominaRegex.find(text)?.let { m ->
+            val employer = norm(m.groupValues[1])
+            val amount = toCents(m.groupValues[2])
+            val last4Opt = m.groupValues.getOrNull(3)?.takeIf { it.isNotBlank() }
+            val ts = toEpoch(m.groupValues[4], m.groupValues[5])
+            val id = stableId(ts, amount, "INGRESO_NOMINA", last4Opt, employer, text)
+            val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Salario")
+            val accountId = getAccountIdForSource("notif:sms")
+
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "INGRESO",
+                description = "Nómina $employer",
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = null,
+                dstLast4 = last4Opt,
+                source = "notif:sms",
+                rawPreview = text.take(140),
+                categoryId = categoryId,
+                accountId = accountId,
+                isIncome = true
+            )
+        }
+
+        // Recepción transferencia (“te informa”)
+        smsIngresoRecepcionRegex.find(text)?.let { m ->
+            val sender = norm(m.groupValues[1])
+            val amount = toCents(m.groupValues[2])
+            val dstLast4 = m.groupValues[3]
+            val ts = toEpoch(m.groupValues[4], m.groupValues[5])
+            val id = stableId(ts, amount, "INGRESO_TRANSFERENCIA", dstLast4, sender, text)
+            val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
+            val accountId = getAccountIdForSource("notif:sms")
+
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "INGRESO",
+                description = "Recibido de $sender",
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = null,
+                dstLast4 = dstLast4,
+                source = "notif:sms",
+                rawPreview = text.take(140),
+                categoryId = categoryId,
+                accountId = accountId,
+                isIncome = true
+            )
+        }
+
+        // Transferencia recibida genérica con fecha/hora
         ingresoTransferenciaRegex.find(text)?.let { m ->
             val amount = toCents(m.groupValues[1])
             val dstLast4 = m.groupValues[2]
             val ts = toEpoch(m.groupValues[3], m.groupValues[4])
-            val id = hash("${ts/60000}|$amount|INGRESO_TRANSFERENCIA|$dstLast4")
+            val id = stableId(ts, amount, "INGRESO_TRANSFERENCIA", dstLast4, null, text)
             val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
             val accountId = getAccountIdForSource("notif:sms")
-            
+
             return Transaction.fromTimestamp(
                 id = id,
                 ts = ts,
@@ -297,10 +490,10 @@ object BancolombiaParser {
             val amount = toCents(m.groupValues[1])
             val dstLast4 = m.groupValues[2]
             val ts = toEpoch(m.groupValues[3], m.groupValues[4])
-            val id = hash("${ts/60000}|$amount|INGRESO_DEPOSITO|$dstLast4")
+            val id = stableId(ts, amount, "INGRESO_DEPOSITO", dstLast4, null, text)
             val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Depósito")
             val accountId = getAccountIdForSource("notif:sms")
-            
+
             return Transaction.fromTimestamp(
                 id = id,
                 ts = ts,
@@ -318,15 +511,15 @@ object BancolombiaParser {
             )
         }
 
-        // Ingreso desde app (sin fecha/hora, usar timestamp actual)
+        // Ingreso app (sin fecha/hora)
         appIngresoRegex.find(text)?.let { m ->
             val amount = toCents(m.groupValues[1])
             val dstLast4 = m.groupValues[2]
             val ts = System.currentTimeMillis()
-            val id = hash("${ts/60000}|$amount|INGRESO_APP|$dstLast4")
+            val id = stableId(ts, amount, "INGRESO_APP", dstLast4, null, text)
             val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
             val accountId = getAccountIdForSource("notif:app")
-            
+
             return Transaction.fromTimestamp(
                 id = id,
                 ts = ts,
@@ -348,17 +541,16 @@ object BancolombiaParser {
     }
 
     private suspend fun tryParseIngresosNequi(text: String): Transaction? {
-        if (!text.contains("Nequi", ignoreCase = true) || 
-            !text.contains("Recibiste", ignoreCase = true)) return null
+        if (!text.contains("Nequi", ignoreCase = true) || !text.contains("Recibiste", ignoreCase = true)) return null
 
         nequiIngresoRegex.find(text)?.let { m ->
             val amount = toCents(m.groupValues[1])
             val sender = norm(m.groupValues[2])
             val ts = System.currentTimeMillis()
-            val id = hash("${ts/60000}|$amount|INGRESO_NEQUI|$sender")
+            val id = stableId(ts, amount, "INGRESO_NEQUI", "NEQU", sender, text)
             val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
             val accountId = getAccountIdForSource("notif:nequi")
-            
+
             return Transaction.fromTimestamp(
                 id = id,
                 ts = ts,
@@ -380,17 +572,16 @@ object BancolombiaParser {
     }
 
     private suspend fun tryParseIngresosDaviPlata(text: String): Transaction? {
-        if (!text.contains("DaviPlata", ignoreCase = true) || 
-            !text.contains("Recibiste", ignoreCase = true)) return null
+        if (!text.contains("DaviPlata", ignoreCase = true) || !text.contains("Recibiste", ignoreCase = true)) return null
 
         daviIngresoRegex.find(text)?.let { m ->
             val amount = toCents(m.groupValues[1])
             val sender = norm(m.groupValues[2])
             val ts = System.currentTimeMillis()
-            val id = hash("${ts/60000}|$amount|INGRESO_DAVI|$sender")
+            val id = stableId(ts, amount, "INGRESO_DAVI", "DAVI", sender, text)
             val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
             val accountId = getAccountIdForSource("notif:daviPlata")
-            
+
             return Transaction.fromTimestamp(
                 id = id,
                 ts = ts,
@@ -411,23 +602,107 @@ object BancolombiaParser {
         return null
     }
 
-    // Versión síncrona para compatibilidad con código existente
-    fun tryParseSync(text: String): Transaction? = runBlocking { tryParse(text) }
+    private suspend fun tryParseFallbackGenerico(text: String): Transaction? {
+        genericCompraRegex.find(text)?.let { m ->
+            val amount = toCents(m.groupValues[2])
+            val merchant = norm(m.groupValues[3])
+            val last4 = m.groupValues[4]
+            val ts = System.currentTimeMillis()
+            val id = stableId(ts, amount, "COMPRA", last4, merchant, text)
+            val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
+            val accountId = getAccountIdForSource("notif:generic")
 
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "COMPRA",
+                description = merchant,
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = last4,
+                dstLast4 = null,
+                source = "notif:generic",
+                rawPreview = text.take(140),
+                categoryId = categoryId,
+                accountId = accountId
+            )
+        }
+        return null
+    }
+
+    // -------------------------------------------
+    // Helpers
+    // -------------------------------------------
+
+    /**
+     * Convierte un monto en string a centavos COP de forma robusta.
+     *
+     * Soporta:
+     * - "39.500,00" (ES-CO) -> 3_950_000
+     * - "39,500.00" (EN)    -> 3_950_000
+     * - "50.000"            -> 5_000_000
+     * - "50,000"            -> 5_000_000
+     * - "50.000,5"          -> 5_000_050  (un decimal => se rellena a 2)
+     */
     private fun toCents(s: String): Long {
-        // "39,500.00" -> "3950000" (centavos)
-        val clean = s.replace(".", "").replace(",", "")
-        // Bancolombia suele mandar .00 (2 decimales). Si no, ajusta aquí.
-        return clean.toLong()
+        val raw = s.filter { it.isDigit() || it == '.' || it == ',' }
+        if (raw.isEmpty()) return 0L
+
+        val hasDot = raw.contains('.')
+        val hasComma = raw.contains(',')
+
+        if (!hasDot && !hasComma) {
+            // Solo dígitos => no hay decimales explícitos
+            return raw.toLong() * 100
+        }
+
+        val lastSepIdx = raw.indexOfLast { it == '.' || it == ',' }
+        val rightDigits = raw.substring(lastSepIdx + 1).count(Char::isDigit)
+        val both = hasDot && hasComma
+
+        val isDecimalSeparator = when {
+            both -> true // Si hay ambos, el último separador casi siempre es el decimal
+            rightDigits in 1..2 -> true // 1–2 dígitos a la derecha => decimal
+            else -> false // probablemente separador de miles
+        }
+
+        return if (isDecimalSeparator) {
+            val intPart = raw.substring(0, lastSepIdx).filter(Char::isDigit).ifEmpty { "0" }
+            val frac = raw.substring(lastSepIdx + 1).filter(Char::isDigit).padEnd(2, '0').take(2)
+            (intPart + frac).toLong()
+        } else {
+            raw.filter(Char::isDigit).toLong() * 100
+        }
     }
 
     private fun toEpoch(date: String, time: String): Long {
-        val fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
-        val ldt = LocalDateTime.parse("$date $time", fmt)
+        val patterns = listOf("dd/MM/yyyy HH:mm", "dd-MM-yyyy HH:mm")
+        val ldt = patterns.asSequence()
+            .map { DateTimeFormatter.ofPattern(it) }
+            .mapNotNull { fmt -> runCatching { LocalDateTime.parse("$date $time", fmt) }.getOrNull() }
+            .firstOrNull()
+            ?: return System.currentTimeMillis() // Fallback defensivo
         return ldt.atZone(ZoneId.of("America/Bogota")).toInstant().toEpochMilli()
     }
 
     private fun norm(x: String) = x.trim().replace(Regex("\\s+"), " ").take(60)
 
     private fun hash(x: String) = DigestUtils.sha256Hex(x)
+
+    /**
+     * ID estable que mezcla minuto, datos clave y un hash del preview normalizado.
+     * Reduce duplicados por reprocesamiento con distinta hora exacta.
+     */
+    private fun stableId(
+        ts: Long,
+        amount: Long,
+        kind: String,
+        last4: String?,
+        merchantOrNote: String?,
+        raw: String
+    ): String {
+        val minute = ts / 60000
+        val previewHash = DigestUtils.sha256Hex(norm(raw).take(120))
+        return hash("$minute|$amount|$kind|${last4.orEmpty()}|${merchantOrNote.orEmpty()}|$previewHash")
+    }
 }

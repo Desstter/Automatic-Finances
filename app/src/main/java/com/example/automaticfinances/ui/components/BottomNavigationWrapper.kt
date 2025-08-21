@@ -48,10 +48,12 @@ fun BottomNavigationWrapper(
     val currentRoute = navBackStackEntry?.destination?.route
 
     Scaffold(
+        contentWindowInsets = WindowInsets.systemBars,
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp
+                tonalElevation = 8.dp,
+                windowInsets = WindowInsets.navigationBars
             ) {
                 bottomNavItems.forEach { item ->
                     val isSelected = currentRoute == item.route

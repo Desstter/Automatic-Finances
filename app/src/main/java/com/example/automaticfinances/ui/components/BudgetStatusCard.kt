@@ -22,45 +22,18 @@ import java.util.*
 fun BudgetStatusCard(
     budgetStatus: BudgetStatus,
     onClick: (() -> Unit)? = null,
+    onEdit: (() -> Unit)? = null,
+    onDeactivate: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
     
-    // Progress-based color system
+    // Clean progress-based color system
     val progressPercentage = budgetStatus.percentageUsed
     val progressColor = when {
-        progressPercentage <= 50f -> MaterialTheme.colorScheme.primary
-        progressPercentage <= 75f -> MaterialTheme.colorScheme.tertiary
-        progressPercentage <= 90f -> MaterialTheme.colorScheme.secondary
-        progressPercentage < 100f -> MaterialTheme.colorScheme.error
+        progressPercentage < 100f -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.error
-    }
-    
-    // Motivational Spanish messages based on progress
-    val motivationalMessage = when {
-        progressPercentage <= 25f -> "Acabas de empezar este mes"
-        progressPercentage <= 50f -> "Vas por buen camino"
-        progressPercentage <= 75f -> "Estás muy cerca del límite"
-        progressPercentage <= 90f -> "¡Cuidado! Muy cerca del presupuesto"
-        progressPercentage < 100f -> "¡Casi en el límite!"
-        else -> "Presupuesto excedido"
-    }
-    
-    // Message color and icon
-    val messageColor = when {
-        progressPercentage <= 50f -> MaterialTheme.colorScheme.primary
-        progressPercentage <= 75f -> MaterialTheme.colorScheme.tertiary
-        progressPercentage <= 90f -> Color(0xFFFFC107)
-        else -> MaterialTheme.colorScheme.error
-    }
-    
-    val messageIcon = when {
-        progressPercentage <= 25f -> "🌱"
-        progressPercentage <= 50f -> "✅"
-        progressPercentage <= 75f -> "📊"
-        progressPercentage <= 90f -> "⚠️"
-        progressPercentage < 100f -> "🚨"
-        else -> "❌"
     }
     
     Card(
@@ -95,22 +68,12 @@ fun BudgetStatusCard(
                     )
                 }
                 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text(
-                        text = messageIcon,
-                        style = MaterialTheme.typography.titleSmall
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "${progressPercentage.toInt()}%",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = messageColor
-                    )
-                }
+                Text(
+                    text = "${progressPercentage.toInt()}%",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = progressColor
+                )
             }
             
             // Progress bar
@@ -164,29 +127,6 @@ fun BudgetStatusCard(
                     ) {}
                 }
                 
-                // Motivational message
-                Surface(
-                    color = messageColor.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = messageIcon,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = motivationalMessage,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            color = messageColor
-                        )
-                    }
-                }
             }
             
             // Additional info
@@ -224,6 +164,47 @@ fun BudgetStatusCard(
                 }
             }
             
+            // Action buttons for edit, deactivate, delete
+            if (onEdit != null || onDeactivate != null || onDelete != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    onEdit?.let {
+                        OutlinedButton(
+                            onClick = it,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("✏️ Editar", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    
+                    onDeactivate?.let {
+                        OutlinedButton(
+                            onClick = it,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.secondary
+                            )
+                        ) {
+                            Text("⏸️ Pausar", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    
+                    onDelete?.let {
+                        OutlinedButton(
+                            onClick = it,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Text("🗑️ Eliminar", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+            }
+            
             // Projection warning if over budget projected
             if (budgetStatus.projectedSpentCents > budgetStatus.budget.limitAmountCents && budgetStatus.daysLeftInMonth > 0) {
                 Surface(
@@ -252,6 +233,9 @@ fun BudgetStatusCard(
 fun BudgetStatusList(
     budgetStatuses: List<BudgetStatus>,
     onBudgetClick: (BudgetStatus) -> Unit = {},
+    onBudgetEdit: (BudgetStatus) -> Unit = {},
+    onBudgetDeactivate: (BudgetStatus) -> Unit = {},
+    onBudgetDelete: (BudgetStatus) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -261,7 +245,10 @@ fun BudgetStatusList(
         budgetStatuses.forEach { budgetStatus ->
             BudgetStatusCard(
                 budgetStatus = budgetStatus,
-                onClick = { onBudgetClick(budgetStatus) }
+                onClick = { onBudgetClick(budgetStatus) },
+                onEdit = { onBudgetEdit(budgetStatus) },
+                onDeactivate = { onBudgetDeactivate(budgetStatus) },
+                onDelete = { onBudgetDelete(budgetStatus) }
             )
         }
     }

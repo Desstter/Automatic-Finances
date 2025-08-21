@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
@@ -48,11 +50,7 @@ fun FinancialDashboardScreen(
                         fontWeight = FontWeight.Bold
                     )
                 },
-                actions = {
-                    IconButton(onClick = onNavigateToBudgetManagement) {
-                        Icon(Icons.Default.Settings, contentDescription = "Configurar presupuestos")
-                    }
-                }
+                windowInsets = WindowInsets.statusBars
             )
         },
         floatingActionButton = {
@@ -67,14 +65,23 @@ fun FinancialDashboardScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             // Month selector
             item {
                 MonthSelector(
                     currentMonth = state.selectedMonth,
                     onMonthChanged = viewModel::selectMonth
+                )
+            }
+            
+            // Quick Actions - prioritize user actions
+            item {
+                QuickActionsSection(
+                    onManageBudgets = onNavigateToBudgetManagement,
+                    onViewGoals = onNavigateToGoals,
+                    onViewReports = onNavigateToReports
                 )
             }
             
@@ -147,15 +154,6 @@ fun FinancialDashboardScreen(
                         onCreateBudget = onNavigateToBudgetManagement
                     )
                 }
-            }
-            
-            // Quick Actions
-            item {
-                QuickActionsSection(
-                    onManageBudgets = onNavigateToBudgetManagement,
-                    onViewGoals = onNavigateToGoals,
-                    onViewReports = onNavigateToReports
-                )
             }
         }
     }
@@ -361,40 +359,49 @@ private fun QuickActionsSection(
     onViewReports: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.3f)
+        ),
+        shape = RoundedCornerShape(24.dp)
     ) {
-        Text(
-            text = "Acciones Rápidas",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-        
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            QuickActionCard(
-                title = "Presupuestos",
-                icon = "💰",
-                onClick = onManageBudgets,
-                modifier = Modifier.weight(1f)
+            Text(
+                text = "⚡ Acciones Rápidas",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
             
-            QuickActionCard(
-                title = "Metas",
-                icon = "🎯",
-                onClick = onViewGoals,
-                modifier = Modifier.weight(1f)
-            )
-            
-            QuickActionCard(
-                title = "Reportes",
-                icon = "📊",
-                onClick = onViewReports,
-                modifier = Modifier.weight(1f)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                QuickActionCard(
+                    title = "Presupuestos",
+                    icon = "💰",
+                    onClick = onManageBudgets,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                QuickActionCard(
+                    title = "Metas",
+                    icon = "🎯",
+                    onClick = onViewGoals,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                QuickActionCard(
+                    title = "Reportes",
+                    icon = "📊",
+                    onClick = onViewReports,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
@@ -410,25 +417,42 @@ private fun QuickActionCard(
         modifier = modifier,
         onClick = onClick,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-        )
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 6.dp
+        ),
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = icon,
-                style = MaterialTheme.typography.headlineMedium
-            )
+            // Icon with circular background
+            Surface(
+                modifier = Modifier.size(56.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = icon,
+                        style = MaterialTheme.typography.headlineSmall
+                    )
+                }
+            }
             
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Medium
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
