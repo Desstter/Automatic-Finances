@@ -86,6 +86,18 @@ class TransactionRepository {
     
     suspend fun getExpenseCountForDateRange(startDate: String, endDate: String): Int = 
         dao.getExpenseCountForDateRange(startDate, endDate)
+    
+    suspend fun getExpenseByCategoryInMonth(categoryId: Long, year: Int, month: Int): Long {
+        val startDate = String.format("%04d-%02d-01", year, month)
+        val endDate = String.format("%04d-%02d-31", year, month)
+        return dao.getExpenseTotalByCategoryAndDateRange(categoryId, startDate, endDate)
+    }
+    
+    suspend fun getIncomeByCategoryInMonth(categoryId: Long, year: Int, month: Int): Long {
+        val startDate = String.format("%04d-%02d-01", year, month)
+        val endDate = String.format("%04d-%02d-31", year, month)
+        return dao.getIncomeTotalByCategoryAndDateRange(categoryId, startDate, endDate)
+    }
 }
 
 data class TransactionWithCategory(

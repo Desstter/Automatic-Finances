@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.automaticfinances.data.repo.TransactionWithCategory
 import com.example.automaticfinances.system.ServiceManager
 import com.example.automaticfinances.ui.components.IntelligenceInsightsCard
+import com.example.automaticfinances.ui.components.BalanceOverviewCard
 import kotlinx.coroutines.flow.StateFlow
 import java.text.NumberFormat
 import java.util.*
@@ -73,37 +74,10 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            Column {
-                FloatingActionButton(
-                    onClick = onViewInsightsClick,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                ) {
-                    Text("📊")
-                }
-                FloatingActionButton(
-                    onClick = onViewIncomesClick,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                    containerColor = Color(0xFF4CAF50)
-                ) {
-                    Text("💰", color = Color.White)
-                }
-                FloatingActionButton(
-                    onClick = onAddTransactionClick,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                ) {
-                    Text("💵")
-                }
-                FloatingActionButton(
-                    onClick = onManageCategoriesClick,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                ) {
-                    Text("🏷️")
-                }
-                ExtendedFloatingActionButton(
-                    onClick = onOpenNotifAccess
-                ) {
-                    Text("Habilitar acceso")
-                }
+            FloatingActionButton(
+                onClick = onAddTransactionClick
+            ) {
+                Text("💵")
             }
         }
     ) { padding ->
@@ -126,17 +100,22 @@ fun HomeScreen(
                     )
                 }
                 
-                // Monthly Total Card (only if there are transactions)
-                // Balance Summary Card
+                // Balance Overview Card - Bank, Cash, Total balances
                 item {
-                    MonthlyBalanceCard(
+                    BalanceOverviewCard(
+                        bankBalanceCents = state.bankBalanceCents,
+                        cashBalanceCents = state.cashBalanceCents,
+                        totalBalanceCents = state.totalBalanceCents,
                         monthlyIncome = state.monthlyIncome,
                         monthlyExpenses = state.monthlyExpenses,
-                        monthlyBalance = state.monthlyBalance,
                         numberFormat = nf,
-                        currentMonth = state.currentMonth,
-                        onViewHistoryClick = onViewHistoryClick,
-                        onViewIncomesClick = onViewIncomesClick
+                        onBankClick = {
+                            // TODO: Navigate to bank transactions or account details
+                        },
+                        onCashClick = {
+                            // TODO: Navigate to cash transactions or account details
+                        },
+                        onViewHistoryClick = onViewHistoryClick
                     )
                 }
                 

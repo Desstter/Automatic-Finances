@@ -82,6 +82,12 @@ interface TransactionDao {
     suspend fun getUncategorizedTotalForDateRange(startDate: String, endDate: String): Long?
     
     @Query("""
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
+        WHERE isIncome = 0 AND categoryId IS NULL AND date BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getUncategorizedExpenseTotalForDateRange(startDate: String, endDate: String): Long?
+    
+    @Query("""
         SELECT COUNT(*) FROM transactions 
         WHERE date BETWEEN :startDate AND :endDate
     """)
@@ -148,4 +154,28 @@ interface TransactionDao {
         WHERE isIncome = 0 AND date BETWEEN :startDate AND :endDate
     """)
     suspend fun getExpenseCountForDateRange(startDate: String, endDate: String): Int
+    
+    @Query("""
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
+        WHERE isIncome = 0 AND categoryId = :categoryId AND date BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getExpenseTotalByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Long
+    
+    @Query("""
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
+        WHERE isIncome = 1 AND categoryId = :categoryId AND date BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getIncomeTotalByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Long
+    
+    @Query("""
+        SELECT COUNT(*) FROM transactions 
+        WHERE isIncome = 1 AND categoryId = :categoryId AND date BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getIncomeCountByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Int
+    
+    @Query("""
+        SELECT COUNT(*) FROM transactions 
+        WHERE isIncome = 0 AND categoryId = :categoryId AND date BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getExpenseCountByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Int
 }

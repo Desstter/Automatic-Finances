@@ -232,3 +232,144 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_isCompleted ON financial_goals(isCompleted)")
     }
 }
+
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // 1. Crear tabla accounts para balance tracking
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS accounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                name TEXT NOT NULL,
+                type TEXT NOT NULL,
+                balanceCents INTEGER NOT NULL,
+                isActive INTEGER NOT NULL DEFAULT 1,
+                createdAt INTEGER NOT NULL
+            )
+        """)
+        
+        // 2. Crear índices para accounts
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_accounts_type ON accounts(type)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_accounts_isActive ON accounts(isActive)")
+        database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_accounts_name ON accounts(name)")
+        
+        // 3. Crear cuentas por defecto: Banco y Efectivo
+        val currentTime = System.currentTimeMillis()
+        database.execSQL("""
+            INSERT INTO accounts (name, type, balanceCents, isActive, createdAt) 
+            VALUES ('Banco', 'BANK', 0, 1, $currentTime)
+        """)
+        database.execSQL("""
+            INSERT INTO accounts (name, type, balanceCents, isActive, createdAt) 
+            VALUES ('Efectivo', 'CASH', 0, 1, $currentTime)
+        """)
+        
+        // 4. Obtener IDs de las cuentas creadas
+        // Banco = ID 1, Efectivo = ID 2 (por el orden de inserción)
+        
+        // 5. Agregar accountId a transactions table
+        database.execSQL("ALTER TABLE transactions ADD COLUMN accountId INTEGER")
+        
+        // 6. Asignar cuentas a transacciones existentes
+        // SMS transactions (notif:sms) → Banco (ID 1)
+        database.execSQL("""
+            UPDATE transactions 
+            SET accountId = 1 
+            WHERE source = 'notif:sms'
+        """)
+        
+        // Manual transactions → Efectivo (ID 2)
+        database.execSQL("""
+            UPDATE transactions 
+            SET accountId = 2 
+            WHERE source != 'notif:sms'
+        """)
+        
+        // 7. Calcular balances iniciales basados en transacciones existentes
+        
+        // Balance del banco (transacciones SMS)
+        val bankBalanceCursor = database.query("""
+            SELECT COALESCE(
+                SUM(CASE 
+                    WHEN isIncome = 1 THEN amountCents 
+                    ELSE -amountCents 
+                END), 0
+            ) as balance
+            FROM transactions 
+            WHERE source = 'notif:sms'
+        """)
+        
+        var bankBalance = 0L
+        if (bankBalanceCursor.moveToFirst()) {
+            bankBalance = bankBalanceCursor.getLong(0)
+        }
+        bankBalanceCursor.close()
+        
+        // Balance del efectivo (transacciones manuales)
+        val cashBalanceCursor = database.query("""
+            SELECT COALESCE(
+                SUM(CASE 
+                    WHEN isIncome = 1 THEN amountCents 
+                    ELSE -amountCents 
+                END), 0
+            ) as balance
+            FROM transactions 
+            WHERE source != 'notif:sms'
+        """)
+        
+        var cashBalance = 0L
+        if (cashBalanceCursor.moveToFirst()) {
+            cashBalance = cashBalanceCursor.getLong(0)
+        }
+        cashBalanceCursor.close()
+        
+        // 8. Actualizar balances calculados
+        database.execSQL("UPDATE accounts SET balanceCents = $bankBalance WHERE name = 'Banco'")
+        database.execSQL("UPDATE accounts SET balanceCents = $cashBalance WHERE name = 'Efectivo'")
+        
+        // 9. Crear índices para accountId en transactions
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_accountId ON transactions(accountId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_accountId_date ON transactions(accountId, date)")
+        
+        // 10. Agregar foreign key constraint (recrear la tabla)
+        database.execSQL("""
+            CREATE TABLE transactions_new (
+                id TEXT PRIMARY KEY NOT NULL,
+                ts INTEGER NOT NULL,
+                date TEXT NOT NULL,
+                time TEXT NOT NULL,
+                type TEXT NOT NULL,
+                description TEXT NOT NULL,
+                amountCents INTEGER NOT NULL,
+                currency TEXT NOT NULL,
+                srcLast4 TEXT,
+                dstLast4 TEXT,
+                source TEXT NOT NULL,
+                categoryId INTEGER,
+                accountId INTEGER,
+                notes TEXT NOT NULL DEFAULT '',
+                isIncome INTEGER NOT NULL DEFAULT 0,
+                rawPreview TEXT NOT NULL,
+                FOREIGN KEY(categoryId) REFERENCES categories(id) ON DELETE SET NULL,
+                FOREIGN KEY(accountId) REFERENCES accounts(id) ON DELETE SET NULL
+            )
+        """)
+        
+        // Migrar todos los datos a la nueva tabla
+        database.execSQL("""
+            INSERT INTO transactions_new 
+            SELECT * FROM transactions
+        """)
+        
+        // Eliminar tabla vieja y renombrar
+        database.execSQL("DROP TABLE transactions")
+        database.execSQL("ALTER TABLE transactions_new RENAME TO transactions")
+        
+        // Recrear índices
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_categoryId ON transactions(categoryId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_accountId ON transactions(accountId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_date ON transactions(date)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_isIncome ON transactions(isIncome)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_date_isIncome ON transactions(date, isIncome)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_accountId_date ON transactions(accountId, date)")
+    }
+}

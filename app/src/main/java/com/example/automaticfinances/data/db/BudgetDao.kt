@@ -41,7 +41,7 @@ interface BudgetDao {
         LEFT JOIN (
             SELECT categoryId, SUM(amountCents) as totalSpent
             FROM transactions 
-            WHERE strftime('%Y', date) = :year AND strftime('%m', date) = :month
+            WHERE isIncome = 0 AND strftime('%Y', date) = :year AND strftime('%m', date) = :month
             GROUP BY categoryId
         ) spent ON b.categoryId = spent.categoryId
         WHERE b.year = :year AND b.month = :month AND b.isActive = 1
@@ -58,7 +58,7 @@ interface BudgetDao {
         LEFT JOIN (
             SELECT categoryId, SUM(amountCents) as totalSpent
             FROM transactions 
-            WHERE strftime('%Y', date) = :year AND strftime('%m', date) = :month
+            WHERE isIncome = 0 AND strftime('%Y', date) = :year AND strftime('%m', date) = :month
             GROUP BY categoryId
         ) spent ON b.categoryId = spent.categoryId
         WHERE b.year = :yearInt AND b.month = :monthInt AND b.isActive = 1

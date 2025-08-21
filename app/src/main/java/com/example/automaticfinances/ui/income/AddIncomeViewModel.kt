@@ -4,8 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.db.Transaction
+import com.example.automaticfinances.data.db.Account
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
+import com.example.automaticfinances.data.repo.AccountRepository
+import com.example.automaticfinances.domain.AddTransactionUseCase
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -19,8 +22,10 @@ data class AddIncomeState(
     val selectedDate: LocalDate = LocalDate.now(),
     val selectedTime: LocalTime = LocalTime.now(),
     val selectedCategoryId: Long? = null,
+    val selectedAccountId: Long? = null,
     val notes: String = "",
     val incomeCategories: List<Category> = emptyList(),
+    val availableAccounts: List<Account> = emptyList(),
     val isLoading: Boolean = false,
     val isSuccess: Boolean = false,
     val error: String? = null,
@@ -30,21 +35,37 @@ data class AddIncomeState(
     val canSave: Boolean
         get() = amount.isNotBlank() && 
                 description.isNotBlank() && 
-                selectedCategoryId != null && 
+                selectedCategoryId != null &&
+                selectedAccountId != null &&
                 amountError == null && 
                 descriptionError == null &&
                 !isLoading
+                
+    val selectedAccount: Account?
+        get() = availableAccounts.find { it.id == selectedAccountId }
+        
+    val incomeAmountCents: Long
+        get() = try {
+            if (amount.isBlank()) 0L else {
+                val cleaned = amount.replace(".", "").replace(",", "")
+                (cleaned.toDouble() * 100).toLong()
+            }
+        } catch (e: Exception) {
+            0L
+        }
 }
 
 class AddIncomeViewModel : ViewModel() {
-    private val transactionRepository = TransactionRepository()
+    private val addTransactionUseCase = AddTransactionUseCase()
     private val categoryRepository = CategoryRepository()
+    private val accountRepository = AccountRepository()
     
     private val _state = MutableStateFlow(AddIncomeState())
     val state: StateFlow<AddIncomeState> = _state.asStateFlow()
     
     init {
         loadIncomeCategories()
+        loadAccounts()
     }
     
     private fun loadIncomeCategories() {
@@ -52,8 +73,19 @@ class AddIncomeViewModel : ViewModel() {
             _state.value = _state.value.copy(isLoading = true)
             try {
                 categoryRepository.getAllActive().collectLatest { categories ->
-                    // Filter categories that are typically for income based on their names
-                    val incomeCategories = categories.filter { category ->
+                    // First, ensure default categories are initialized
+                    categoryRepository.initializeDefaultCategories()
+                    
+                    // Find income-specific categories (the ones with icons from CategoryRepository)
+                    var incomeCategories = categories.filter { category ->
+                        category.name.contains("💰") ||  // Salario
+                        category.name.contains("💼") ||  // Freelance
+                        category.name.contains("🏪") ||  // Ventas
+                        category.name.contains("🎁") ||  // Regalos
+                        category.name.contains("📈") ||  // Inversiones
+                        category.name.contains("💸") ||  // Devoluciones
+                        category.name.contains("🎯") ||  // Bonos
+                        category.name.contains("📋") ||  // Otros ingresos
                         category.name.contains("Salario", ignoreCase = true) ||
                         category.name.contains("Freelance", ignoreCase = true) ||
                         category.name.contains("Ventas", ignoreCase = true) ||
@@ -61,15 +93,13 @@ class AddIncomeViewModel : ViewModel() {
                         category.name.contains("Inversiones", ignoreCase = true) ||
                         category.name.contains("Devoluciones", ignoreCase = true) ||
                         category.name.contains("Bonos", ignoreCase = true) ||
-                        category.name.contains("ingresos", ignoreCase = true) ||
-                        category.icon.contains("💰") ||
-                        category.icon.contains("💼") ||
-                        category.icon.contains("🏪") ||
-                        category.icon.contains("🎁") ||
-                        category.icon.contains("📈") ||
-                        category.icon.contains("💸") ||
-                        category.icon.contains("🎯") ||
-                        category.icon.contains("📋")
+                        category.name.contains("ingresos", ignoreCase = true)
+                    }
+                    
+                    // If no specific income categories found, allow all categories
+                    // This gives users maximum flexibility
+                    if (incomeCategories.isEmpty()) {
+                        incomeCategories = categories
                     }
                     
                     _state.value = _state.value.copy(
@@ -90,6 +120,31 @@ class AddIncomeViewModel : ViewModel() {
                 )
             }
         }
+    }
+    
+    private fun loadAccounts() {
+        viewModelScope.launch {
+            try {
+                val accounts = accountRepository.getAllActiveAccounts()
+                _state.value = _state.value.copy(
+                    availableAccounts = accounts,
+                    selectedAccountId = if (_state.value.selectedAccountId == null && accounts.isNotEmpty()) {
+                        // Default to cash account for manual income entries
+                        accounts.find { it.name == "Efectivo" }?.id ?: accounts.first().id
+                    } else {
+                        _state.value.selectedAccountId
+                    }
+                )
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(
+                    error = "Error al cargar cuentas: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    fun setAccount(accountId: Long) {
+        _state.value = _state.value.copy(selectedAccountId = accountId)
     }
     
     fun setAmount(amount: String) {
@@ -160,11 +215,12 @@ class AddIncomeViewModel : ViewModel() {
                     source = "manual",
                     rawPreview = "Ingreso manual: ${currentState.description}",
                     categoryId = currentState.selectedCategoryId,
+                    accountId = currentState.selectedAccountId,
                     isIncome = true
                 )
                 
-                // Save to database
-                transactionRepository.insert(transaction)
+                // Save to database with proper account assignment and balance updates
+                addTransactionUseCase(transaction)
                 
                 // Learn from user category choice for intelligent categorization
                 categoryRepository.learnFromUserCategoryChoice(

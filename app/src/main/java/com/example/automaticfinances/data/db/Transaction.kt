@@ -16,13 +16,21 @@ import java.time.format.DateTimeFormatter
             parentColumns = ["id"],
             childColumns = ["categoryId"],
             onDelete = ForeignKey.SET_NULL
+        ),
+        ForeignKey(
+            entity = Account::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.SET_NULL
         )
     ],
     indices = [
         Index(value = ["categoryId"]),
+        Index(value = ["accountId"]),
         Index(value = ["date"]),
         Index(value = ["isIncome"]),
-        Index(value = ["date", "isIncome"])
+        Index(value = ["date", "isIncome"]),
+        Index(value = ["accountId", "date"])
     ]
 )
 data class Transaction(
@@ -38,6 +46,7 @@ data class Transaction(
     val dstLast4: String?,               // para transferencia
     val source: String,                  // "notif:sms"
     val categoryId: Long? = null,        // FK a categories (nuevo)
+    val accountId: Long? = null,         // FK a accounts (banco vs efectivo)
     val notes: String = "",              // Notas adicionales del usuario (nuevo)
     val isIncome: Boolean = false,       // true para ingresos, false para gastos
     val rawPreview: String               // primeros 140 chars del SMS original
@@ -56,6 +65,7 @@ data class Transaction(
             source: String,
             rawPreview: String,
             categoryId: Long? = null,
+            accountId: Long? = null,
             isIncome: Boolean = false
         ): Transaction {
             val instant = Instant.ofEpochMilli(ts)
@@ -76,9 +86,15 @@ data class Transaction(
                 dstLast4 = dstLast4,
                 source = source,
                 categoryId = categoryId,
+                accountId = accountId,
                 isIncome = isIncome,
                 rawPreview = rawPreview
             )
         }
     }
+    
+    // Convenience properties for account identification
+    val isBankTransaction: Boolean get() = source == "notif:sms"
+    val isCashTransaction: Boolean get() = source != "notif:sms"
+    val hasAccount: Boolean get() = accountId != null
 }

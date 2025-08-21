@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.automaticfinances.data.db.Category
+import com.example.automaticfinances.ui.components.AccountSelectorCard
+import com.example.automaticfinances.ui.components.AccountBalancePreview
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.LocalTime
@@ -103,6 +105,27 @@ fun AddIncomeScreen(
                     isError = state.amountError != null,
                     errorMessage = state.amountError
                 )
+            }
+
+            // Account Selection Card
+            item {
+                AccountSelectorCard(
+                    accounts = state.availableAccounts,
+                    selectedAccountId = state.selectedAccountId,
+                    onAccountSelected = viewModel::setAccount,
+                    numberFormat = numberFormat
+                )
+            }
+            
+            // Balance Preview Card
+            if (state.selectedAccount != null && state.incomeAmountCents > 0) {
+                item {
+                    AccountBalancePreview(
+                        account = state.selectedAccount,
+                        incomeAmount = state.incomeAmountCents,
+                        numberFormat = numberFormat
+                    )
+                }
             }
 
             // Description Input Card  

@@ -7,6 +7,7 @@ import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.TransactionWithCategory
 import com.example.automaticfinances.data.repo.UserCategoryPreferenceRepository
+import com.example.automaticfinances.data.repo.AccountRepository
 import com.example.automaticfinances.data.db.CategoryAccuracy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +26,10 @@ data class HomeState(
     val monthlyIncome: Long = 0L,
     val monthlyExpenses: Long = 0L,
     val monthlyBalance: Long = 0L,
+    // Account balance tracking
+    val bankBalanceCents: Long = 0L,
+    val cashBalanceCents: Long = 0L,
+    val totalBalanceCents: Long = 0L,
     val selectedCategoryFilter: Long? = null,
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
@@ -47,13 +52,21 @@ class HomeViewModel : ViewModel() {
     private val transactionRepository = TransactionRepository()
     private val categoryRepository = CategoryRepository()
     private val preferenceRepository = UserCategoryPreferenceRepository()
+    private val accountRepository = AccountRepository()
     
     private val _state = MutableStateFlow(HomeState())
     val state: StateFlow<HomeState> = _state.asStateFlow()
     
     init {
+        initializeAccounts()
         loadData()
         loadIntelligenceData()
+    }
+    
+    private fun initializeAccounts() {
+        viewModelScope.launch {
+            accountRepository.initializeDefaultAccounts()
+        }
     }
     
     private fun loadData(isRefresh: Boolean = false) {
@@ -65,13 +78,14 @@ class HomeViewModel : ViewModel() {
             }
             
             try {
-                // Combinar categorías y transacciones en un solo flow
+                // Combinar categorías, transacciones y balances de cuentas en un solo flow
                 combine(
                     categoryRepository.getAllActive(),
-                    transactionRepository.getTransactionsWithCategories()
-                ) { categories, transactions ->
-                    Pair(categories, transactions)
-                }.collectLatest { (categories, allTransactions) ->
+                    transactionRepository.getTransactionsWithCategories(),
+                    accountRepository.getAccountSummaryFlow()
+                ) { categories, transactions, accountSummary ->
+                    Triple(categories, transactions, accountSummary)
+                }.collectLatest { (categories, allTransactions, accountSummary) ->
                     Log.d("HomeViewModel", "Received ${categories.size} categories and ${allTransactions.size} transactions")
                     
                     val currentDate = LocalDate.now()
@@ -98,6 +112,10 @@ class HomeViewModel : ViewModel() {
                         totalMonthCOP = monthlyTotal,
                         monthlyIncome = monthlyIncome,
                         monthlyExpenses = monthlyExpenses,
+                        // Update account balances
+                        bankBalanceCents = accountSummary?.bankBalanceCents ?: 0L,
+                        cashBalanceCents = accountSummary?.cashBalanceCents ?: 0L,
+                        totalBalanceCents = accountSummary?.totalBalanceCents ?: 0L,
                         monthlyBalance = monthlyBalance,
                         isLoading = false,
                         isRefreshing = false

@@ -1,11 +1,14 @@
 package com.example.automaticfinances.navigation
 
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.automaticfinances.ui.HomeScreen
 import com.example.automaticfinances.ui.HomeViewModel
 import com.example.automaticfinances.ui.categories.CategoryManagementScreen
@@ -24,6 +27,7 @@ import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.db.AppDatabase
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.automaticfinances.ui.components.BottomNavigationWrapper
 
 // Definición de rutas
 object Routes {
@@ -49,10 +53,12 @@ fun AppNavigation(
     navController: NavHostController = rememberNavController(),
     onOpenNotifAccess: () -> Unit
 ) {
-    NavHost(
-        navController = navController,
-        startDestination = Routes.HOME
-    ) {
+    BottomNavigationWrapper(navController = navController) { paddingValues ->
+        NavHost(
+            navController = navController,
+            startDestination = Routes.HOME,
+            modifier = Modifier.padding(paddingValues)
+        ) {
         composable(Routes.HOME) { backStackEntry ->
             val homeViewModel: HomeViewModel = viewModel()
             
@@ -225,6 +231,7 @@ fun AppNavigation(
                     navController.popBackStack()
                 }
             )
+        }
         }
     }
 }

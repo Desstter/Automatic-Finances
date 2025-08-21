@@ -15,10 +15,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.automaticfinances.ui.components.*
-import com.example.automaticfinances.ui.components.charts.FinancialChartsSection
-import com.example.automaticfinances.ui.components.charts.IncomeVsExpenseChart
+import com.example.automaticfinances.ui.components.charts.*
 import com.example.automaticfinances.data.db.BudgetStatus
 import com.example.automaticfinances.data.db.BudgetSummary
+import java.text.NumberFormat
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.*
@@ -78,34 +78,56 @@ fun FinancialDashboardScreen(
                 )
             }
             
-            // KPIs Row
+            // KPIs Row  
             item {
                 KPISection(
                     budgetSummary = state.budgetSummary,
                     monthlySpent = state.monthlySpentCents,
+                    monthlyIncome = state.monthlyIncomeCents,
+                    incomeVsExpenseComparison = state.incomeVsExpenseComparison,
                     previousMonthSpent = state.previousMonthSpentCents,
                     onBudgetClick = onNavigateToBudgetManagement,
                     onSpendingClick = onNavigateToReports
                 )
             }
             
-            // Financial Charts Section
+            // Analysis Mode Tabs
             item {
-                FinancialChartsSection(
-                    chartData = state.chartData,
-                    onChartTypeChanged = viewModel::selectChartType,
-                    onCategoryClick = viewModel::onCategoryClicked,
-                    onBudgetClick = viewModel::onBudgetClicked,
-                    initialExpanded = state.isChartsExpanded
+                AnalysisModeTabs(
+                    currentMode = state.analysisMode,
+                    onModeChanged = viewModel::setAnalysisMode
                 )
             }
             
-            // Income vs Expense Chart
-            if (state.incomeVsExpenseComparison != null) {
-                item {
-                    IncomeVsExpenseChart(
-                        comparison = state.incomeVsExpenseComparison!!
-                    )
+            // Charts Section Based on Analysis Mode
+            when (state.analysisMode) {
+                AnalysisMode.EXPENSES -> {
+                    item {
+                        FinancialChartsSection(
+                            chartData = state.chartData,
+                            onChartTypeChanged = viewModel::selectChartType,
+                            onCategoryClick = viewModel::onCategoryClicked,
+                            onBudgetClick = viewModel::onBudgetClicked,
+                            initialExpanded = state.isChartsExpanded
+                        )
+                    }
+                }
+                AnalysisMode.INCOME -> {
+                    item {
+                        IncomeChartsSection(
+                            incomeChartData = state.incomeChartData,
+                            onCategoryClick = viewModel::onCategoryClicked
+                        )
+                    }
+                }
+                AnalysisMode.COMPARISON -> {
+                    if (state.incomeVsExpenseComparison != null) {
+                        item {
+                            IncomeVsExpenseChart(
+                                comparison = state.incomeVsExpenseComparison!!
+                            )
+                        }
+                    }
                 }
             }
             
@@ -185,6 +207,8 @@ private fun MonthSelector(
 private fun KPISection(
     budgetSummary: BudgetSummary?,
     monthlySpent: Long,
+    monthlyIncome: Long,
+    incomeVsExpenseComparison: com.example.automaticfinances.data.models.IncomeVsExpenseComparison?,
     previousMonthSpent: Long?,
     onBudgetClick: () -> Unit,
     onSpendingClick: () -> Unit,
@@ -211,6 +235,28 @@ private fun KPISection(
                     onClick = onSpendingClick,
                     modifier = Modifier.width(200.dp)
                 )
+            }
+            
+            item {
+                IncomeKPICard(
+                    monthlyIncomeCents = monthlyIncome,
+                    onClick = onSpendingClick,
+                    modifier = Modifier.width(200.dp)
+                )
+            }
+            
+            incomeVsExpenseComparison?.let { comparison ->
+                item {
+                    BalanceKPICard(
+                        netBalanceCents = comparison.netBalanceCents,
+                        hasPositiveBalance = comparison.hasPositiveBalance,
+                        savingsRate = if (comparison.totalIncomeCents > 0) 
+                            (comparison.netBalanceCents.toFloat() / comparison.totalIncomeCents.toFloat()) * 100f 
+                            else 0f,
+                        onClick = onSpendingClick,
+                        modifier = Modifier.width(200.dp)
+                    )
+                }
             }
             
             budgetSummary?.let { summary ->
@@ -386,4 +432,151 @@ private fun QuickActionCard(
             )
         }
     }
+}
+
+@Composable
+private fun AnalysisModeTabs(
+    currentMode: AnalysisMode,
+    onModeChanged: (AnalysisMode) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        TabRow(
+            selectedTabIndex = currentMode.ordinal,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Tab(
+                selected = currentMode == AnalysisMode.EXPENSES,
+                onClick = { onModeChanged(AnalysisMode.EXPENSES) },
+                text = { Text("💸 Gastos") }
+            )
+            Tab(
+                selected = currentMode == AnalysisMode.INCOME,
+                onClick = { onModeChanged(AnalysisMode.INCOME) },
+                text = { Text("💰 Ingresos") }
+            )
+            Tab(
+                selected = currentMode == AnalysisMode.COMPARISON,
+                onClick = { onModeChanged(AnalysisMode.COMPARISON) },
+                text = { Text("⚖️ Comparación") }
+            )
+        }
+    }
+}
+
+@Composable
+private fun IncomeChartsSection(
+    incomeChartData: com.example.automaticfinances.data.models.IncomeChartData,
+    onCategoryClick: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "📊 Análisis de Ingresos",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold
+                )
+            )
+            
+            if (incomeChartData.isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else if (incomeChartData.error != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Text(
+                        text = incomeChartData.error!!,
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            } else {
+                // Income Pie Chart
+                if (incomeChartData.categoryIncome.isNotEmpty()) {
+                    IncomePieChart(
+                        categoryIncome = incomeChartData.categoryIncome,
+                        onSectorClick = { spending -> onCategoryClick(spending.categoryId) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                
+                // Income Trend Chart
+                if (incomeChartData.incomeVsExpenseTrend.isNotEmpty()) {
+                    val incomeTrendData = incomeChartData.incomeVsExpenseTrend.filter { it.isIncome }
+                    if (incomeTrendData.isNotEmpty()) {
+                        IncomeTrendChart(
+                            monthlyIncome = incomeTrendData,
+                            onPointClick = { /* Handle point click */ },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun IncomeKPICard(
+    monthlyIncomeCents: Long,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
+    KPICard(
+        title = "Ingresos del Mes",
+        currentValue = nf.format(monthlyIncomeCents / 100.0),
+        icon = "💰",
+        trend = null, // Could add trend later
+        onClick = onClick,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun BalanceKPICard(
+    netBalanceCents: Long,
+    hasPositiveBalance: Boolean,
+    savingsRate: Float,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
+    val trendValue = if (hasPositiveBalance) KPITrend.UP else KPITrend.DOWN
+    KPICard(
+        title = "Balance Neto",
+        currentValue = nf.format(netBalanceCents / 100.0),
+        icon = if (hasPositiveBalance) "📈" else "📉",
+        trend = trendValue,
+        subtitle = "Tasa de ahorro: ${savingsRate.toInt()}%",
+        onClick = onClick,
+        modifier = modifier
+    )
 }

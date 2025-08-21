@@ -26,9 +26,9 @@ class AnalyticsRepository(
         val categorySpendingList = mutableListOf<CategorySpending>()
         var totalSpent = 0L
         
-        // Calculate spending per category
+        // Calculate spending per category (expenses only)
         for (category in categories) {
-            val spent = transactionRepository.getSpentByCategoryInMonth(category.id, year, month)
+            val spent = transactionRepository.getExpenseByCategoryInMonth(category.id, year, month)
             if (spent > 0) {
                 totalSpent += spent
                 categorySpendingList.add(
@@ -77,11 +77,11 @@ class AnalyticsRepository(
         
         for (i in (monthsBack - 1) downTo 0) {
             val targetMonth = currentMonth.minusMonths(i.toLong())
-            val spent = transactionRepository.getMonthlySpentTotal(
+            val spent = transactionRepository.getMonthlyExpenseTotal(
                 targetMonth.year, 
                 targetMonth.monthValue
             )
-            val transactionCount = getTransactionCountForMonth(targetMonth.year, targetMonth.monthValue)
+            val transactionCount = getExpenseCountForMonth(targetMonth.year, targetMonth.monthValue)
             
             monthlySpendingList.add(
                 MonthlySpending.create(
@@ -136,7 +136,7 @@ class AnalyticsRepository(
     private suspend fun getUncategorizedSpentForMonth(year: Int, month: Int): Long {
         val startDate = String.format("%04d-%02d-01", year, month)
         val endDate = String.format("%04d-%02d-31", year, month)
-        return transactionDao.getUncategorizedTotalForDateRange(startDate, endDate) ?: 0L
+        return transactionDao.getUncategorizedExpenseTotalForDateRange(startDate, endDate) ?: 0L
     }
     
     private suspend fun getTransactionCountForMonth(year: Int, month: Int): Int {
@@ -145,31 +145,26 @@ class AnalyticsRepository(
         return transactionDao.getTransactionCountForDateRange(startDate, endDate)
     }
     
+    private suspend fun getExpenseCountForMonth(year: Int, month: Int): Int {
+        val startDate = String.format("%04d-%02d-01", year, month)
+        val endDate = String.format("%04d-%02d-31", year, month)
+        return transactionRepository.getExpenseCountForDateRange(startDate, endDate)
+    }
+    
     // ======= INCOME ANALYTICS METHODS =======
     
     suspend fun getIncomeSpendingForMonth(yearMonth: YearMonth): List<CategorySpending> {
         val year = yearMonth.year
         val month = yearMonth.monthValue
         
-        // Get all active categories (filter for income categories)
+        // Get all active categories
         val categories = categoryRepository.getAllActiveSync()
-        val incomeCategories = categories.filter { category ->
-            category.name.contains("Salario", ignoreCase = true) ||
-            category.name.contains("Freelance", ignoreCase = true) ||
-            category.name.contains("Ventas", ignoreCase = true) ||
-            category.name.contains("Regalos", ignoreCase = true) ||
-            category.name.contains("Inversiones", ignoreCase = true) ||
-            category.name.contains("Devoluciones", ignoreCase = true) ||
-            category.name.contains("Bonos", ignoreCase = true) ||
-            category.name.contains("ingresos", ignoreCase = true)
-        }
-        
         val categoryIncomeList = mutableListOf<CategorySpending>()
         var totalIncome = 0L
         
-        // Calculate income per category using monthly income totals
-        for (category in incomeCategories) {
-            val income = getIncomeByCategoryInMonth(category.id, year, month)
+        // Calculate income per category using the proper income filtering
+        for (category in categories) {
+            val income = transactionRepository.getIncomeByCategoryInMonth(category.id, year, month)
             if (income > 0) {
                 totalIncome += income
                 categoryIncomeList.add(
@@ -267,25 +262,12 @@ class AnalyticsRepository(
         return monthlyData
     }
     
-    private suspend fun getIncomeByCategoryInMonth(categoryId: Long, year: Int, month: Int): Long {
-        val startDate = String.format("%04d-%02d-01", year, month)
-        val endDate = String.format("%04d-%02d-31", year, month)
-        
-        // Get transactions for this category and date range that are income
-        return transactionDao.getTotalByCategoryAndDateRange(categoryId, startDate, endDate)
-            .let { total ->
-                // Need to filter only income transactions - this would require updating the DAO
-                // For now, we'll assume transactions in income categories are income
-                total
-            }
-    }
-    
     private suspend fun getIncomeCountByCategoryInMonth(categoryId: Long, year: Int, month: Int): Int {
         val startDate = String.format("%04d-%02d-01", year, month)
         val endDate = String.format("%04d-%02d-31", year, month)
         
-        // This would ideally filter by income categories - simplified for now
-        return transactionDao.getTransactionCountForDateRange(startDate, endDate) / 10 // Rough estimate
+        // Get income transaction count for this specific category
+        return transactionDao.getIncomeCountByCategoryAndDateRange(categoryId, startDate, endDate)
     }
     
     // Summary statistics for dashboard

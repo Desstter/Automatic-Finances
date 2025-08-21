@@ -2,6 +2,7 @@ package com.example.automaticfinances.data.parse
 
 import com.example.automaticfinances.data.db.Transaction
 import com.example.automaticfinances.data.repo.CategoryRepository
+import com.example.automaticfinances.data.repo.AccountRepository
 import kotlinx.coroutines.runBlocking
 import org.apache.commons.codec.digest.DigestUtils
 import java.time.LocalDateTime
@@ -72,6 +73,12 @@ object BancolombiaParser {
     )
     
     private val categoryRepository = CategoryRepository()
+    private val accountRepository = AccountRepository()
+
+    // Helper function to get account ID for transaction source
+    private suspend fun getAccountIdForSource(source: String): Long? {
+        return accountRepository.getAccountForTransaction(source)?.id
+    }
 
     suspend fun tryParse(text: String): Transaction? {
         // Primero intentar parsers específicos por contenido
@@ -96,6 +103,7 @@ object BancolombiaParser {
             val ts = toEpoch(m.groupValues[4], m.groupValues[5])
             val id = hash("${ts/60000}|$amount|COMPRA|$last4|$merchant")
             val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
+            val accountId = getAccountIdForSource("notif:sms")
             
             return Transaction.fromTimestamp(
                 id = id,
@@ -108,7 +116,8 @@ object BancolombiaParser {
                 dstLast4 = null,
                 source = "notif:sms",
                 rawPreview = text.take(140),
-                categoryId = categoryId
+                categoryId = categoryId,
+                accountId = accountId
             )
         }
 
@@ -119,6 +128,7 @@ object BancolombiaParser {
             val ts = toEpoch(m.groupValues[4], m.groupValues[5])
             val id = hash("${ts/60000}|$amount|TRANSFERENCIA|$src")
             val categoryId = categoryRepository.getDefaultCategoryId("TRANSFERENCIA", "Transferencia")
+            val accountId = getAccountIdForSource("notif:sms")
             
             return Transaction.fromTimestamp(
                 id = id,
@@ -131,7 +141,8 @@ object BancolombiaParser {
                 dstLast4 = dst,
                 source = "notif:sms",
                 rawPreview = text.take(140),
-                categoryId = categoryId
+                categoryId = categoryId,
+                accountId = accountId
             )
         }
 
@@ -143,6 +154,7 @@ object BancolombiaParser {
             val ts = System.currentTimeMillis()
             val id = hash("${ts/60000}|$amount|COMPRA|$last4|$merchant")
             val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
+            val accountId = getAccountIdForSource("notif:app")
             
             return Transaction.fromTimestamp(
                 id = id,
@@ -155,7 +167,8 @@ object BancolombiaParser {
                 dstLast4 = null,
                 source = "notif:app",
                 rawPreview = text.take(140),
-                categoryId = categoryId
+                categoryId = categoryId,
+                accountId = accountId
             )
         }
 
@@ -166,6 +179,7 @@ object BancolombiaParser {
             val ts = System.currentTimeMillis()
             val id = hash("${ts/60000}|$amount|TRANSFERENCIA|$src")
             val categoryId = categoryRepository.getDefaultCategoryId("TRANSFERENCIA", "Transferencia")
+            val accountId = getAccountIdForSource("notif:app")
             
             return Transaction.fromTimestamp(
                 id = id,
@@ -178,7 +192,8 @@ object BancolombiaParser {
                 dstLast4 = dst,
                 source = "notif:app",
                 rawPreview = text.take(140),
-                categoryId = categoryId
+                categoryId = categoryId,
+                accountId = accountId
             )
         }
 
@@ -194,6 +209,7 @@ object BancolombiaParser {
             val ts = System.currentTimeMillis()
             val id = hash("${ts/60000}|$amount|COMPRA|nequi|$merchant")
             val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
+            val accountId = getAccountIdForSource("notif:nequi")
             
             return Transaction.fromTimestamp(
                 id = id,
@@ -206,7 +222,8 @@ object BancolombiaParser {
                 dstLast4 = null,
                 source = "notif:nequi",
                 rawPreview = text.take(140),
-                categoryId = categoryId
+                categoryId = categoryId,
+                accountId = accountId
             )
         }
 
@@ -222,6 +239,7 @@ object BancolombiaParser {
             val ts = System.currentTimeMillis()
             val id = hash("${ts/60000}|$amount|COMPRA|davi|$merchant")
             val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
+            val accountId = getAccountIdForSource("notif:daviPlata")
             
             return Transaction.fromTimestamp(
                 id = id,
@@ -234,7 +252,8 @@ object BancolombiaParser {
                 dstLast4 = null,
                 source = "notif:daviPlata",
                 rawPreview = text.take(140),
-                categoryId = categoryId
+                categoryId = categoryId,
+                accountId = accountId
             )
         }
 
@@ -254,6 +273,7 @@ object BancolombiaParser {
             val ts = toEpoch(m.groupValues[3], m.groupValues[4])
             val id = hash("${ts/60000}|$amount|INGRESO_TRANSFERENCIA|$dstLast4")
             val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
+            val accountId = getAccountIdForSource("notif:sms")
             
             return Transaction.fromTimestamp(
                 id = id,
@@ -267,6 +287,7 @@ object BancolombiaParser {
                 source = "notif:sms",
                 rawPreview = text.take(140),
                 categoryId = categoryId,
+                accountId = accountId,
                 isIncome = true
             )
         }
@@ -278,6 +299,7 @@ object BancolombiaParser {
             val ts = toEpoch(m.groupValues[3], m.groupValues[4])
             val id = hash("${ts/60000}|$amount|INGRESO_DEPOSITO|$dstLast4")
             val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Depósito")
+            val accountId = getAccountIdForSource("notif:sms")
             
             return Transaction.fromTimestamp(
                 id = id,
@@ -291,6 +313,7 @@ object BancolombiaParser {
                 source = "notif:sms",
                 rawPreview = text.take(140),
                 categoryId = categoryId,
+                accountId = accountId,
                 isIncome = true
             )
         }
@@ -302,6 +325,7 @@ object BancolombiaParser {
             val ts = System.currentTimeMillis()
             val id = hash("${ts/60000}|$amount|INGRESO_APP|$dstLast4")
             val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
+            val accountId = getAccountIdForSource("notif:app")
             
             return Transaction.fromTimestamp(
                 id = id,
@@ -315,6 +339,7 @@ object BancolombiaParser {
                 source = "notif:app",
                 rawPreview = text.take(140),
                 categoryId = categoryId,
+                accountId = accountId,
                 isIncome = true
             )
         }
@@ -332,6 +357,7 @@ object BancolombiaParser {
             val ts = System.currentTimeMillis()
             val id = hash("${ts/60000}|$amount|INGRESO_NEQUI|$sender")
             val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
+            val accountId = getAccountIdForSource("notif:nequi")
             
             return Transaction.fromTimestamp(
                 id = id,
@@ -345,6 +371,7 @@ object BancolombiaParser {
                 source = "notif:nequi",
                 rawPreview = text.take(140),
                 categoryId = categoryId,
+                accountId = accountId,
                 isIncome = true
             )
         }
@@ -362,6 +389,7 @@ object BancolombiaParser {
             val ts = System.currentTimeMillis()
             val id = hash("${ts/60000}|$amount|INGRESO_DAVI|$sender")
             val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
+            val accountId = getAccountIdForSource("notif:daviPlata")
             
             return Transaction.fromTimestamp(
                 id = id,
@@ -375,6 +403,7 @@ object BancolombiaParser {
                 source = "notif:daviPlata",
                 rawPreview = text.take(140),
                 categoryId = categoryId,
+                accountId = accountId,
                 isIncome = true
             )
         }

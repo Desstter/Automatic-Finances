@@ -62,15 +62,15 @@ class FinancialDashboardViewModel(
         viewModelScope.launch {
             val currentMonth = _state.value.selectedMonth
             
-            // Load monthly spending
+            // Load monthly spending (expenses only)
             try {
-                val monthlySpent = transactionRepository.getMonthlySpentTotal(
+                val monthlySpent = transactionRepository.getMonthlyExpenseTotal(
                     currentMonth.year, 
                     currentMonth.monthValue
                 )
                 
                 val previousMonth = currentMonth.minusMonths(1)
-                val previousMonthSpent = transactionRepository.getMonthlySpentTotal(
+                val previousMonthSpent = transactionRepository.getMonthlyExpenseTotal(
                     previousMonth.year, 
                     previousMonth.monthValue
                 )
@@ -169,6 +169,57 @@ class FinancialDashboardViewModel(
             it.copy(isChartsExpanded = !it.isChartsExpanded) 
         }
     }
+    
+    fun setAnalysisMode(mode: AnalysisMode) {
+        _state.update { 
+            it.copy(analysisMode = mode) 
+        }
+        if (mode == AnalysisMode.INCOME) {
+            loadIncomeChartData()
+        }
+    }
+    
+    private fun loadIncomeChartData() {
+        viewModelScope.launch {
+            val currentMonth = _state.value.selectedMonth
+            
+            try {
+                val categoryIncome = analyticsRepository.getIncomeSpendingForMonth(currentMonth)
+                val incomeVsExpenseTrend = analyticsRepository.getIncomeVsExpenseTrend()
+                val incomeVsExpenseComparison = analyticsRepository.getIncomeVsExpenseComparison(currentMonth)
+                val totalIncome = categoryIncome.sumOf { it.amountCents }
+                
+                val incomeChartData = com.example.automaticfinances.data.models.IncomeChartData(
+                    categoryIncome = categoryIncome,
+                    incomeVsExpenseTrend = incomeVsExpenseTrend,
+                    incomeVsExpenseComparison = incomeVsExpenseComparison,
+                    selectedMonth = currentMonth,
+                    totalIncomeCents = totalIncome,
+                    isLoading = false
+                )
+                
+                _state.update { 
+                    it.copy(incomeChartData = incomeChartData) 
+                }
+            } catch (e: Exception) {
+                _state.update { 
+                    it.copy(
+                        incomeChartData = com.example.automaticfinances.data.models.IncomeChartData(
+                            selectedMonth = currentMonth,
+                            isLoading = false,
+                            error = "Error al cargar datos de ingresos: ${e.message}"
+                        )
+                    ) 
+                }
+            }
+        }
+    }
+}
+
+enum class AnalysisMode {
+    EXPENSES,
+    INCOME,
+    COMPARISON
 }
 
 data class FinancialDashboardState(
@@ -188,5 +239,8 @@ data class FinancialDashboardState(
     val selectedBudgetId: Long? = null,
     // Income data
     val incomeVsExpenseComparison: IncomeVsExpenseComparison? = null,
-    val monthlyIncomeCents: Long = 0L
+    val monthlyIncomeCents: Long = 0L,
+    // Analysis mode
+    val analysisMode: AnalysisMode = AnalysisMode.EXPENSES,
+    val incomeChartData: com.example.automaticfinances.data.models.IncomeChartData = com.example.automaticfinances.data.models.IncomeChartData()
 )
