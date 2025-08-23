@@ -1,6 +1,11 @@
 package com.example.automaticfinances.ui.components
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -12,7 +17,7 @@ import com.example.automaticfinances.navigation.Routes
 
 data class BottomNavItem(
     val route: String,
-    val icon: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val label: String
 )
 
@@ -24,22 +29,22 @@ fun BottomNavigationWrapper(
     val bottomNavItems = listOf(
         BottomNavItem(
             route = Routes.HOME,
-            icon = "🏠",
+            icon = Icons.Filled.Home,
             label = "Inicio"
         ),
         BottomNavItem(
             route = Routes.INCOME_MANAGEMENT,
-            icon = "💰",
+            icon = Icons.Filled.AccountBalanceWallet,
             label = "Ingresos"
         ),
         BottomNavItem(
             route = Routes.FINANCIAL_DASHBOARD,
-            icon = "📊",
+            icon = Icons.Filled.Analytics,
             label = "Reportes"
         ),
         BottomNavItem(
             route = Routes.CATEGORY_MANAGEMENT,
-            icon = "🏷️",
+            icon = Icons.Filled.Category,
             label = "Categorías"
         )
     )
@@ -48,11 +53,11 @@ fun BottomNavigationWrapper(
     val currentRoute = navBackStackEntry?.destination?.route
 
     Scaffold(
-        contentWindowInsets = WindowInsets.systemBars,
+        contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp,
+                tonalElevation = 0.dp,
                 windowInsets = WindowInsets.navigationBars
             ) {
                 bottomNavItems.forEach { item ->
@@ -60,9 +65,9 @@ fun BottomNavigationWrapper(
                     
                     NavigationBarItem(
                         icon = {
-                            Text(
-                                text = item.icon,
-                                style = MaterialTheme.typography.titleMedium
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.label
                             )
                         },
                         label = {

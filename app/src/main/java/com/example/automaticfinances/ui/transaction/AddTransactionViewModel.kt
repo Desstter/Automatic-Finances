@@ -53,18 +53,29 @@ class AddTransactionViewModel(
     }
 
     fun updateAmount(amount: String) {
-        // Solo permitir números y punto decimal
-        val cleanAmount = amount.filter { it.isDigit() || it == '.' }
+        // Input sanitization: solo números, punto decimal, y comas
+        val cleanAmount = amount.filter { it.isDigit() || it == '.' || it == ',' }
+            .take(15) // Limitar longitud para evitar overflow
+        
+        // Real-time validation
+        val error = validateAmount(cleanAmount)
+        
         _state.value = _state.value.copy(
             amount = cleanAmount,
-            amountError = null
+            amountError = if (cleanAmount.isNotEmpty()) error else null
         )
     }
 
     fun updateDescription(description: String) {
+        // Input sanitization: trimear y limitar longitud
+        val cleanDescription = description.trim().take(100)
+        
+        // Real-time validation
+        val error = validateDescription(cleanDescription)
+        
         _state.value = _state.value.copy(
-            description = description,
-            descriptionError = null
+            description = cleanDescription,
+            descriptionError = if (cleanDescription.isNotEmpty()) error else null
         )
     }
 
@@ -83,24 +94,19 @@ class AddTransactionViewModel(
     fun saveTransaction(): Boolean {
         val currentState = _state.value
         
-        // Validations
-        val amountError = when {
-            currentState.amount.isBlank() -> "Ingresa un monto"
-            currentState.amount.toDoubleOrNull() == null -> "Monto inválido"
-            currentState.amount.toDouble() <= 0 -> "El monto debe ser mayor a cero"
-            else -> null
-        }
+        // Comprehensive validation
+        val amountError = validateAmount(currentState.amount, isFinal = true)
+        val descriptionError = validateDescription(currentState.description, isFinal = true)
+        val categoryError = validateCategory(currentState.selectedCategoryId)
+        val dateError = validateDate(currentState.selectedDate)
+        
+        val hasErrors = listOf(amountError, descriptionError, categoryError, dateError).any { it != null }
 
-        val descriptionError = when {
-            currentState.description.isBlank() -> "Ingresa una descripción"
-            currentState.description.length > 60 -> "Descripción muy larga (max 60 caracteres)"
-            else -> null
-        }
-
-        if (amountError != null || descriptionError != null) {
+        if (hasErrors) {
             _state.value = _state.value.copy(
                 amountError = amountError,
-                descriptionError = descriptionError
+                descriptionError = descriptionError,
+                errorMessage = categoryError ?: dateError
             )
             return false
         }
@@ -130,7 +136,8 @@ class AddTransactionViewModel(
     }
 
     private fun createTransaction(state: AddTransactionState): Transaction {
-        val amountCents = (state.amount.toDouble() * 100).toLong()
+        val amountDouble = parseAmount(state.amount) ?: 0.0
+        val amountCents = (amountDouble * 100).toLong()
         val dateTime = state.selectedDate.atTime(state.selectedTime)
         val timestamp = dateTime.atZone(ZoneId.of("America/Bogota")).toInstant().toEpochMilli()
         
@@ -158,5 +165,99 @@ class AddTransactionViewModel(
 
     fun resetSuccess() {
         _state.value = _state.value.copy(isSuccess = false)
+    }
+    
+    // =======================================
+    // VALIDATION FUNCTIONS
+    // =======================================
+    
+    private fun validateAmount(amount: String, isFinal: Boolean = false): String? {
+        return when {
+            isFinal && amount.isBlank() -> "Ingresa un monto"
+            amount.isBlank() -> null // Allow empty during typing
+            
+            // Check for invalid characters or format
+            !amount.matches(Regex("^\\d*[.,]?\\d*$")) -> "Solo números y punto/coma decimal"
+            
+            // Check for multiple decimal separators
+            amount.count { it == '.' || it == ',' } > 1 -> "Solo un separador decimal"
+            
+            // Try to parse as number
+            parseAmount(amount) == null -> "Formato de monto inválido"
+            
+            // Check range
+            parseAmount(amount)!! <= 0 -> "El monto debe ser mayor a cero"
+            parseAmount(amount)!! > 999_999_999.99 -> "Monto excede límite máximo"
+            
+            else -> null
+        }
+    }
+    
+    private fun validateDescription(description: String, isFinal: Boolean = false): String? {
+        return when {
+            isFinal && description.isBlank() -> "Ingresa una descripción"
+            description.isBlank() -> null // Allow empty during typing
+            
+            description.length < 3 && isFinal -> "Descripción muy corta (min 3 caracteres)"
+            description.length > 100 -> "Descripción muy larga (max 100 caracteres)"
+            
+            // Check for suspicious patterns
+            description.matches(Regex("^\\s*$")) -> "Descripción no puede estar vacía"
+            description.contains(Regex("[<>\"'&]")) -> "Caracteres no permitidos: < > \" ' &"
+            
+            // Check for SQL injection patterns (basic)
+            description.lowercase().contains("select ") || 
+            description.lowercase().contains("drop ") ||
+            description.lowercase().contains("delete ") -> "Contenido no permitido"
+            
+            else -> null
+        }
+    }
+    
+    private fun validateCategory(categoryId: Long?): String? {
+        return when {
+            categoryId == null -> "Selecciona una categoría"
+            categoryId <= 0 -> "Categoría inválida"
+            else -> null
+        }
+    }
+    
+    private fun validateDate(date: LocalDate): String? {
+        val today = LocalDate.now()
+        return when {
+            date.isAfter(today.plusDays(1)) -> "La fecha no puede ser futura"
+            date.isBefore(today.minusYears(5)) -> "Fecha muy antigua (max 5 años)"
+            else -> null
+        }
+    }
+    
+    /**
+     * Parse amount string handling Colombian format (comma as decimal separator)
+     * Supports: "1000", "1.000", "1000,50", "1.000,50"
+     */
+    private fun parseAmount(amount: String): Double? {
+        if (amount.isBlank()) return null
+        
+        return try {
+            // Handle Colombian format: 1.000,50 or 1000,50
+            val normalized = if (amount.contains(',')) {
+                // Has comma - treat as decimal separator
+                val parts = amount.split(',')
+                if (parts.size != 2) return null
+                
+                val integerPart = parts[0].replace(".", "") // Remove thousand separators
+                val decimalPart = parts[1]
+                
+                "$integerPart.$decimalPart".toDouble()
+            } else {
+                // No comma - could be 1000 or 1000.50 (US format)
+                amount.replace(".", "").toDouble() / 
+                    if (amount.count { it == '.' } == 1 && amount.substringAfter('.').length <= 2) 1.0 else 1.0
+            }
+            
+            normalized
+        } catch (e: NumberFormatException) {
+            null
+        }
     }
 }

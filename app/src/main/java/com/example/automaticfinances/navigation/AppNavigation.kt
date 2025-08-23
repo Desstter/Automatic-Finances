@@ -55,6 +55,7 @@ object Routes {
 @Composable
 fun AppNavigation(
     navController: NavHostController = rememberNavController(),
+    themeViewModel: com.example.automaticfinances.ui.theme.ThemeViewModel,
     onOpenNotifAccess: () -> Unit
 ) {
     BottomNavigationWrapper(navController = navController) { paddingValues ->
@@ -73,6 +74,7 @@ fun AppNavigation(
             
             HomeScreen(
                 stateFlow = homeViewModel.state,
+                themeViewModel = themeViewModel,
                 onOpenNotifAccess = onOpenNotifAccess,
                 onTransactionClick = { transactionId ->
                     navController.navigate(Routes.transactionDetail(transactionId))
@@ -121,6 +123,12 @@ fun AppNavigation(
                 },
                 onCategoryFilterChange = { categoryId ->
                     homeViewModel.filterByCategory(categoryId)
+                },
+                onServiceIssuesResolved = {
+                    homeViewModel.markServiceIssuesResolved()
+                },
+                onServiceIssuesDetected = {
+                    homeViewModel.markServiceIssuesDetected()
                 }
             )
         }

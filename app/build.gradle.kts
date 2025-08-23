@@ -19,13 +19,31 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("release-key.keystore")
+            storePassword = "123456"
+            keyAlias = "release"
+            keyPassword = "123456"
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("release")
+        }
+        debug {
+            isMinifyEnabled = false
+            isDebuggable = true
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-DEBUG"
         }
     }
     compileOptions {
@@ -68,6 +86,12 @@ dependencies {
     
     // Crypto hash
     implementation(libs.commons.codec)
+    
+    // DataStore for theme preferences
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
+    
+    // Material Icons Extended for brightness icons
+    implementation("androidx.compose.material:material-icons-extended:1.7.5")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

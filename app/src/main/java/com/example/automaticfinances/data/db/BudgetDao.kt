@@ -32,8 +32,7 @@ interface BudgetDao {
     
     // Analytics queries
     @Query("""
-        SELECT b.id, b.categoryId, b.limitAmountCents, b.year, b.month, 
-               b.alertAt50Percent, b.alertAt75Percent, b.alertAt100Percent,
+        SELECT b.id, b.categoryId, b.limitAmountCents, b.year, b.month, b.isActive, b.createdAt,
                c.name as categoryName, c.color as categoryColor, c.icon as categoryIcon,
                COALESCE(spent.totalSpent, 0) as currentSpentCents
         FROM budgets b 
@@ -73,9 +72,8 @@ data class BudgetWithSpending(
     val limitAmountCents: Long,
     val year: Int,
     val month: Int,
-    val alertAt50Percent: Boolean,
-    val alertAt75Percent: Boolean,
-    val alertAt100Percent: Boolean,
+    val isActive: Boolean,
+    val createdAt: Long,
     val categoryName: String,
     val categoryColor: String,
     val categoryIcon: String,

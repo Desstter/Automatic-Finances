@@ -229,27 +229,3 @@ fun BudgetStatusCard(
     }
 }
 
-@Composable
-fun BudgetStatusList(
-    budgetStatuses: List<BudgetStatus>,
-    onBudgetClick: (BudgetStatus) -> Unit = {},
-    onBudgetEdit: (BudgetStatus) -> Unit = {},
-    onBudgetDeactivate: (BudgetStatus) -> Unit = {},
-    onBudgetDelete: (BudgetStatus) -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        budgetStatuses.forEach { budgetStatus ->
-            BudgetStatusCard(
-                budgetStatus = budgetStatus,
-                onClick = { onBudgetClick(budgetStatus) },
-                onEdit = { onBudgetEdit(budgetStatus) },
-                onDeactivate = { onBudgetDeactivate(budgetStatus) },
-                onDelete = { onBudgetDelete(budgetStatus) }
-            )
-        }
-    }
-}

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RewriteQueriesToDropUnusedColumns
 import androidx.room.Update
 import com.example.automaticfinances.data.repo.TransactionWithCategory
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +36,7 @@ interface TransactionDao {
     """)
     fun getByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Flow<List<Transaction>>
 
+    @RewriteQueriesToDropUnusedColumns
     @Query("""
         SELECT t.*, c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
         FROM transactions t
@@ -64,6 +66,7 @@ interface TransactionDao {
     """)
     fun sumByType(from: Long, to: Long, type: String): Flow<Long>
     
+    @RewriteQueriesToDropUnusedColumns
     @Query("""
         SELECT t.*, c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
         FROM transactions t
@@ -101,6 +104,7 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE isIncome = 0 ORDER BY date DESC, time DESC")
     fun getExpenses(): Flow<List<Transaction>>
     
+    @RewriteQueriesToDropUnusedColumns
     @Query("""
         SELECT t.*, c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
         FROM transactions t
@@ -110,6 +114,7 @@ interface TransactionDao {
     """)
     fun getIncomesWithCategories(): Flow<List<TransactionWithCategory>>
     
+    @RewriteQueriesToDropUnusedColumns
     @Query("""
         SELECT t.*, c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
         FROM transactions t
@@ -211,4 +216,15 @@ interface TransactionDao {
     
     @Query("DELETE FROM transactions WHERE id = :transactionId")
     suspend fun deleteById(transactionId: String): Int
+    
+    // ================ ADDITIONAL METHODS FOR ACCOUNTREPOSITORY ================
+    
+    @Query("SELECT * FROM transactions ORDER BY date DESC, time DESC")
+    fun getAllTransactionsFlow(): Flow<List<Transaction>>
+    
+    @Query("SELECT * FROM transactions WHERE accountId = :accountId ORDER BY date DESC, time DESC")
+    suspend fun getTransactionsByAccountId(accountId: Long): List<Transaction>
+    
+    @Query("SELECT * FROM transactions WHERE accountId = :accountId ORDER BY date DESC, time DESC")
+    fun getTransactionsByAccountIdFlow(accountId: Long): Flow<List<Transaction>>
 }

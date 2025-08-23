@@ -2,8 +2,6 @@ package com.example.automaticfinances.ui.components.charts
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -55,13 +53,13 @@ fun BudgetComparisonChart(
                 containerColor = MaterialTheme.colorScheme.surface
             )
         ) {
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(sortedData) { budgetComparison ->
+                sortedData.forEach { budgetComparison ->
                     BudgetComparisonBar(
                         budgetComparison = budgetComparison,
                         onClick = { onBudgetClick(budgetComparison) }

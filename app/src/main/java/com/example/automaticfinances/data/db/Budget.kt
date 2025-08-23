@@ -29,9 +29,6 @@ data class Budget(
     val limitAmountCents: Long,      // Límite en centavos
     val year: Int,                   // 2024
     val month: Int,                  // 1-12
-    val alertAt50Percent: Boolean = true,
-    val alertAt75Percent: Boolean = true,
-    val alertAt100Percent: Boolean = true,
     val isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis()
 ) {

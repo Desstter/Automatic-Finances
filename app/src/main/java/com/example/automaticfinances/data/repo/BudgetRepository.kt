@@ -67,9 +67,8 @@ class BudgetRepository(
                     limitAmountCents = budgetSpending.limitAmountCents,
                     year = budgetSpending.year,
                     month = budgetSpending.month,
-                    alertAt50Percent = budgetSpending.alertAt50Percent,
-                    alertAt75Percent = budgetSpending.alertAt75Percent,
-                    alertAt100Percent = budgetSpending.alertAt100Percent
+                    isActive = budgetSpending.isActive,
+                    createdAt = budgetSpending.createdAt
                 )
                 
                 calculateBudgetStatus(budget, category, budgetSpending.currentSpentCents)

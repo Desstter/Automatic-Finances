@@ -35,9 +35,6 @@ fun BudgetDialog(
             if (budget != null) (budget.limitAmountCents / 100).toString() else ""
         ) 
     }
-    var alertAt50 by remember { mutableStateOf(budget?.alertAt50Percent ?: true) }
-    var alertAt75 by remember { mutableStateOf(budget?.alertAt75Percent ?: true) }
-    var alertAt100 by remember { mutableStateOf(budget?.alertAt100Percent ?: true) }
     var expandedCategory by remember { mutableStateOf(false) }
     var showError by remember { mutableStateOf(false) }
     
@@ -186,61 +183,6 @@ fun BudgetDialog(
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
-                }
-                
-                // Alert settings
-                Column {
-                    Text(
-                        text = "Alertas de presupuesto",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = alertAt50,
-                                onCheckedChange = { alertAt50 = it }
-                            )
-                            Text(
-                                text = "Alertar al 50% del presupuesto",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = alertAt75,
-                                onCheckedChange = { alertAt75 = it }
-                            )
-                            Text(
-                                text = "Alertar al 75% del presupuesto",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = alertAt100,
-                                onCheckedChange = { alertAt100 = it }
-                            )
-                            Text(
-                                text = "Alertar al 100% del presupuesto",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
                 }
             }
         },

@@ -5,9 +5,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -196,11 +193,11 @@ private fun PieChartLegend(
 ) {
     val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
     
-    LazyColumn(
+    Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(categorySpending) { spending ->
+        categorySpending.forEach { spending ->
             PieChartLegendItem(
                 categorySpending = spending,
                 formatter = nf
@@ -337,11 +334,11 @@ private fun AnimatedPieChartLegend(
 ) {
     val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
     
-    LazyColumn(
+    Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        itemsIndexed(categorySpending) { index, spending ->
+        categorySpending.forEachIndexed { index, spending ->
             val animationProgress = sectorAnimations.getOrElse(index) { 0f }
             
             AnimatedPieChartLegendItem(

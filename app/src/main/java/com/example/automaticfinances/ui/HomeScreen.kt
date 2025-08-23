@@ -6,24 +6,44 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Brightness3
+import androidx.compose.material.icons.filled.BrightnessHigh
+import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FilterList
+
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.BottomSheetScaffoldState
+import androidx.compose.material3.rememberBottomSheetScaffoldState
+import androidx.compose.material3.ModalBottomSheet
 import com.example.automaticfinances.data.repo.TransactionWithCategory
+import kotlinx.coroutines.launch
 import com.example.automaticfinances.system.ServiceManager
 import com.example.automaticfinances.system.SystemConfigurationChecker
 import com.example.automaticfinances.ui.components.IntelligenceInsightsCard
 import com.example.automaticfinances.ui.components.BalanceOverviewCard
+import com.example.automaticfinances.ui.components.FilterBottomSheet
+import com.example.automaticfinances.ui.components.FilterPreviewCard
+import com.example.automaticfinances.ui.components.FilterSummary
 import kotlinx.coroutines.flow.StateFlow
 import java.text.NumberFormat
 import java.util.*
@@ -32,6 +52,7 @@ import java.util.*
 @Composable
 fun HomeScreen(
     stateFlow: StateFlow<HomeState>,
+    themeViewModel: com.example.automaticfinances.ui.theme.ThemeViewModel? = null,
     onOpenNotifAccess: () -> Unit,
     onTransactionClick: (String) -> Unit = {},
     onManageCategoriesClick: () -> Unit = {},
@@ -48,10 +69,17 @@ fun HomeScreen(
     onClearFilters: () -> Unit = {},
     onDateFilterChange: (String?, String?) -> Unit = { _, _ -> },
     onAmountFilterChange: (Long?, Long?) -> Unit = { _, _ -> },
-    onCategoryFilterChange: (Long?) -> Unit = {}
+    onCategoryFilterChange: (Long?) -> Unit = {},
+    onServiceIssuesResolved: () -> Unit = {},
+    onServiceIssuesDetected: () -> Unit = {}
 ) {
     val state by stateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    
+    // BottomSheet state for advanced filters
+    val bottomSheetState = rememberBottomSheetScaffoldState()
+    var showFilterBottomSheet by remember { mutableStateOf(false) }
     
     val nf = remember { 
         NumberFormat.getCurrencyInstance(Locale("es", "CO"))
@@ -59,9 +87,21 @@ fun HomeScreen(
     
     // System health monitoring with auto-hide logic
     val systemHealth by SystemConfigurationChecker.rememberSystemHealth(context)
-    val shouldShowServiceStatus by remember(systemHealth) {
+    val shouldShowServiceStatus by remember(systemHealth, state.serviceIssuesLastFixedAt) {
         derivedStateOf { 
-            SystemConfigurationChecker.shouldShowServiceStatus(context)
+            SystemConfigurationChecker.shouldShowServiceStatus(context, state.serviceIssuesLastFixedAt)
+        }
+    }
+    
+    // Track service issues and call appropriate callbacks
+    LaunchedEffect(systemHealth.needsUserAttention) {
+        if (systemHealth.needsUserAttention) {
+            onServiceIssuesDetected()
+        } else {
+            // Only mark as resolved if it was previously problematic
+            if (state.serviceIssuesLastFixedAt == 0L) {
+                onServiceIssuesResolved()
+            }
         }
     }
     
@@ -69,16 +109,22 @@ fun HomeScreen(
     val isServiceRunning = systemHealth.isServiceRunning
     val isListenerEnabled = systemHealth.isListenerEnabled
     
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = { 
             EnhancedTopAppBar(
-                title = "AutomaticFinances",
+                title = "Automatic Finances",
                 searchQuery = state.searchQuery,
                 onSearchQueryChange = onSearchQueryChange,
                 showFilters = state.showFilters,
                 onToggleFilters = onToggleFilters,
                 hasActiveFilters = hasActiveFilters(state),
-                onClearFilters = onClearFilters
+                onClearFilters = onClearFilters,
+                onOpenFilters = { showFilterBottomSheet = true },
+                themeViewModel = themeViewModel,
+                scrollBehavior = scrollBehavior
             )
         },
         floatingActionButton = {
@@ -92,12 +138,16 @@ fun HomeScreen(
         PullToRefreshBox(
             isRefreshing = state.isRefreshing,
             onRefresh = onRefresh,
-            modifier = Modifier.padding(padding)
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(padding)
         ) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(vertical = 16.dp)
             ) {
                 // Service Status Card (only when issues detected or grace period)
                 if (shouldShowServiceStatus) {
@@ -140,15 +190,33 @@ fun HomeScreen(
                     }
                 }
                 
-                // Filter Section (only if expanded)
-                if (state.showFilters) {
+                // Filter Preview Card (always show if filters active)
+                if (hasActiveFilters(state)) {
                     item {
-                        CompactFilterSection(
-                            state = state,
-                            numberFormat = nf,
-                            onDateFilterChange = onDateFilterChange,
-                            onAmountFilterChange = onAmountFilterChange,
-                            onCategoryFilterChange = onCategoryFilterChange
+                        FilterPreviewCard(
+                            summary = FilterSummary(
+                                categoryName = state.categories.find { it.id == state.selectedCategoryFilter }?.name,
+                                categoryIcon = state.categories.find { it.id == state.selectedCategoryFilter }?.icon,
+                                dateRange = if (state.dateFilterStart != null || state.dateFilterEnd != null) {
+                                    "${state.dateFilterStart ?: "..."} - ${state.dateFilterEnd ?: "..."}"
+                                } else null,
+                                amountRange = if (state.minAmountFilter != null || state.maxAmountFilter != null) {
+                                    val minAmount = state.minAmountFilter
+                                    val maxAmount = state.maxAmountFilter
+                                    "${if (minAmount != null) nf.format(minAmount / 100.0) else "Sin mínimo"} - ${if (maxAmount != null) nf.format(maxAmount / 100.0) else "Sin máximo"}"
+                                } else null,
+                                searchQuery = state.searchQuery.takeIf { it.isNotBlank() },
+                                totalFilters = listOfNotNull(
+                                    state.selectedCategoryFilter?.toString(),
+                                    state.searchQuery.takeIf { it.isNotBlank() },
+                                    state.dateFilterStart,
+                                    state.dateFilterEnd,
+                                    state.minAmountFilter?.toString(),
+                                    state.maxAmountFilter?.toString()
+                                ).size,
+                                resultCount = state.transactions.size
+                            ),
+                            onClearFilter = onClearFilters
                         )
                     }
                 }
@@ -171,6 +239,26 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+    }
+    
+    // Advanced Filter Bottom Sheet
+    if (showFilterBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showFilterBottomSheet = false },
+            modifier = Modifier.fillMaxHeight(0.9f)
+        ) {
+            FilterBottomSheet(
+                state = state,
+                numberFormat = nf,
+                onDateFilterChange = onDateFilterChange,
+                onAmountFilterChange = onAmountFilterChange,
+                onCategoryFilterChange = onCategoryFilterChange,
+                onSearchQueryChange = onSearchQueryChange,
+                onClearAllFilters = onClearFilters,
+                onApplyFilters = { /* Filters are applied automatically through callbacks */ },
+                onDismiss = { showFilterBottomSheet = false }
+            )
         }
     }
 }
@@ -455,12 +543,17 @@ fun EnhancedTopAppBar(
     showFilters: Boolean,
     onToggleFilters: () -> Unit,
     hasActiveFilters: Boolean,
-    onClearFilters: () -> Unit
+    onClearFilters: () -> Unit,
+    onOpenFilters: () -> Unit = {},
+    themeViewModel: com.example.automaticfinances.ui.theme.ThemeViewModel? = null,
+    scrollBehavior: TopAppBarScrollBehavior? = null
 ) {
     var isSearchActive by remember { mutableStateOf(false) }
     
     if (isSearchActive) {
         // Search mode
+
+
         TopAppBar(
             title = {
                 OutlinedTextField(
@@ -485,7 +578,8 @@ fun EnhancedTopAppBar(
                 }) {
                     Icon(Icons.Default.Clear, contentDescription = "Cancelar búsqueda")
                 }
-            }
+            },
+            scrollBehavior = scrollBehavior
         )
     } else {
         // Normal mode
@@ -497,13 +591,31 @@ fun EnhancedTopAppBar(
                 ) 
             },
             actions = {
+                // Theme toggle button
+                themeViewModel?.let { viewModel ->
+                    val themeMode by viewModel.themeMode.collectAsState()
+                    val themeIcon = when (themeMode) {
+                        com.example.automaticfinances.data.preferences.ThemeMode.LIGHT -> Icons.Default.BrightnessHigh
+                        com.example.automaticfinances.data.preferences.ThemeMode.DARK -> Icons.Default.Brightness3
+                        com.example.automaticfinances.data.preferences.ThemeMode.AUTO -> Icons.Default.BrightnessAuto
+                    }
+                    
+                    IconButton(onClick = { viewModel.toggleTheme() }) {
+                        Icon(
+                            themeIcon, 
+                            contentDescription = "Cambiar tema",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+                
                 // Search button
                 IconButton(onClick = { isSearchActive = true }) {
                     Icon(Icons.Default.Search, contentDescription = "Buscar")
                 }
                 
                 // Filter button
-                IconButton(onClick = onToggleFilters) {
+                IconButton(onClick = onOpenFilters) {
                     BadgedBox(
                         badge = {
                             if (hasActiveFilters) {
@@ -513,10 +625,10 @@ fun EnhancedTopAppBar(
                             }
                         }
                     ) {
-                        Text(
-                            text = "🔧",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = if (showFilters) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                        Icon(
+                            Icons.Default.FilterList,
+                            contentDescription = "Filtros",
+                            tint = if (hasActiveFilters) MaterialTheme.colorScheme.primary else LocalContentColor.current
                         )
                     }
                 }
@@ -531,7 +643,8 @@ fun EnhancedTopAppBar(
                         )
                     }
                 }
-            }
+            },
+            scrollBehavior = scrollBehavior
         )
     }
 }

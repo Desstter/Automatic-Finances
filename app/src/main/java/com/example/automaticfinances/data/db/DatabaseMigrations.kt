@@ -469,3 +469,39 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         database.execSQL("CREATE INDEX IF NOT EXISTS index_categories_isIncome_isActive ON categories(isIncome, isActive)")
     }
 }
+
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Remove budget alert fields and simplify budget management
+        
+        // 1. Create new budgets table without alert fields
+        database.execSQL("""
+            CREATE TABLE budgets_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                categoryId INTEGER NOT NULL,
+                limitAmountCents INTEGER NOT NULL,
+                year INTEGER NOT NULL,
+                month INTEGER NOT NULL,
+                isActive INTEGER NOT NULL DEFAULT 1,
+                createdAt INTEGER NOT NULL,
+                FOREIGN KEY(categoryId) REFERENCES categories(id) ON DELETE CASCADE
+            )
+        """)
+        
+        // 2. Copy existing data without alert fields
+        database.execSQL("""
+            INSERT INTO budgets_new (id, categoryId, limitAmountCents, year, month, isActive, createdAt)
+            SELECT id, categoryId, limitAmountCents, year, month, isActive, createdAt
+            FROM budgets
+        """)
+        
+        // 3. Drop old table and rename new one
+        database.execSQL("DROP TABLE budgets")
+        database.execSQL("ALTER TABLE budgets_new RENAME TO budgets")
+        
+        // 4. Recreate indexes
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_categoryId ON budgets(categoryId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_year_month ON budgets(year, month)")
+        database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_budgets_category_month ON budgets(categoryId, year, month) WHERE isActive = 1")
+    }
+}

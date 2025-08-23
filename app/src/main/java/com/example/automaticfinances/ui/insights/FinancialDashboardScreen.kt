@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -41,7 +42,10 @@ fun FinancialDashboardScreen(
         viewModel.loadDashboardData()
     }
     
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
                 title = { 
@@ -50,7 +54,7 @@ fun FinancialDashboardScreen(
                         fontWeight = FontWeight.Bold
                     )
                 },
-                windowInsets = WindowInsets.statusBars
+                scrollBehavior = scrollBehavior
             )
         },
         floatingActionButton = {
@@ -64,9 +68,11 @@ fun FinancialDashboardScreen(
         LazyColumn(
             modifier = modifier
                 .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+                .statusBarsPadding()
+                .padding(paddingValues)
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Month selector
             item {
@@ -78,10 +84,12 @@ fun FinancialDashboardScreen(
             
             // Quick Actions - prioritize user actions
             item {
-                QuickActionsSection(
-                    onManageBudgets = onNavigateToBudgetManagement,
-                    onViewGoals = onNavigateToGoals,
-                    onViewReports = onNavigateToReports
+                QuickActionsGrid(
+                    actions = listOf(
+                        QuickAction("Presupuestos", "💰", onNavigateToBudgetManagement),
+                        QuickAction("Metas", "🎯", onNavigateToGoals),
+                        QuickAction("Reportes", "📊", onNavigateToReports)
+                    )
                 )
             }
             
@@ -141,11 +149,18 @@ fun FinancialDashboardScreen(
             // Budget Status Section
             if (state.budgetStatuses.isNotEmpty()) {
                 item {
-                    BudgetStatusSection(
-                        budgetStatuses = state.budgetStatuses,
-                        onBudgetClick = { budgetStatus ->
-                            onNavigateToBudgetDetail(budgetStatus.budget.id)
-                        }
+                    BudgetStatusSectionHeader(
+                        budgetCount = state.budgetStatuses.size
+                    )
+                }
+                
+                items(
+                    items = state.budgetStatuses,
+                    key = { budgetStatus -> budgetStatus.budget.id }
+                ) { budgetStatus ->
+                    BudgetStatusCard(
+                        budgetStatus = budgetStatus,
+                        onClick = { onNavigateToBudgetDetail(budgetStatus.budget.id) }
                     )
                 }
             } else {
@@ -274,36 +289,25 @@ private fun KPISection(
 }
 
 @Composable
-private fun BudgetStatusSection(
-    budgetStatuses: List<BudgetStatus>,
-    onBudgetClick: (BudgetStatus) -> Unit,
+private fun BudgetStatusSectionHeader(
+    budgetCount: Int,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Estado de Presupuestos",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            
-            Text(
-                text = "${budgetStatuses.size} activos",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        Text(
+            text = "Estado de Presupuestos",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
         
-        BudgetStatusList(
-            budgetStatuses = budgetStatuses,
-            onBudgetClick = onBudgetClick
+        Text(
+            text = "$budgetCount activos",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -352,111 +356,6 @@ private fun EmptyBudgetsCard(
     }
 }
 
-@Composable
-private fun QuickActionsSection(
-    onManageBudgets: () -> Unit,
-    onViewGoals: () -> Unit,
-    onViewReports: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.3f)
-        ),
-        shape = RoundedCornerShape(24.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            Text(
-                text = "⚡ Acciones Rápidas",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                QuickActionCard(
-                    title = "Presupuestos",
-                    icon = "💰",
-                    onClick = onManageBudgets,
-                    modifier = Modifier.weight(1f)
-                )
-                
-                QuickActionCard(
-                    title = "Metas",
-                    icon = "🎯",
-                    onClick = onViewGoals,
-                    modifier = Modifier.weight(1f)
-                )
-                
-                QuickActionCard(
-                    title = "Reportes",
-                    icon = "📊",
-                    onClick = onViewReports,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun QuickActionCard(
-    title: String,
-    icon: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        onClick = onClick,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp,
-            pressedElevation = 6.dp
-        ),
-        shape = RoundedCornerShape(20.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Icon with circular background
-            Surface(
-                modifier = Modifier.size(56.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = icon,
-                        style = MaterialTheme.typography.headlineSmall
-                    )
-                }
-            }
-            
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-}
 
 @Composable
 private fun AnalysisModeTabs(

@@ -122,17 +122,19 @@ interface AccountDao {
     
     @Transaction
     suspend fun initializeAccountBalances() {
-        // Calculate bank balance from SMS transactions
-        val bankBalance = calculateBankBalanceFromTransactions()
-        val cashBalance = calculateCashBalanceFromTransactions()
-        
-        // Update accounts with calculated balances
+        // Only initialize balances if accounts have zero balance (first time setup)
         getAccountByName("Banco")?.let { account ->
-            updateAccountBalance(account.id, bankBalance)
+            if (account.balanceCents == 0L) {
+                val bankBalance = calculateBankBalanceFromTransactions()
+                updateAccountBalance(account.id, bankBalance)
+            }
         }
         
         getAccountByName("Efectivo")?.let { account ->
-            updateAccountBalance(account.id, cashBalance)
+            if (account.balanceCents == 0L) {
+                val cashBalance = calculateCashBalanceFromTransactions()
+                updateAccountBalance(account.id, cashBalance)
+            }
         }
     }
     

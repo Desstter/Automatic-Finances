@@ -7,12 +7,21 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.core.view.WindowCompat
 import androidx.navigation.compose.rememberNavController
 import com.example.automaticfinances.navigation.AppNavigation
-import com.example.automaticfinances.ui.theme.AutomaticFinancesTheme
+import com.example.automaticfinances.ui.theme.FinanceTheme
+import com.example.automaticfinances.ui.theme.ThemeViewModel
+import com.example.automaticfinances.ui.theme.ThemeViewModelFactory
 
 class MainActivity : ComponentActivity() {
+    
+    // Theme ViewModel para gestionar el estado del tema
+    private val themeViewModel: ThemeViewModel by lazy {
+        ThemeViewModelFactory(this).create()
+    }
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -22,10 +31,14 @@ class MainActivity : ComponentActivity() {
         // Configure system bars for immersive experience
         WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent {
-            AutomaticFinancesTheme {
+            FinanceTheme(
+                darkTheme = themeViewModel.isDarkTheme(),
+                useDynamicColor = themeViewModel.getUseDynamicColor()
+            ) {
                 val navController = rememberNavController()
                 AppNavigation(
                     navController = navController,
+                    themeViewModel = themeViewModel,
                     onOpenNotifAccess = {
                         startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                     }
