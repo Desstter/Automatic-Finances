@@ -87,3 +87,5 @@ Thumbs.db
 
 # Backup files
 *.bak
+.claude/
+CLAUDE.md
