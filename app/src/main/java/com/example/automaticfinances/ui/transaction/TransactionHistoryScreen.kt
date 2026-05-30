@@ -6,7 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -87,7 +87,7 @@ fun TransactionHistoryScreen(
             when {
                 state.isLoading -> TransactionListSkeleton(itemCount = 8, modifier = Modifier.padding(top = Spacing.sm))
                 state.filteredTransactions.isEmpty() -> PremiumEmptyState(
-                    icon = Icons.Default.ReceiptLong,
+                    icon = Icons.AutoMirrored.Filled.ReceiptLong,
                     title = "Sin transacciones",
                     description = "No se encontraron transacciones con los filtros seleccionados."
                 )

@@ -88,6 +88,45 @@
 -dontwarn org.apache.commons.codec.**
 
 # ===============================
+# kotlinx.serialization (Gemini voice NLP layer)
+# Aggressive R8 (-repackageclasses, 5 passes) can strip plugin-generated serializers, which
+# would crash the voice feature at runtime in the auto-deployed release build. Keep them.
+# ===============================
+-keepattributes RuntimeVisibleAnnotations,AnnotationDefault
+
+-if @kotlinx.serialization.Serializable class **
+-keepclassmembers class <1> {
+    static <1>$Companion Companion;
+}
+-if @kotlinx.serialization.Serializable class ** {
+    static **$* *;
+}
+-keepclassmembers class <2>$<3> {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-keepclassmembers class **$WhenMappings {
+    <fields>;
+}
+-keepclassmembers class kotlinx.serialization.json.** {
+    *** Companion;
+}
+-keepclasseswithmembers class kotlinx.serialization.json.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+# Belt-and-suspenders: keep the generated serializers for our own wire DTOs.
+-keep,includedescriptorclasses class com.example.automaticfinances.data.remote.dto.**$$serializer { *; }
+-keepclassmembers class com.example.automaticfinances.data.remote.dto.** { *; }
+
+# ===============================
+# OkHttp / Okio (Gemini HTTP transport)
+# ===============================
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn org.conscrypt.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**
+
+# ===============================
 # Generic Android Rules
 # ===============================
 -keep class * extends android.app.Service

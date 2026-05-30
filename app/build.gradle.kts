@@ -1,9 +1,22 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
 }
+
+// Gemini API key resolution order: CI env var -> Gradle property (local.properties) -> empty.
+// local.properties is gitignored, so the key never lands in VCS. A release build with an empty
+// key still compiles; the voice feature degrades gracefully and surfaces a clear error.
+val geminiApiKey: String = System.getenv("GEMINI_API_KEY")
+    ?: Properties().apply {
+        val f = rootProject.file("local.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }.getProperty("GEMINI_API_KEY")
+    ?: ""
 
 // --- CI/CD: values injected by GitHub Actions environment ---
 val ciVersionCode  = System.getenv("VERSION_CODE")?.toIntOrNull()
@@ -25,6 +38,9 @@ android {
         versionName = ciVersionName ?: "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Exposed to runtime via BuildConfig.GEMINI_API_KEY (see GeminiService).
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
     }
 
     signingConfigs {
@@ -69,6 +85,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -101,6 +118,10 @@ dependencies {
     
     // Crypto hash
     implementation(libs.commons.codec)
+
+    // Networking + JSON for Gemini NLP layer
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
 
     // Hilt
     implementation(libs.hilt.android)

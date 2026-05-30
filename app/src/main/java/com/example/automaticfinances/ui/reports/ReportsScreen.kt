@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Close
@@ -22,7 +23,6 @@ import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
@@ -316,7 +316,7 @@ private fun ReportsSummarySection(
                     SummaryItem(
                         label = "Promedio diario",
                         value = nf.format(summary.dailyAverageCents / 100.0),
-                        icon = Icons.Default.ShowChart,
+                        icon = Icons.AutoMirrored.Filled.ShowChart,
                         color = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier.weight(1f)
                     )
@@ -944,7 +944,7 @@ private fun EmptyReportsCard(
         )
     ) {
         com.example.automaticfinances.ui.components.common.PremiumEmptyState(
-            icon = Icons.Default.ShowChart,
+            icon = Icons.AutoMirrored.Filled.ShowChart,
             title = "Sin datos en este período",
             description = "No se encontraron transacciones para el período seleccionado.",
             actionLabel = "Actualizar",

@@ -17,8 +17,8 @@ import androidx.compose.material.icons.filled.BrightnessHigh
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Tune
@@ -233,7 +233,7 @@ fun HomeScreen(
                                 )
                             } else {
                                 PremiumEmptyState(
-                                    icon = Icons.Default.ReceiptLong,
+                                    icon = Icons.AutoMirrored.Filled.ReceiptLong,
                                     title = "Aún no hay movimientos",
                                     description = "Tus transacciones aparecerán aquí automáticamente al detectarlas, o regístralas manualmente.",
                                     actionLabel = "Registrar transacción",

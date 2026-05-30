@@ -8,6 +8,18 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Voice expense entry: STT (mic), Gemini NLP (network), result feedback notification -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Needed on Android 11+ to detect/bind the on-device speech recognition service -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
     <application
         android:name=".App"
         android:allowBackup="true"
@@ -30,6 +42,14 @@
             </intent-filter>
         </activity>
         
+        <activity
+            android:name=".ui.voice.VoiceEntryActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/Theme.AutomaticFinances.Transparent" />
+
         <service
             android:name=".system.SmsNotifListener"
             android:label="AutomaticFinances Notification Access"

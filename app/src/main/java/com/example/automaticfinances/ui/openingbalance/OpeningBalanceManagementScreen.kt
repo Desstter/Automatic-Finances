@@ -9,10 +9,10 @@ import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Savings
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -244,7 +244,7 @@ private fun OpeningBalanceSummaryCard(
                 SummaryItem(
                     label = "Crecimiento",
                     value = "${summary.growthPercentage.toInt()}%",
-                    icon = Icons.Default.ShowChart,
+                    icon = Icons.AutoMirrored.Filled.ShowChart,
                     color = if (summary.hasPositiveGrowth)
                         MaterialTheme.colorScheme.primary
                     else
