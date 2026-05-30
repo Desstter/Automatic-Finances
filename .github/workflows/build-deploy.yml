@@ -1,0 +1,227 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ─── Source ────────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # needed for git rev-list --count (versionCode)
+
+      # ─── Toolchain ─────────────────────────────────────────────────────────
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          build-scan-publish: false
+          cache-encryption-key: ${{ secrets.GRADLE_CACHE_KEY }}
+
+      - name: Install Android SDK platform 35
+        run: |
+          SDK_MANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDK_MANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDK_MANAGER" "platforms;android-35" "build-tools;36.0.0" > /dev/null 2>&1 \
+            || echo "::warning::SDK install warning (may already be present)"
+
+      - name: Grant Gradle wrapper execute permission
+        run: chmod +x gradlew
+
+      # ─── Version ───────────────────────────────────────────────────────────
+      - name: Compute version
+        id: version
+        run: |
+          VERSION_CODE=$(git rev-list --count HEAD)
+          TAG=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+' | sort -V | tail -1)
+          if [ -n "$TAG" ]; then
+            VERSION_NAME="${TAG#v}"
+          else
+            VERSION_NAME="1.${VERSION_CODE}"
+          fi
+          echo "VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+          echo "VERSION_NAME=${VERSION_NAME}"  >> "$GITHUB_OUTPUT"
+          echo "versionCode=${VERSION_CODE}  versionName=${VERSION_NAME}"
+
+      # ─── Secrets restore ───────────────────────────────────────────────────
+      - name: Restore release keystore
+        run: |
+          test -n "$KEYSTORE_BASE64" \
+            || { echo "::error::KEYSTORE_BASE64 secret is missing"; exit 1; }
+          KS_PATH="${RUNNER_TEMP}/automatic-finances-release.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$KS_PATH"
+          test -s "$KS_PATH" \
+            || { echo "::error::release keystore is empty — check KEYSTORE_BASE64 secret"; exit 1; }
+          # Validate the keystore opens with the provided store password before building.
+          FP=$(keytool -list -v -keystore "$KS_PATH" \
+                -alias "$KEY_ALIAS" -storepass "$KEYSTORE_PASSWORD" 2>/dev/null \
+                | grep "SHA256:" | awk '{print $2}')
+          test -n "$FP" \
+            || { echo "::error::Cannot open release keystore — KEYSTORE_PASSWORD/KEY_ALIAS wrong"; exit 1; }
+          echo "::notice::release keystore SHA-256 = ${FP}"
+          echo "KEYSTORE_PATH=${KS_PATH}"               >> "$GITHUB_ENV"
+          echo "KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD}" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=${KEY_ALIAS}"                 >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=${KEY_PASSWORD}"           >> "$GITHUB_ENV"
+        env:
+          KEYSTORE_BASE64:   ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS:         ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD:      ${{ secrets.KEY_PASSWORD }}
+
+      # ─── Build ─────────────────────────────────────────────────────────────
+      - name: Build release APK (R8 minified, release-signed)
+        run: ./gradlew :app:assembleRelease --no-daemon --build-cache --stacktrace
+        env:
+          VERSION_CODE: ${{ steps.version.outputs.VERSION_CODE }}
+          VERSION_NAME: ${{ steps.version.outputs.VERSION_NAME }}
+
+      # ─── Validate APK ──────────────────────────────────────────────────────
+      - name: Locate and validate APK
+        id: apk
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::No APK found in app/build/outputs/apk/release/"
+            find app/build/outputs/ -type f 2>/dev/null || true
+            exit 1
+          fi
+
+          APK_SIZE=$(stat -c%s "$APK_PATH")
+          if [ "$APK_SIZE" -lt 1000000 ]; then
+            echo "::error::APK is suspiciously small: ${APK_SIZE} bytes — build may be broken"
+            exit 1
+          fi
+
+          APK_SHA256=$(sha256sum "$APK_PATH" | awk '{print $1}')
+
+          echo "APK_PATH=${APK_PATH}"     >> "$GITHUB_OUTPUT"
+          echo "APK_SIZE=${APK_SIZE}"     >> "$GITHUB_OUTPUT"
+          echo "APK_SHA256=${APK_SHA256}" >> "$GITHUB_OUTPUT"
+          echo "APK validated: ${APK_PATH} | ${APK_SIZE} bytes | sha256=${APK_SHA256}"
+
+      # ─── Metadata ──────────────────────────────────────────────────────────
+      - name: Generate version metadata
+        run: |
+          python3 - <<'PYEOF'
+          import json, os
+
+          meta = {
+              "versionCode":  int(os.environ["VERSION_CODE"]),
+              "versionName":  os.environ["VERSION_NAME"],
+              "apkUrl":       os.environ["APK_BASE_URL"] + "/automatic-finances-latest.apk",
+              "releaseNotes": os.environ["GIT_COMMIT"],
+          }
+
+          with open("latest.json", "w") as f:
+              json.dump(meta, f, indent=2)
+
+          print("Generated latest.json:")
+          print(json.dumps(meta, indent=2))
+          PYEOF
+        env:
+          VERSION_CODE: ${{ steps.version.outputs.VERSION_CODE }}
+          VERSION_NAME: ${{ steps.version.outputs.VERSION_NAME }}
+          APK_BASE_URL: ${{ secrets.APK_BASE_URL }}
+          GIT_COMMIT:   ${{ github.sha }}
+
+      # ─── Deploy ────────────────────────────────────────────────────────────
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          python3 - <<'PYEOF'
+          import os
+          key = os.environ["SSH_PRIVATE_KEY"].replace("\r\n", "\n").replace("\r", "\n")
+          if not key.endswith("\n"):
+              key += "\n"
+          open(os.path.expanduser("~/.ssh/deploy_key"), "w").write(key)
+          PYEOF
+          chmod 600 ~/.ssh/deploy_key
+
+          HOST=$(printf '%s' "$VPS_HOST" | tr -d $'\r\n\t ')
+          ssh-keyscan -T 15 -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null \
+            || echo "::warning::keyscan failed — will use StrictHostKeyChecking=no"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VPS_HOST:        ${{ secrets.VPS_HOST }}
+
+      - name: Deploy to VPS
+        run: |
+          set -euo pipefail
+
+          HOST=$(printf '%s' "$VPS_HOST" | tr -d $'\r\n\t ')
+          USER=$(printf '%s' "$VPS_USER" | tr -d $'\r\n\t ')
+          DEST="${DEPLOY_PATH}"
+
+          [ -z "$HOST" ] && { echo "::error::VPS_HOST is empty"; exit 1; }
+          [ -z "$USER" ] && { echo "::error::VPS_USER is empty"; exit 1; }
+          [ -z "$DEST" ] && { echo "::error::VPS_DEPLOY_PATH is empty"; exit 1; }
+          [ -f "$APK_PATH" ] || { echo "::error::APK not found at ${APK_PATH}"; exit 1; }
+
+          SSH_OPTS=(
+            -i ~/.ssh/deploy_key
+            -o IdentitiesOnly=yes
+            -o PreferredAuthentications=publickey
+            -o PasswordAuthentication=no
+            -o StrictHostKeyChecking=no
+            -o ConnectTimeout=20
+            -o ServerAliveInterval=10
+            -o ServerAliveCountMax=3
+          )
+          SSH=(ssh "${SSH_OPTS[@]}" -l "$USER" "$HOST")
+          SCP=(scp "${SSH_OPTS[@]}")
+
+          "${SSH[@]}" "mkdir -p '${DEST}/tmp' && chmod 755 '${DEST}'"
+
+          echo "→ Uploading APK (${APK_SIZE} bytes) ..."
+          "${SCP[@]}" "${APK_PATH}" "${USER}@${HOST}:${DEST}/tmp/automatic-finances-latest.apk"
+
+          echo "→ Uploading metadata ..."
+          "${SCP[@]}" latest.json "${USER}@${HOST}:${DEST}/tmp/latest.json"
+
+          "${SSH[@]}" "
+            set -ex
+            test -s '${DEST}/tmp/automatic-finances-latest.apk' || { echo 'APK upload incomplete'; exit 1; }
+            test -s '${DEST}/tmp/latest.json'                   || { echo 'Metadata upload incomplete'; exit 1; }
+            cd '${DEST}'
+            [ -f automatic-finances-latest.apk ] && cp -f automatic-finances-latest.apk automatic-finances-previous.apk || true
+            [ -f latest.json ]                   && cp -f latest.json previous.json                                     || true
+            mv -f tmp/automatic-finances-latest.apk automatic-finances-latest.apk
+            mv -f tmp/latest.json                    latest.json
+            rm -rf tmp
+            ls -lh automatic-finances-latest.apk latest.json
+          "
+
+          echo "::notice::Deploy complete — ${APK_SIZE} bytes → ${HOST}:${DEST}"
+        env:
+          VPS_USER:    ${{ secrets.VPS_USER }}
+          VPS_HOST:    ${{ secrets.VPS_HOST }}
+          DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
+          APK_PATH:    ${{ steps.apk.outputs.APK_PATH }}
+          APK_SIZE:    ${{ steps.apk.outputs.APK_SIZE }}
+
+      # ─── Cleanup ───────────────────────────────────────────────────────────
+      - name: Cleanup secrets from runner
+        if: always()
+        run: |
+          rm -f ~/.ssh/deploy_key ~/.ssh/deploy_key.pub
+          echo "Secrets purged from runner"

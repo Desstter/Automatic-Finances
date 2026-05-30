@@ -155,35 +155,35 @@ fun FilterPreviewCard(
                         summary.categoryName?.let { categoryName ->
                             item {
                                 FilterDetailChip(
-                                    label = "${summary.categoryIcon ?: "📂"} $categoryName",
+                                    label = "${summary.categoryIcon ?: ""} $categoryName".trim(),
                                     color = MaterialTheme.colorScheme.secondary
                                 )
                             }
                         }
-                        
+
                         summary.dateRange?.let { range ->
                             item {
                                 FilterDetailChip(
-                                    label = "📅 $range",
+                                    label = range,
                                     color = MaterialTheme.colorScheme.tertiary
                                 )
                             }
                         }
-                        
+
                         summary.amountRange?.let { range ->
                             item {
                                 FilterDetailChip(
-                                    label = "💰 $range",
+                                    label = range,
                                     color = MaterialTheme.colorScheme.secondary
                                 )
                             }
                         }
-                        
+
                         summary.searchQuery?.let { query ->
                             if (query.isNotBlank()) {
                                 item {
                                     FilterDetailChip(
-                                        label = "🔍 \"$query\"",
+                                        label = "\"$query\"",
                                         color = MaterialTheme.colorScheme.tertiary
                                     )
                                 }

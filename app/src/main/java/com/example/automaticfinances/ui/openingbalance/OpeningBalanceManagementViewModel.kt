@@ -7,13 +7,16 @@ import com.example.automaticfinances.data.db.AccountWithOpeningBalance
 import com.example.automaticfinances.data.db.OpeningBalance
 import com.example.automaticfinances.data.db.OpeningBalanceSummary
 import com.example.automaticfinances.data.repo.OpeningBalanceRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class OpeningBalanceManagementViewModel(
+@HiltViewModel
+class OpeningBalanceManagementViewModel @Inject constructor(
     private val openingBalanceRepository: OpeningBalanceRepository
 ) : ViewModel() {
     

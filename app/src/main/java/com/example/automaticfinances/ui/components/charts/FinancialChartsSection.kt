@@ -230,7 +230,7 @@ private fun ChartTypeTabs(
         contentColor = MaterialTheme.colorScheme.onSurface,
         indicator = { tabPositions ->
             if (tabPositions.isNotEmpty()) {
-                TabRowDefaults.Indicator(
+                TabRowDefaults.SecondaryIndicator(
                     modifier = Modifier
                         .wrapContentSize(Alignment.BottomStart)
                         .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)),

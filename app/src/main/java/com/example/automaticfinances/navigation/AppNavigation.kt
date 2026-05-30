@@ -1,14 +1,22 @@
 package com.example.automaticfinances.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.automaticfinances.ui.theme.MotionTokens
 import com.example.automaticfinances.ui.HomeScreen
 import com.example.automaticfinances.ui.HomeViewModel
 import com.example.automaticfinances.ui.categories.CategoryManagementScreen
@@ -24,11 +32,6 @@ import com.example.automaticfinances.ui.income.IncomeScreen
 import com.example.automaticfinances.ui.income.AddIncomeScreen
 import com.example.automaticfinances.ui.openingbalance.OpeningBalanceSetupScreen
 import com.example.automaticfinances.ui.openingbalance.OpeningBalanceManagementScreen
-import com.example.automaticfinances.data.repo.BudgetRepository
-import com.example.automaticfinances.data.repo.TransactionRepository
-import com.example.automaticfinances.data.repo.CategoryRepository
-import com.example.automaticfinances.data.db.AppDatabase
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.automaticfinances.ui.components.BottomNavigationWrapper
 
 // Definición de rutas
@@ -59,13 +62,34 @@ fun AppNavigation(
     onOpenNotifAccess: () -> Unit
 ) {
     BottomNavigationWrapper(navController = navController) { paddingValues ->
+        val slideDuration = MotionTokens.DurationEnter
         NavHost(
             navController = navController,
             startDestination = Routes.HOME,
-            modifier = Modifier.padding(paddingValues)
+            modifier = Modifier.padding(paddingValues),
+            enterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { it / 5 },
+                    animationSpec = tween(slideDuration, easing = MotionTokens.EmphasizedDecelerate)
+                ) + fadeIn(tween(slideDuration))
+            },
+            exitTransition = {
+                fadeOut(tween(MotionTokens.DurationShort)) +
+                    slideOutHorizontally(targetOffsetX = { -it / 10 }, animationSpec = tween(slideDuration))
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    initialOffsetX = { -it / 5 },
+                    animationSpec = tween(slideDuration, easing = MotionTokens.EmphasizedDecelerate)
+                ) + fadeIn(tween(slideDuration))
+            },
+            popExitTransition = {
+                fadeOut(tween(MotionTokens.DurationShort)) +
+                    slideOutHorizontally(targetOffsetX = { it / 5 }, animationSpec = tween(slideDuration))
+            }
         ) {
         composable(Routes.HOME) { backStackEntry ->
-            val homeViewModel: HomeViewModel = viewModel()
+            val homeViewModel: HomeViewModel = hiltViewModel()
             
             // Refrescar datos cuando se vuelve a Home desde otra pantalla
             LaunchedEffect(backStackEntry) {
@@ -168,18 +192,8 @@ fun AppNavigation(
         }
         
         composable(Routes.FINANCIAL_DASHBOARD) {
-            val budgetRepository = BudgetRepository(
-                budgetDao = AppDatabase.get().budgetDao(),
-                transactionDao = AppDatabase.get().transactionDao(),
-                categoryDao = AppDatabase.get().categoryDao()
-            )
-            val transactionRepository = TransactionRepository()
-            val categoryRepository = CategoryRepository()
-            
-            val dashboardViewModel: FinancialDashboardViewModel = viewModel {
-                FinancialDashboardViewModel(budgetRepository, transactionRepository, categoryRepository)
-            }
-            
+            val dashboardViewModel: FinancialDashboardViewModel = hiltViewModel()
+
             FinancialDashboardScreen(
                 viewModel = dashboardViewModel,
                 onNavigateToBudgetManagement = {

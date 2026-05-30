@@ -10,22 +10,19 @@ import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.models.ChartData
 import com.example.automaticfinances.data.models.ChartType
 import com.example.automaticfinances.data.models.IncomeVsExpenseComparison
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.YearMonth
+import javax.inject.Inject
 
-class FinancialDashboardViewModel(
+@HiltViewModel
+class FinancialDashboardViewModel @Inject constructor(
     private val budgetRepository: BudgetRepository,
     private val transactionRepository: TransactionRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val analyticsRepository: AnalyticsRepository
 ) : ViewModel() {
-    
-    // Create analytics repository
-    private val analyticsRepository = AnalyticsRepository(
-        transactionRepository = transactionRepository,
-        budgetRepository = budgetRepository,
-        categoryRepository = categoryRepository
-    )
     
     private val _state = MutableStateFlow(FinancialDashboardState())
     val state: StateFlow<FinancialDashboardState> = _state.asStateFlow()

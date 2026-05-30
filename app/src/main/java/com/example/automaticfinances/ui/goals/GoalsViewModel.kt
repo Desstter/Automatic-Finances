@@ -4,10 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.db.*
 import com.example.automaticfinances.data.repo.CategoryRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class GoalsViewModel(
+@HiltViewModel
+class GoalsViewModel @Inject constructor(
     private val goalDao: FinancialGoalDao,
     private val categoryRepository: CategoryRepository
 ) : ViewModel() {

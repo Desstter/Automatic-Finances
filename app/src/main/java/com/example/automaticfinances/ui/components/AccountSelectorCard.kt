@@ -6,16 +6,23 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.automirrored.filled.ArrowRightAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.automaticfinances.data.db.Account
 import com.example.automaticfinances.data.db.AccountType
+import com.example.automaticfinances.ui.theme.FinanceTheme
 import java.text.NumberFormat
 
 @Composable
@@ -33,9 +40,9 @@ fun AccountSelectorCard(
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = "Seleccionar Cuenta",
+                text = "Selecciona la cuenta",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.SemiBold
             )
             
             Spacer(modifier = Modifier.height(12.dp))
@@ -65,9 +72,17 @@ private fun AccountSelectionItem(
     numberFormat: NumberFormat,
     modifier: Modifier = Modifier
 ) {
-    val (accountIcon, accountColor) = when (account.type) {
-        AccountType.BANK -> "🏦" to Color(0xFF2196F3)
-        AccountType.CASH -> "💵" to Color(0xFF4CAF50)
+    val accountIcon: ImageVector
+    val accountColor: Color
+    when (account.type) {
+        AccountType.BANK -> {
+            accountIcon = Icons.Default.AccountBalance
+            accountColor = FinanceTheme.colors.info
+        }
+        AccountType.CASH -> {
+            accountIcon = Icons.Default.Payments
+            accountColor = FinanceTheme.colors.profit
+        }
     }
     
     Card(
@@ -125,12 +140,14 @@ private fun AccountSelectionItem(
                     .background(accountColor.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = accountIcon,
-                    style = MaterialTheme.typography.titleLarge
+                Icon(
+                    imageVector = accountIcon,
+                    contentDescription = null,
+                    tint = accountColor,
+                    modifier = Modifier.size(20.dp)
                 )
             }
-            
+
             // Account info
             Column(
                 modifier = Modifier.weight(1f)
@@ -155,11 +172,10 @@ private fun AccountSelectionItem(
             
             // Selection indicator
             if (isSelected) {
-                Text(
-                    text = "✓",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = accountColor,
-                    fontWeight = FontWeight.Bold
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Seleccionada",
+                    tint = accountColor
                 )
             }
         }
@@ -178,7 +194,7 @@ fun AccountBalancePreview(
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f)
+            containerColor = FinanceTheme.colors.profitContainer.copy(alpha = 0.5f)
         ),
         shape = RoundedCornerShape(8.dp)
     ) {
@@ -206,25 +222,26 @@ fun AccountBalancePreview(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     
-                    Text(
-                        text = "→",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF4CAF50)
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowRightAlt,
+                        contentDescription = null,
+                        tint = FinanceTheme.colors.profit,
+                        modifier = Modifier.size(16.dp)
                     )
                     
                     Text(
                         text = numberFormat.format((account.balanceCents + incomeAmount) / 100.0),
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF4CAF50),
+                        color = FinanceTheme.colors.profit,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
             }
-            
+
             Text(
                 text = "+${numberFormat.format(incomeAmount / 100.0)}",
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF4CAF50),
+                color = FinanceTheme.colors.profit,
                 fontWeight = FontWeight.Bold
             )
         }

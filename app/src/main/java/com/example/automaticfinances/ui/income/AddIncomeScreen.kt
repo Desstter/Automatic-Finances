@@ -5,7 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -18,8 +18,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.ui.components.AccountSelectorCard
 import com.example.automaticfinances.ui.components.AccountBalancePreview
@@ -32,12 +32,12 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddIncomeScreen(
-    onNavigateBack: () -> Unit,
-    viewModel: AddIncomeViewModel = viewModel()
+    onNavigateBack: () -> Unit
 ) {
+    val viewModel: AddIncomeViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val numberFormat = remember { 
+    val numberFormat = remember {
         NumberFormat.getCurrencyInstance(Locale("es", "CO"))
     }
 
@@ -52,22 +52,10 @@ fun AddIncomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = null,
-                            tint = Color(0xFF4CAF50),
-                            modifier = Modifier.padding(end = 8.dp)
-                        )
-                        Text("Agregar Ingreso")
-                    }
-                },
+                title = { Text("Nuevo ingreso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 },
                 actions = {
@@ -328,13 +316,13 @@ private fun CategorySelectionCard(
         onClick = onCategorySelected,
         colors = if (isSelected) {
             CardDefaults.cardColors(
-                containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f)
+                containerColor = MaterialTheme.colorScheme.primaryContainer
             )
         } else {
             CardDefaults.cardColors()
         },
         border = if (isSelected) {
-            androidx.compose.foundation.BorderStroke(2.dp, Color(0xFF4CAF50))
+            androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
         } else null
     ) {
         Row(
@@ -348,7 +336,7 @@ private fun CategorySelectionCard(
                 text = category.icon,
                 style = MaterialTheme.typography.headlineSmall
             )
-            
+
             Column(
                 modifier = Modifier.weight(1f)
             ) {
@@ -356,15 +344,15 @@ private fun CategorySelectionCard(
                     text = category.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isSelected) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 )
             }
-            
+
             if (isSelected) {
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = "Seleccionada",
-                    tint = Color(0xFF4CAF50)
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
         }

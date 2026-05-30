@@ -11,8 +11,13 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TransactionDao {
+    /**
+     * Inserts the transaction, ignoring it if a row with the same id already exists.
+     * @return the new rowId, or -1 if the insert was ignored (duplicate). Callers MUST
+     * check this before applying any side effect (e.g. balance adjustment) to stay idempotent.
+     */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertIgnore(tx: Transaction)
+    suspend fun insertIgnore(tx: Transaction): Long
     
     @Update
     suspend fun update(tx: Transaction)

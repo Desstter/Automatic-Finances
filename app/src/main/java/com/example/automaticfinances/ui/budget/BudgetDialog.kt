@@ -84,7 +84,7 @@ fun BudgetDialog(
                                 readOnly = true,
                                 leadingIcon = {
                                     Text(
-                                        text = selectedCategory?.icon ?: "💰",
+                                        text = selectedCategory?.icon ?: "•",
                                         style = MaterialTheme.typography.titleMedium
                                     )
                                 },

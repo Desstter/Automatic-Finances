@@ -1,17 +1,18 @@
 package com.example.automaticfinances
 
 import com.example.automaticfinances.data.repo.CategoryRepository
-import com.example.automaticfinances.data.db.Category
+import com.example.automaticfinances.data.repo.UserCategoryPreferenceRepository
+import com.example.automaticfinances.fakes.FakeCategoryDao
+import com.example.automaticfinances.fakes.FakeUserCategoryPreferenceDao
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.Assert.*
 import org.junit.Before
-import org.mockito.Mock
-import org.mockito.MockitoAnnotations
 
 /**
- * Unit tests for CategoryRepository auto-categorization functionality
- * Tests critical ML-powered categorization system for production readiness
+ * Unit tests for CategoryRepository auto-categorization functionality.
+ * Backed by in-memory fakes seeded with the default categories so the keyword rules resolve
+ * to real, positive category ids (no database / Robolectric required).
  */
 class CategoryRepositoryTest {
 
@@ -19,10 +20,10 @@ class CategoryRepositoryTest {
 
     @Before
     fun setup() {
-        MockitoAnnotations.openMocks(this)
-        // For unit testing, we're testing the categorization logic
-        // Integration tests would test with real database
-        categoryRepository = CategoryRepository()
+        categoryRepository = CategoryRepository(
+            dao = FakeCategoryDao(),
+            preferenceRepo = UserCategoryPreferenceRepository(FakeUserCategoryPreferenceDao())
+        )
     }
 
     @Test
@@ -41,7 +42,7 @@ class CategoryRepositoryTest {
             
             // In a real test, we'd verify the actual category name
             // For now we verify that categorization logic is triggered
-            assertTrue("Category ID should be positive for $merchantName", categoryId > 0)
+            assertTrue("Category ID should be positive for $merchantName", (categoryId ?: 0L) > 0)
         }
     }
 
@@ -58,7 +59,7 @@ class CategoryRepositoryTest {
         testCases.forEach { (merchantName, expectedCategory) ->
             val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchantName)
             assertNotNull("Should return category for gas station: $merchantName", categoryId)
-            assertTrue("Category ID should be positive for $merchantName", categoryId > 0)
+            assertTrue("Category ID should be positive for $merchantName", (categoryId ?: 0L) > 0)
         }
     }
 
@@ -74,7 +75,7 @@ class CategoryRepositoryTest {
         testCases.forEach { (merchantName, expectedCategory) ->
             val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchantName)
             assertNotNull("Should return category for pharmacy: $merchantName", categoryId)
-            assertTrue("Category ID should be positive for $merchantName", categoryId > 0)
+            assertTrue("Category ID should be positive for $merchantName", (categoryId ?: 0L) > 0)
         }
     }
 
@@ -90,7 +91,7 @@ class CategoryRepositoryTest {
         testCases.forEach { (merchantName, expectedCategory) ->
             val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchantName)
             assertNotNull("Should return category for supermarket: $merchantName", categoryId)
-            assertTrue("Category ID should be positive for $merchantName", categoryId > 0)
+            assertTrue("Category ID should be positive for $merchantName", (categoryId ?: 0L) > 0)
         }
     }
 
@@ -107,7 +108,7 @@ class CategoryRepositoryTest {
         testCases.forEach { (merchantName, expectedCategory) ->
             val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchantName)
             assertNotNull("Should return category for transport: $merchantName", categoryId)
-            assertTrue("Category ID should be positive for $merchantName", categoryId > 0)
+            assertTrue("Category ID should be positive for $merchantName", (categoryId ?: 0L) > 0)
         }
     }
 
@@ -115,14 +116,14 @@ class CategoryRepositoryTest {
     fun autoCategorization_transferencias_shouldReturnTransferencia() = runBlocking {
         val categoryId = categoryRepository.getDefaultCategoryId("TRANSFERENCIA", "Transferencia")
         assertNotNull("Should return category for transfer", categoryId)
-        assertTrue("Transfer category ID should be positive", categoryId > 0)
+        assertTrue("Transfer category ID should be positive", (categoryId ?: 0L) > 0)
     }
 
     @Test
     fun autoCategorization_retiros_shouldReturnRetiro() = runBlocking {
         val categoryId = categoryRepository.getDefaultCategoryId("RETIRO", "Retiro cajero")
         assertNotNull("Should return category for ATM withdrawal", categoryId)  
-        assertTrue("ATM withdrawal category ID should be positive", categoryId > 0)
+        assertTrue("ATM withdrawal category ID should be positive", (categoryId ?: 0L) > 0)
     }
 
     @Test
@@ -136,7 +137,7 @@ class CategoryRepositoryTest {
         testCases.forEach { (description, transactionType) ->
             val categoryId = categoryRepository.getDefaultCategoryId(transactionType, description)
             assertNotNull("Should return category for income: $description", categoryId)
-            assertTrue("Income category ID should be positive for $description", categoryId > 0)
+            assertTrue("Income category ID should be positive for $description", (categoryId ?: 0L) > 0)
         }
     }
 
@@ -152,7 +153,7 @@ class CategoryRepositoryTest {
         unknownMerchants.forEach { merchantName ->
             val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchantName)
             assertNotNull("Should return default category for unknown merchant: $merchantName", categoryId)
-            assertTrue("Default category ID should be positive", categoryId > 0)
+            assertTrue("Default category ID should be positive", (categoryId ?: 0L) > 0)
         }
     }
 
@@ -193,10 +194,10 @@ class CategoryRepositoryTest {
             
             if (shouldMatch) {
                 // Should get specific category, not just default
-                assertTrue("Should get specific category for $merchantName", categoryId > 0)
+                assertTrue("Should get specific category for $merchantName", (categoryId ?: 0L) > 0)
             } else {
                 // Should get default category  
-                assertTrue("Should get default category for $merchantName", categoryId > 0)
+                assertTrue("Should get default category for $merchantName", (categoryId ?: 0L) > 0)
             }
         }
     }
@@ -213,7 +214,7 @@ class CategoryRepositoryTest {
         testCases.forEach { merchantName ->
             val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchantName)
             assertNotNull("Should handle multiple keywords: $merchantName", categoryId)
-            assertTrue("Should prioritize one category: $merchantName", categoryId > 0)
+            assertTrue("Should prioritize one category: $merchantName", (categoryId ?: 0L) > 0)
             
             // The system should consistently choose the same category for the same input
             val categoryId2 = categoryRepository.getDefaultCategoryId("COMPRA", merchantName) 

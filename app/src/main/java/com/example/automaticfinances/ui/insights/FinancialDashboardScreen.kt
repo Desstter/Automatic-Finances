@@ -7,8 +7,15 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +26,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.automaticfinances.ui.components.*
 import com.example.automaticfinances.ui.components.charts.*
+import com.example.automaticfinances.ui.components.common.PremiumEmptyState
+import com.example.automaticfinances.ui.components.common.SectionHeader
+import com.example.automaticfinances.ui.theme.Spacing
 import com.example.automaticfinances.data.db.BudgetStatus
 import com.example.automaticfinances.data.db.BudgetSummary
 import java.text.NumberFormat
@@ -48,9 +58,10 @@ fun FinancialDashboardScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
-                        text = "Financial Insights",
+                        text = "Análisis financiero",
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -58,21 +69,22 @@ fun FinancialDashboardScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNavigateToBudgetManagement
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Crear presupuesto")
-            }
+            ExtendedFloatingActionButton(
+                onClick = onNavigateToBudgetManagement,
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("Presupuesto") },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
         }
     ) { paddingValues ->
         LazyColumn(
             modifier = modifier
                 .fillMaxSize()
-                .statusBarsPadding()
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = Spacing.screen),
+            contentPadding = PaddingValues(top = Spacing.md, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             // Month selector
             item {
@@ -86,9 +98,9 @@ fun FinancialDashboardScreen(
             item {
                 QuickActionsGrid(
                     actions = listOf(
-                        QuickAction("Presupuestos", "💰", onNavigateToBudgetManagement),
-                        QuickAction("Metas", "🎯", onNavigateToGoals),
-                        QuickAction("Reportes", "📊", onNavigateToReports)
+                        QuickAction("Presupuestos", Icons.Default.AccountBalanceWallet, onNavigateToBudgetManagement),
+                        QuickAction("Metas",        Icons.Default.Flag,                 onNavigateToGoals),
+                        QuickAction("Reportes",     Icons.Default.BarChart,             onNavigateToReports)
                     )
                 )
             }
@@ -181,36 +193,43 @@ private fun MonthSelector(
     modifier: Modifier = Modifier
 ) {
     val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("es-CO"))
-    
-    Card(
+
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-        )
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(
-                onClick = { onMonthChanged(currentMonth.minusMonths(1)) }
+            FilledIconButton(
+                onClick = { onMonthChanged(currentMonth.minusMonths(1)) },
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                )
             ) {
-                Text("← Anterior")
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Mes anterior")
             }
-            
+
             Text(
                 text = currentMonth.format(formatter).replaceFirstChar { it.uppercase() },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
-            
-            TextButton(
-                onClick = { onMonthChanged(currentMonth.plusMonths(1)) }
+
+            FilledIconButton(
+                onClick = { onMonthChanged(currentMonth.plusMonths(1)) },
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                )
             ) {
-                Text("Siguiente →")
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Mes siguiente")
             }
         }
     }
@@ -229,17 +248,13 @@ private fun KPISection(
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
-        Text(
-            text = "Resumen del Mes",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-        
+        SectionHeader(title = "Resumen del mes")
+
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp)
+            contentPadding = PaddingValues(horizontal = 2.dp)
         ) {
             item {
                 SpendingKPICard(
@@ -293,23 +308,11 @@ private fun BudgetStatusSectionHeader(
     budgetCount: Int,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "Estado de Presupuestos",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-        
-        Text(
-            text = "$budgetCount activos",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
+    SectionHeader(
+        title = "Estado de presupuestos",
+        subtitle = "$budgetCount activos",
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -317,42 +320,18 @@ private fun EmptyBudgetsCard(
     onCreateBudget: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = "💰",
-                style = MaterialTheme.typography.displayMedium
-            )
-            
-            Text(
-                text = "No tienes presupuestos activos",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            
-            Text(
-                text = "Crea presupuestos para controlar tus gastos y recibir alertas inteligentes",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            Button(
-                onClick = onCreateBudget
-            ) {
-                Text("Crear mi primer presupuesto")
-            }
-        }
+        PremiumEmptyState(
+            icon = Icons.Default.AccountBalanceWallet,
+            title = "Aún no tienes presupuestos",
+            description = "Crea presupuestos para controlar tus gastos y recibir alertas inteligentes.",
+            actionLabel = "Crear mi primer presupuesto",
+            onAction = onCreateBudget
+        )
     }
 }
 
@@ -363,31 +342,24 @@ private fun AnalysisModeTabs(
     onModeChanged: (AnalysisMode) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        TabRow(
-            selectedTabIndex = currentMode.ordinal,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Tab(
-                selected = currentMode == AnalysisMode.EXPENSES,
-                onClick = { onModeChanged(AnalysisMode.EXPENSES) },
-                text = { Text("💸 Gastos") }
-            )
-            Tab(
-                selected = currentMode == AnalysisMode.INCOME,
-                onClick = { onModeChanged(AnalysisMode.INCOME) },
-                text = { Text("💰 Ingresos") }
-            )
-            Tab(
-                selected = currentMode == AnalysisMode.COMPARISON,
-                onClick = { onModeChanged(AnalysisMode.COMPARISON) },
-                text = { Text("⚖️ Comparación") }
-            )
+    val options = listOf(
+        AnalysisMode.EXPENSES to "Gastos",
+        AnalysisMode.INCOME to "Ingresos",
+        AnalysisMode.COMPARISON to "Comparación"
+    )
+    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, (mode, label) ->
+            SegmentedButton(
+                selected = currentMode == mode,
+                onClick = { onModeChanged(mode) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                colors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            ) {
+                Text(label, style = MaterialTheme.typography.labelLarge)
+            }
         }
     }
 }
@@ -411,12 +383,7 @@ private fun IncomeChartsSection(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "📊 Análisis de Ingresos",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold
-                )
-            )
+            SectionHeader(title = "Análisis de ingresos")
             
             if (incomeChartData.isLoading) {
                 Box(
@@ -476,7 +443,7 @@ private fun IncomeKPICard(
     KPICard(
         title = "Ingresos del Mes",
         currentValue = nf.format(monthlyIncomeCents / 100.0),
-        icon = "💰",
+        icon = Icons.Default.AccountBalanceWallet,
         trend = null, // Could add trend later
         onClick = onClick,
         modifier = modifier
@@ -496,7 +463,7 @@ private fun BalanceKPICard(
     KPICard(
         title = "Balance Neto",
         currentValue = nf.format(netBalanceCents / 100.0),
-        icon = if (hasPositiveBalance) "📈" else "📉",
+        icon = if (hasPositiveBalance) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
         trend = trendValue,
         subtitle = "Tasa de ahorro: ${savingsRate.toInt()}%",
         onClick = onClick,

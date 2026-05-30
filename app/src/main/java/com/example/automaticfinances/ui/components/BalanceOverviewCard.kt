@@ -5,15 +5,23 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.automaticfinances.ui.theme.FinanceTheme
 import java.text.NumberFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,18 +40,18 @@ fun BalanceOverviewCard(
     modifier: Modifier = Modifier
 ) {
     var showBalances by remember { mutableStateOf(true) }
-    
+
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            containerColor = MaterialTheme.colorScheme.primaryContainer
         ),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(20.dp)
         ) {
-            // Header with total balance and visibility toggle
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -51,75 +59,68 @@ fun BalanceOverviewCard(
             ) {
                 Column {
                     Text(
-                        text = "Balance Total",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = "Balance total",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = if (showBalances) {
                             numberFormat.format(totalBalanceCents / 100.0)
                         } else {
                             "• • • • •"
                         },
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
+                        style = com.example.automaticfinances.ui.theme.FinanceTypography.moneyLarge.copy(fontSize = 30.sp),
                         color = if (totalBalanceCents >= 0) {
-                            Color(0xFF4CAF50)
+                            MaterialTheme.colorScheme.onPrimaryContainer
                         } else {
                             MaterialTheme.colorScheme.error
                         }
                     )
                 }
-                
+
                 IconButton(
                     onClick = { showBalances = !showBalances },
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f))
                 ) {
-                    Text(
-                        text = if (showBalances) "👁️" else "🙈",
-                        style = MaterialTheme.typography.titleMedium
+                    Icon(
+                        imageVector = if (showBalances) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        contentDescription = if (showBalances) "Ocultar saldos" else "Mostrar saldos",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(20.dp))
-            
-            // Bank and Cash balances row
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Bank Balance
                 AccountBalanceItem(
                     title = "Banco",
                     balance = bankBalanceCents,
-                    icon = "🏦",
-                    color = Color(0xFF2196F3),
+                    icon = Icons.Default.AccountBalance,
                     showBalance = showBalances,
                     numberFormat = numberFormat,
                     onClick = onBankClick,
                     modifier = Modifier.weight(1f)
                 )
-                
-                // Cash Balance
                 AccountBalanceItem(
                     title = "Efectivo",
                     balance = cashBalanceCents,
-                    icon = "💵",
-                    color = Color(0xFF4CAF50),
+                    icon = Icons.Default.Payments,
                     showBalance = showBalances,
                     numberFormat = numberFormat,
                     onClick = onCashClick,
                     modifier = Modifier.weight(1f)
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
-            // Monthly income vs expenses
+
             MonthlyBreakdownSection(
                 monthlyIncome = monthlyIncome,
                 monthlyExpenses = monthlyExpenses,
@@ -127,7 +128,6 @@ fun BalanceOverviewCard(
                 numberFormat = numberFormat,
                 onViewHistoryClick = onViewHistoryClick
             )
-            
         }
     }
 }
@@ -137,62 +137,66 @@ fun BalanceOverviewCard(
 private fun AccountBalanceItem(
     title: String,
     balance: Long,
-    icon: String,
-    color: Color,
+    icon: ImageVector,
     showBalance: Boolean,
     numberFormat: NumberFormat,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Visual indicator for balance configuration needed
     val needsConfiguration = balance == 0L
-    val displayColor = if (needsConfiguration) MaterialTheme.colorScheme.outline else color
+    val contentColor = if (needsConfiguration) MaterialTheme.colorScheme.outline
+                       else MaterialTheme.colorScheme.onSurface
+
     Card(
         onClick = onClick,
         modifier = modifier,
         colors = CardDefaults.cardColors(
-            containerColor = if (needsConfiguration) 
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            else 
-                MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+            containerColor = if (needsConfiguration)
+                MaterialTheme.colorScheme.surfaceContainer
+            else
+                MaterialTheme.colorScheme.surface
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Icon with colored background
             Box(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(displayColor.copy(alpha = 0.2f)),
+                    .background(
+                        if (needsConfiguration) MaterialTheme.colorScheme.surfaceContainerHigh
+                        else MaterialTheme.colorScheme.primaryContainer
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = if (needsConfiguration) "⚙️" else icon,
-                    style = MaterialTheme.typography.titleLarge
+                Icon(
+                    imageVector = if (needsConfiguration) Icons.Default.Settings else icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = if (needsConfiguration) MaterialTheme.colorScheme.outline
+                           else MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             Text(
                 text = if (needsConfiguration) "Configurar $title" else title,
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (needsConfiguration) displayColor else MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            
+
             Text(
-                text = if (showBalance) {
-                    numberFormat.format(balance / 100.0)
-                } else {
-                    "• • •"
-                },
+                text = if (showBalance) numberFormat.format(balance / 100.0) else "• • •",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = if (needsConfiguration) displayColor else (if (balance >= 0) color else MaterialTheme.colorScheme.error)
+                color = if (needsConfiguration) MaterialTheme.colorScheme.outline
+                        else if (balance >= 0) FinanceTheme.colors.profit
+                        else MaterialTheme.colorScheme.error
             )
         }
     }
@@ -207,7 +211,7 @@ private fun MonthlyBreakdownSection(
     onViewHistoryClick: () -> Unit
 ) {
     val monthlyBalance = monthlyIncome - monthlyExpenses
-    
+
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -220,46 +224,40 @@ private fun MonthlyBreakdownSection(
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            
             TextButton(onClick = onViewHistoryClick) {
                 Text("Ver detalles")
             }
         }
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Income
             MonthlyItem(
                 label = "Ingresos",
                 amount = monthlyIncome,
-                icon = "💰",
-                color = Color(0xFF4CAF50),
+                icon = Icons.AutoMirrored.Filled.TrendingUp,
+                color = FinanceTheme.colors.profit,
                 showBalance = showBalances,
                 numberFormat = numberFormat,
                 modifier = Modifier.weight(1f)
             )
-            
-            // Expenses
             MonthlyItem(
                 label = "Gastos",
                 amount = monthlyExpenses,
-                icon = "💸",
-                color = Color(0xFFFF5722),
+                icon = Icons.AutoMirrored.Filled.TrendingDown,
+                color = FinanceTheme.colors.loss,
                 showBalance = showBalances,
                 numberFormat = numberFormat,
                 modifier = Modifier.weight(1f)
             )
-            
-            // Balance
             MonthlyItem(
                 label = "Balance",
                 amount = monthlyBalance,
-                icon = if (monthlyBalance >= 0) "📈" else "📉",
-                color = if (monthlyBalance >= 0) Color(0xFF4CAF50) else Color(0xFFFF5722),
+                icon = if (monthlyBalance >= 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                color = if (monthlyBalance >= 0) FinanceTheme.colors.profit else FinanceTheme.colors.loss,
                 showBalance = showBalances,
                 numberFormat = numberFormat,
                 modifier = Modifier.weight(1f)
@@ -272,8 +270,8 @@ private fun MonthlyBreakdownSection(
 private fun MonthlyItem(
     label: String,
     amount: Long,
-    icon: String,
-    color: Color,
+    icon: ImageVector,
+    color: androidx.compose.ui.graphics.Color,
     showBalance: Boolean,
     numberFormat: NumberFormat,
     modifier: Modifier = Modifier
@@ -282,23 +280,19 @@ private fun MonthlyItem(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = icon,
-            style = MaterialTheme.typography.bodyLarge
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = color
         )
-        
         Text(
             text = label,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        
         Text(
-            text = if (showBalance) {
-                numberFormat.format(amount / 100.0)
-            } else {
-                "•••"
-            },
+            text = if (showBalance) numberFormat.format(amount / 100.0) else "•••",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             color = color

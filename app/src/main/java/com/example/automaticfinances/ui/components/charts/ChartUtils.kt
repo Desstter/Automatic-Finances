@@ -48,8 +48,8 @@ object ChartUtils {
         
         val elasticEasing = keyframes<Float> {
             durationMillis = defaultDuration
-            0f at 0 with LinearOutSlowInEasing
-            0.8f at (durationMillis * 0.6).toInt() with OvershootInterpolator().toEasing()
+            0f at 0 using LinearOutSlowInEasing
+            0.8f at (durationMillis * 0.6).toInt() using OvershootInterpolator().toEasing()
             1f at durationMillis
         }
     }
@@ -146,7 +146,7 @@ object ChartUtils {
                     (previous.x + current.x) / 2,
                     previous.y
                 )
-                path.quadraticBezierTo(
+                path.quadraticTo(
                     controlPoint.x, controlPoint.y,
                     current.x, current.y
                 )

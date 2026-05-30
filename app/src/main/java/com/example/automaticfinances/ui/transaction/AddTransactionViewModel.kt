@@ -6,6 +6,8 @@ import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.db.Transaction
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.domain.AddTransactionUseCase
+import com.example.automaticfinances.utils.parseColombiaCents
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,6 +19,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import javax.inject.Inject
 
 data class AddTransactionState(
     val amount: String = "",
@@ -32,9 +35,10 @@ data class AddTransactionState(
     val descriptionError: String? = null
 )
 
-class AddTransactionViewModel(
-    private val categoryRepository: CategoryRepository = CategoryRepository(),
-    private val addTransactionUseCase: AddTransactionUseCase = AddTransactionUseCase()
+@HiltViewModel
+class AddTransactionViewModel @Inject constructor(
+    private val categoryRepository: CategoryRepository,
+    private val addTransactionUseCase: AddTransactionUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AddTransactionState())
@@ -136,8 +140,7 @@ class AddTransactionViewModel(
     }
 
     private fun createTransaction(state: AddTransactionState): Transaction {
-        val amountDouble = parseAmount(state.amount) ?: 0.0
-        val amountCents = (amountDouble * 100).toLong()
+        val amountCents = state.amount.parseColombiaCents() ?: 0L
         val dateTime = state.selectedDate.atTime(state.selectedTime)
         val timestamp = dateTime.atZone(ZoneId.of("America/Bogota")).toInstant().toEpochMilli()
         
@@ -232,32 +235,11 @@ class AddTransactionViewModel(
     }
     
     /**
-     * Parse amount string handling Colombian format (comma as decimal separator)
-     * Supports: "1000", "1.000", "1000,50", "1.000,50"
+     * Amount in pesos for validation only. Delegates to [parseColombiaCents] (the single
+     * source of truth for COP parsing) and converts cents back to pesos. Returns null when
+     * the input can't be parsed.
      */
     private fun parseAmount(amount: String): Double? {
-        if (amount.isBlank()) return null
-        
-        return try {
-            // Handle Colombian format: 1.000,50 or 1000,50
-            val normalized = if (amount.contains(',')) {
-                // Has comma - treat as decimal separator
-                val parts = amount.split(',')
-                if (parts.size != 2) return null
-                
-                val integerPart = parts[0].replace(".", "") // Remove thousand separators
-                val decimalPart = parts[1]
-                
-                "$integerPart.$decimalPart".toDouble()
-            } else {
-                // No comma - could be 1000 or 1000.50 (US format)
-                amount.replace(".", "").toDouble() / 
-                    if (amount.count { it == '.' } == 1 && amount.substringAfter('.').length <= 2) 1.0 else 1.0
-            }
-            
-            normalized
-        } catch (e: NumberFormatException) {
-            null
-        }
+        return amount.parseColombiaCents()?.let { it / 100.0 }
     }
 }

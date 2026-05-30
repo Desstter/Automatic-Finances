@@ -9,12 +9,15 @@ import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.AccountRepository
 import com.example.automaticfinances.domain.AddTransactionUseCase
+import com.example.automaticfinances.utils.parseColombiaCents
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.util.*
+import javax.inject.Inject
 
 data class AddIncomeState(
     val amount: String = "",
@@ -45,20 +48,15 @@ data class AddIncomeState(
         get() = availableAccounts.find { it.id == selectedAccountId }
         
     val incomeAmountCents: Long
-        get() = try {
-            if (amount.isBlank()) 0L else {
-                val cleaned = amount.replace(".", "").replace(",", "")
-                (cleaned.toDouble() * 100).toLong()
-            }
-        } catch (e: Exception) {
-            0L
-        }
+        get() = amount.parseColombiaCents() ?: 0L
 }
 
-class AddIncomeViewModel : ViewModel() {
-    private val addTransactionUseCase = AddTransactionUseCase()
-    private val categoryRepository = CategoryRepository()
-    private val accountRepository = AccountRepository()
+@HiltViewModel
+class AddIncomeViewModel @Inject constructor(
+    private val addTransactionUseCase: AddTransactionUseCase,
+    private val categoryRepository: CategoryRepository,
+    private val accountRepository: AccountRepository
+) : ViewModel() {
     
     private val _state = MutableStateFlow(AddIncomeState())
     val state: StateFlow<AddIncomeState> = _state.asStateFlow()
@@ -275,9 +273,10 @@ class AddIncomeViewModel : ViewModel() {
     }
     
     private fun parseAmountToCents(amount: String): Long {
-        // Handle Colombian number format: 1.000.000,50 or 1,000,000.50
-        val cleaned = amount.replace(".", "").replace(",", "")
-        return (cleaned.toDouble() * 100).toLong()
+        // Single source of truth for COP amount parsing (handles "1.000.000,50",
+        // "1,000,000.50", "50.000", etc.). Returns 0 for unparseable input so the
+        // caller's validation rejects it.
+        return amount.parseColombiaCents() ?: 0L
     }
     
     private fun generateTransactionId(timestamp: Long, amountCents: Long, description: String): String {

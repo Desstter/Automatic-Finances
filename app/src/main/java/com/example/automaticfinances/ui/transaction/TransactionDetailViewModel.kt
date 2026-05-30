@@ -6,10 +6,14 @@ import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.db.Transaction
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
+import com.example.automaticfinances.domain.DeleteTransactionUseCase
+import com.example.automaticfinances.domain.RestoreTransactionUseCase
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class TransactionDetailState(
     val transaction: Transaction? = null,
@@ -27,9 +31,13 @@ data class TransactionDetailState(
     val isDeleted: Boolean = false
 )
 
-class TransactionDetailViewModel : ViewModel() {
-    private val transactionRepository = TransactionRepository()
-    private val categoryRepository = CategoryRepository()
+@HiltViewModel
+class TransactionDetailViewModel @Inject constructor(
+    private val transactionRepository: TransactionRepository,
+    private val categoryRepository: CategoryRepository,
+    private val deleteTransactionUseCase: DeleteTransactionUseCase,
+    private val restoreTransactionUseCase: RestoreTransactionUseCase
+) : ViewModel() {
     
     private val _state = MutableStateFlow(TransactionDetailState())
     val state: StateFlow<TransactionDetailState> = _state.asStateFlow()
@@ -160,8 +168,8 @@ class TransactionDetailViewModel : ViewModel() {
             )
             
             try {
-                val success = transactionRepository.deleteTransaction(transaction.id)
-                
+                val success = deleteTransactionUseCase(transaction)
+
                 if (success) {
                     _state.value = _state.value.copy(
                         isDeleting = false,
@@ -190,8 +198,8 @@ class TransactionDetailViewModel : ViewModel() {
             _state.value = _state.value.copy(isLoading = true, error = null)
             
             try {
-                transactionRepository.insert(deletedTransaction)
-                
+                restoreTransactionUseCase(deletedTransaction)
+
                 _state.value = _state.value.copy(
                     transaction = deletedTransaction,
                     isLoading = false,

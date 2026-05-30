@@ -1,15 +1,13 @@
 package com.example.automaticfinances.data.repo
 
 import com.example.automaticfinances.data.db.*
-import com.example.automaticfinances.data.models.MonthlySpending
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.flowOf
+import javax.inject.Inject
 
-class AccountRepository(
-    private val accountDao: AccountDao = AppDatabase.get().accountDao(),
-    private val transactionDao: TransactionDao = AppDatabase.get().transactionDao()
+class AccountRepository @Inject constructor(
+    private val accountDao: AccountDao,
+    private val transactionDao: TransactionDao
 ) {
     
     // ========== BASIC CRUD OPERATIONS ==========
@@ -76,17 +74,6 @@ class AccountRepository(
         }
     }
     
-    /**
-     * Updates account balance when a transaction is modified
-     */
-    suspend fun updateTransactionBalance(oldTransaction: Transaction, newTransaction: Transaction) {
-        // Revert old transaction
-        revertTransactionFromBalance(oldTransaction)
-        
-        // Apply new transaction
-        applyTransactionToBalance(newTransaction)
-    }
-    
     // ========== ANALYTICS & INSIGHTS ==========
     
     suspend fun getAccountSummary(): AccountSummary? {
@@ -95,44 +82,6 @@ class AccountRepository(
     
     fun getAccountSummaryFlow(): Flow<AccountSummary?> {
         return accountDao.getAccountSummaryFlow().map { it?.toAccountSummary() }
-    }
-    
-    suspend fun getAccountsWithStats(): List<AccountWithStats> {
-        return accountDao.getAccountsWithMonthlyStats()
-    }
-    
-    fun getAccountBalances(): Flow<List<AccountBalance>> {
-        return combine(
-            getAllActiveAccountsFlow(),
-            transactionDao.getAllTransactionsFlow()
-        ) { accounts, transactions ->
-            accounts.map { account ->
-                // Get last transaction date for this account
-                val lastTransaction = transactions
-                    .filter { it.accountId == account.id }
-                    .maxByOrNull { it.ts }
-                
-                // Calculate previous balance (current - last transaction impact)
-                val lastTransactionAmount = lastTransaction?.let { tx ->
-                    if (tx.isIncome) tx.amountCents else -tx.amountCents
-                } ?: 0L
-                val previousBalance = account.balanceCents - lastTransactionAmount
-                
-                val changeAmount = account.balanceCents - previousBalance
-                val changePercentage = if (previousBalance != 0L) {
-                    (changeAmount.toFloat() / previousBalance.toFloat()) * 100f
-                } else 0f
-                
-                AccountBalance(
-                    account = account,
-                    currentBalanceCents = account.balanceCents,
-                    previousBalanceCents = previousBalance,
-                    changeAmountCents = changeAmount,
-                    changePercentage = changePercentage,
-                    lastTransactionDate = lastTransaction?.ts
-                )
-            }
-        }
     }
     
     suspend fun getTotalBalance(): Long {
@@ -206,128 +155,11 @@ class AccountRepository(
         }
     }
     
-    suspend fun recalculateAllBalances() {
-        try {
-            accountDao.initializeAccountBalances()
-        } catch (e: Exception) {
-            // Handle error
-        }
-    }
-    
     // ========== MAINTENANCE OPERATIONS ==========
-    
-    suspend fun deactivateAccount(accountId: Long) = accountDao.deactivateAccount(accountId)
-    
-    suspend fun activateAccount(accountId: Long) = accountDao.activateAccount(accountId)
-    
-    suspend fun getInactiveAccounts(): List<Account> = accountDao.getInactiveAccounts()
-    
-    /**
-     * Validates that account balances match transaction history
-     */
-    suspend fun validateAccountBalances(): Map<Long, Boolean> {
-        val accounts = getAllActiveAccounts()
-        val validationResults = mutableMapOf<Long, Boolean>()
-        
-        for (account in accounts) {
-            val calculatedBalance = if (account.type == AccountType.BANK) {
-                accountDao.calculateBankBalanceFromTransactions()
-            } else {
-                accountDao.calculateCashBalanceFromTransactions()
-            }
-            
-            validationResults[account.id] = account.balanceCents == calculatedBalance
-        }
-        
-        return validationResults
-    }
-    
-    // ========== BALANCE HISTORY TRACKING ==========
-    
-    suspend fun recordBalanceChange(
-        accountId: Long,
-        transactionId: String?,
-        changeType: BalanceChangeType
-    ) {
-        // Balance history tracking - implemented as basic logging for now
-        // In a full implementation, this would:
-        // 1. Create a BalanceHistory entity
-        // 2. Record timestamp, old balance, new balance, change reason
-        // 3. Implement retention policies for historical data
-        
-        // For now, we're tracking balance changes implicitly through transactions
-        // The getAccountBalances() function calculates historical context
-        
-        // Placeholder: Could log balance changes or trigger balance audit
-        // Log.d("AccountRepository", "Balance change recorded: accountId=$accountId, type=$changeType")
-    }
-    
-    // ========== ACCOUNT INSIGHTS ==========
-    
-    fun getAccountSpendingTrend(accountId: Long): Flow<List<MonthlySpending>> {
-        return transactionDao.getAllTransactionsFlow().map { transactions ->
-            transactions
-                .filter { it.accountId == accountId && !it.isIncome }
-                .groupBy { it.date.substring(0, 7) } // Group by YYYY-MM
-                .map { (yearMonth, transactionsInMonth) ->
-                    val totalCents = transactionsInMonth.sumOf { it.amountCents }
-                    val transactionCount = transactionsInMonth.size
-                    val averageDaily = if (transactionCount > 0) totalCents / 30 else 0L
-                    
-                    MonthlySpending(
-                        yearMonth = java.time.YearMonth.parse(yearMonth),
-                        totalCents = totalCents,
-                        transactionCount = transactionCount,
-                        averageDailySpending = averageDaily
-                    )
-                }
-                .sortedBy { it.yearMonth }
-        }
-    }
-    
-    suspend fun getAccountTransactionStats(accountId: Long): AccountTransactionStats? {
-        val transactions = transactionDao.getTransactionsByAccountId(accountId)
-        if (transactions.isEmpty()) return null
-        
-        val incomeTransactions = transactions.filter { it.isIncome }
-        val expenseTransactions = transactions.filter { !it.isIncome }
-        
-        val totalIncome = incomeTransactions.sumOf { it.amountCents }
-        val totalExpenses = expenseTransactions.sumOf { it.amountCents }
-        val totalAmount = totalIncome + totalExpenses
-        val averageTransaction = if (transactions.isNotEmpty()) totalAmount / transactions.size else 0L
-        
-        // Find most frequent category
-        val categoryFrequency = transactions
-            .groupingBy { it.categoryId }
-            .eachCount()
-        val mostFrequentCategoryId = categoryFrequency.maxByOrNull { it.value }?.key
-        val mostFrequentCategory = mostFrequentCategoryId?.let { 
-            // This would need category lookup - using placeholder
-            "Category $it"
-        }
-        
-        val lastTransaction = transactions.maxByOrNull { it.ts }
-        
-        return AccountTransactionStats(
-            accountId = accountId,
-            totalTransactions = transactions.size,
-            totalIncomeCents = totalIncome,
-            totalExpensesCents = totalExpenses,
-            averageTransactionCents = averageTransaction,
-            lastTransactionDate = lastTransaction?.ts,
-            mostFrequentCategory = mostFrequentCategory
-        )
-    }
-}
 
-// Additional data classes for account analytics
-data class AccountTransactionStats(
-    val accountId: Long,
-    val totalTransactions: Int,
-    val totalIncomeCents: Long,
-    val totalExpensesCents: Long,
-    val averageTransactionCents: Long,
-    val lastTransactionDate: Long?,
-    val mostFrequentCategory: String?
-)
+    suspend fun deactivateAccount(accountId: Long) = accountDao.deactivateAccount(accountId)
+
+    suspend fun activateAccount(accountId: Long) = accountDao.activateAccount(accountId)
+
+    suspend fun getInactiveAccounts(): List<Account> = accountDao.getInactiveAccounts()
+}

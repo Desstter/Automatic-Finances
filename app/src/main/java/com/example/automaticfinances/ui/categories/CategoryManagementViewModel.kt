@@ -5,11 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.db.CategoryWithCount
 import com.example.automaticfinances.data.repo.CategoryRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class CategoryManagementState(
     val categories: List<CategoryWithCount> = emptyList(),
@@ -25,8 +27,10 @@ data class CategoryManagementState(
     val deleteConfirmationMessage: String = ""
 )
 
-class CategoryManagementViewModel : ViewModel() {
-    private val categoryRepository = CategoryRepository()
+@HiltViewModel
+class CategoryManagementViewModel @Inject constructor(
+    private val categoryRepository: CategoryRepository
+) : ViewModel() {
     
     private val _state = MutableStateFlow(CategoryManagementState())
     val state: StateFlow<CategoryManagementState> = _state.asStateFlow()

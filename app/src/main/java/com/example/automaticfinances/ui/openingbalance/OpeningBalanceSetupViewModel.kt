@@ -4,17 +4,21 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.db.Account
-import com.example.automaticfinances.data.db.AppDatabase
+import com.example.automaticfinances.data.db.AccountDao
 import com.example.automaticfinances.data.repo.OpeningBalanceRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import javax.inject.Inject
 
-class OpeningBalanceSetupViewModel(
-    private val openingBalanceRepository: OpeningBalanceRepository
+@HiltViewModel
+class OpeningBalanceSetupViewModel @Inject constructor(
+    private val openingBalanceRepository: OpeningBalanceRepository,
+    private val accountDao: AccountDao
 ) : ViewModel() {
     
     private val _state = MutableStateFlow(OpeningBalanceSetupState())
@@ -28,7 +32,6 @@ class OpeningBalanceSetupViewModel(
                 _state.update { it.copy(isLoading = true, error = null) }
                 
                 // Get all active accounts
-                val accountDao = AppDatabase.get().accountDao()
                 val accounts = accountDao.getAllActiveAccounts()
                 
                 // Load existing opening balances

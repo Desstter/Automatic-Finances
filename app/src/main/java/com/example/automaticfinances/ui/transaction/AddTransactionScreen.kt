@@ -1,11 +1,12 @@
 package com.example.automaticfinances.ui.transaction
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -17,9 +18,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.automaticfinances.data.db.Category
+import com.example.automaticfinances.ui.theme.FinanceTheme
+import com.example.automaticfinances.ui.theme.FinanceTypography
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.LocalTime
@@ -29,12 +34,12 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionScreen(
-    onNavigateBack: () -> Unit,
-    viewModel: AddTransactionViewModel = viewModel()
+    onNavigateBack: () -> Unit
 ) {
+    val viewModel: AddTransactionViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val numberFormat = remember { 
+    val numberFormat = remember {
         NumberFormat.getCurrencyInstance(Locale("es", "CO"))
     }
 
@@ -49,10 +54,10 @@ fun AddTransactionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Agregar Gasto en Efectivo") },
+                title = { Text("Nuevo gasto en efectivo", style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "Volver")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
                     }
                 }
             )
@@ -61,10 +66,34 @@ fun AddTransactionScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(padding),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(bottom = 24.dp)
         ) {
+            // Live amount display — no horizontal padding, full-width hero
+            item {
+                val formattedAmount = remember(state.amount) {
+                    val raw = state.amount.replace(",", ".").toDoubleOrNull()
+                    if (raw != null && raw > 0) numberFormat.format(raw) else "$0"
+                }
+                Column {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(horizontal = 24.dp, vertical = 20.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(
+                            text = formattedAmount,
+                            style = FinanceTypography.moneyLarge,
+                            color = FinanceTheme.colors.loss
+                        )
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+            }
+
             // Campo de monto
             item {
                 OutlinedTextField(
@@ -75,7 +104,9 @@ fun AddTransactionScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     isError = state.amountError != null,
                     supportingText = state.amountError?.let { { Text(it) } },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
                     leadingIcon = { Text("$") }
                 )
             }
@@ -89,7 +120,9 @@ fun AddTransactionScreen(
                     placeholder = { Text("Almuerzo, transporte, etc.") },
                     isError = state.descriptionError != null,
                     supportingText = state.descriptionError?.let { { Text(it) } },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
                     maxLines = 2
                 )
             }
@@ -97,27 +130,26 @@ fun AddTransactionScreen(
             // Selector de fecha y hora
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Fecha
                     OutlinedTextField(
                         value = state.selectedDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
                         onValueChange = { },
                         label = { Text("Fecha") },
                         readOnly = true,
                         modifier = Modifier.weight(1f),
-                        leadingIcon = { Text("📅") }
+                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp)) }
                     )
-                    
-                    // Hora
                     OutlinedTextField(
                         value = state.selectedTime.format(DateTimeFormatter.ofPattern("HH:mm")),
                         onValueChange = { },
                         label = { Text("Hora") },
                         readOnly = true,
                         modifier = Modifier.weight(1f),
-                        leadingIcon = { Text("🕐") }
+                        leadingIcon = { Icon(Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.size(18.dp)) }
                     )
                 }
             }
@@ -127,7 +159,9 @@ fun AddTransactionScreen(
                 Text(
                     text = "Categoría",
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .padding(vertical = 8.dp)
                 )
             }
 
@@ -136,17 +170,19 @@ fun AddTransactionScreen(
                 CategoryItem(
                     category = category,
                     isSelected = state.selectedCategoryId == category.id,
-                    onClick = { viewModel.selectCategory(category.id) }
+                    onClick = { viewModel.selectCategory(category.id) },
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
 
             // Botón de guardar
             item {
-                Spacer(modifier = Modifier.height(16.dp))
-                
                 Button(
                     onClick = { viewModel.saveTransaction() },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .height(52.dp),
                     enabled = !state.isLoading
                 ) {
                     if (state.isLoading) {
@@ -156,14 +192,15 @@ fun AddTransactionScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                     }
-                    Text(if (state.isLoading) "Guardando..." else "Guardar Gasto")
+                    Text(if (state.isLoading) "Guardando…" else "Guardar gasto")
                 }
             }
 
-            // Mostrar error si existe
+            // Error
             state.errorMessage?.let { error ->
                 item {
                     Card(
+                        modifier = Modifier.padding(horizontal = 16.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer
                         )
@@ -184,10 +221,11 @@ fun AddTransactionScreen(
 fun CategoryItem(
     category: Category,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         onClick = onClick,
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) {

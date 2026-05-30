@@ -1,13 +1,20 @@
 package com.example.automaticfinances.data.repo
 
-import com.example.automaticfinances.data.db.AppDatabase
 import com.example.automaticfinances.data.db.Transaction
+import com.example.automaticfinances.data.db.TransactionDao
 import kotlinx.coroutines.flow.Flow
+import javax.inject.Inject
 
-class TransactionRepository {
-    private val dao = AppDatabase.get().transactionDao()
+class TransactionRepository @Inject constructor(
+    private val dao: TransactionDao
+) {
     
-    suspend fun insert(tx: Transaction) = dao.insertIgnore(tx)
+    /**
+     * Inserts a transaction. Returns true if it was actually inserted, false if a row
+     * with the same id already existed (and was therefore ignored). Use the result to
+     * guard non-idempotent side effects such as balance adjustments.
+     */
+    suspend fun insert(tx: Transaction): Boolean = dao.insertIgnore(tx) != -1L
     
     suspend fun update(tx: Transaction) = dao.update(tx)
     

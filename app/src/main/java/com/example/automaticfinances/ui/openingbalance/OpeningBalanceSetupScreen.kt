@@ -7,6 +7,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,12 +16,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.automaticfinances.data.db.Account
 import com.example.automaticfinances.data.db.AccountType
-import com.example.automaticfinances.data.db.AppDatabase
-import com.example.automaticfinances.data.repo.OpeningBalanceRepository
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -34,17 +33,7 @@ fun OpeningBalanceSetupScreen(
     isFirstTime: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val openingBalanceRepository = remember {
-        OpeningBalanceRepository(
-            openingBalanceDao = AppDatabase.get().openingBalanceDao(),
-            accountDao = AppDatabase.get().accountDao(),
-            transactionDao = AppDatabase.get().transactionDao()
-        )
-    }
-    
-    val viewModel: OpeningBalanceSetupViewModel = viewModel {
-        OpeningBalanceSetupViewModel(openingBalanceRepository)
-    }
+    val viewModel: OpeningBalanceSetupViewModel = hiltViewModel()
     
     val state by viewModel.state.collectAsStateWithLifecycle()
     
@@ -200,9 +189,9 @@ private fun WelcomeHeader() {
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                BulletPoint("💰 ¿Cuánto dinero tienes en el banco?")
-                BulletPoint("💵 ¿Cuánto efectivo manejas?")
-                BulletPoint("📅 ¿Desde qué fecha quieres trackear?")
+                BulletPoint("¿Cuánto dinero tienes en el banco?")
+                BulletPoint("¿Cuánto efectivo manejas?")
+                BulletPoint("¿Desde qué fecha quieres hacer seguimiento?")
             }
             
             Text(
@@ -347,8 +336,8 @@ private fun AccountBalanceCard(
                     )
                     Text(
                         text = when (account.type) {
-                            AccountType.BANK -> "💳 Cuenta bancaria"
-                            AccountType.CASH -> "💵 Efectivo"
+                            AccountType.BANK -> "Cuenta bancaria"
+                            AccountType.CASH -> "Efectivo"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -399,9 +388,10 @@ private fun WarningCard() {
             modifier = Modifier.padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "⚠️",
-                style = MaterialTheme.typography.titleMedium
+            Icon(
+                imageVector = Icons.Default.WarningAmber,
+                contentDescription = null,
+                tint = com.example.automaticfinances.ui.theme.FinanceTheme.colors.warning
             )
             Column {
                 Text(

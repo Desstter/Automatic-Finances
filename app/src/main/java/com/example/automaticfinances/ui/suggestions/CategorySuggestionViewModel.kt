@@ -7,11 +7,13 @@ import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.TransactionWithCategory
 import com.example.automaticfinances.data.repo.UserCategoryPreferenceRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import android.util.Log
+import javax.inject.Inject
 
 data class SuggestionState(
     val pendingSuggestions: List<TransactionSuggestion> = emptyList(),
@@ -27,10 +29,12 @@ data class TransactionSuggestion(
     val isProcessed: Boolean = false
 )
 
-class CategorySuggestionViewModel : ViewModel() {
-    private val categoryRepository = CategoryRepository()
-    private val transactionRepository = TransactionRepository()
-    private val preferenceRepository = UserCategoryPreferenceRepository()
+@HiltViewModel
+class CategorySuggestionViewModel @Inject constructor(
+    private val categoryRepository: CategoryRepository,
+    private val transactionRepository: TransactionRepository,
+    private val preferenceRepository: UserCategoryPreferenceRepository
+) : ViewModel() {
     
     private val _state = MutableStateFlow(SuggestionState())
     val state: StateFlow<SuggestionState> = _state.asStateFlow()

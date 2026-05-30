@@ -3,16 +3,16 @@ package com.example.automaticfinances.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.db.Category
+import com.example.automaticfinances.data.db.CategoryAccuracy
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.TransactionWithCategory
 import com.example.automaticfinances.data.repo.UserCategoryPreferenceRepository
 import com.example.automaticfinances.data.repo.AccountRepository
 import com.example.automaticfinances.data.repo.OpeningBalanceRepository
-import com.example.automaticfinances.data.db.AppDatabase
-import com.example.automaticfinances.data.db.CategoryAccuracy
 import com.example.automaticfinances.ui.components.FilterSummary
 import com.example.automaticfinances.ui.components.SavedFilter
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import android.util.Log
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import javax.inject.Inject
 
 data class HomeState(
     val transactions: List<TransactionWithCategory> = emptyList(),
@@ -57,16 +58,14 @@ data class HomeState(
     val filterStatistics: FilterSummary? = null
 )
 
-class HomeViewModel : ViewModel() {
-    private val transactionRepository = TransactionRepository()
-    private val categoryRepository = CategoryRepository()
-    private val preferenceRepository = UserCategoryPreferenceRepository()
-    private val accountRepository = AccountRepository()
-    private val openingBalanceRepository = OpeningBalanceRepository(
-        openingBalanceDao = AppDatabase.get().openingBalanceDao(),
-        accountDao = AppDatabase.get().accountDao(),
-        transactionDao = AppDatabase.get().transactionDao()
-    )
+@HiltViewModel
+class HomeViewModel @Inject constructor(
+    private val transactionRepository: TransactionRepository,
+    private val categoryRepository: CategoryRepository,
+    private val preferenceRepository: UserCategoryPreferenceRepository,
+    private val accountRepository: AccountRepository,
+    private val openingBalanceRepository: OpeningBalanceRepository
+) : ViewModel() {
     
     private val _state = MutableStateFlow(HomeState())
     val state: StateFlow<HomeState> = _state.asStateFlow()

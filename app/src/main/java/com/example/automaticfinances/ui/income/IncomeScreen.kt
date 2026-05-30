@@ -1,24 +1,34 @@
 package com.example.automaticfinances.ui.income
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.automaticfinances.data.repo.TransactionWithCategory
+import com.example.automaticfinances.ui.components.common.PremiumEmptyState
+import com.example.automaticfinances.ui.components.common.SectionHeader
+import com.example.automaticfinances.ui.components.common.TransactionListSkeleton
+import com.example.automaticfinances.ui.theme.FinanceTheme
+import com.example.automaticfinances.ui.theme.FinanceTypography
+import com.example.automaticfinances.ui.theme.Sizes
+import com.example.automaticfinances.ui.theme.Spacing
 import java.text.NumberFormat
 import java.util.*
 
@@ -29,57 +39,36 @@ fun IncomeScreen(
     onAddIncomeClick: () -> Unit = {},
     onIncomeClick: (String) -> Unit = {}
 ) {
-    val viewModel: IncomeViewModel = viewModel()
+    val viewModel: IncomeViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
-    
-    val nf = remember { 
-        NumberFormat.getCurrencyInstance(Locale("es", "CO"))
-    }
-    
+    val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = null,
-                            tint = Color(0xFF4CAF50),
-                            modifier = Modifier.padding(end = 8.dp)
-                        )
-                        Text("Gestión de Ingresos")
-                    }
-                },
+                title = { Text("Ingresos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
+            ExtendedFloatingActionButton(
                 onClick = onAddIncomeClick,
-                containerColor = Color(0xFF4CAF50)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Agregar ingreso",
-                    tint = Color.White
-                )
-            }
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("Ingreso") },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
         }
     ) { paddingValues ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier.fillMaxSize().padding(paddingValues),
+            contentPadding = PaddingValues(start = Spacing.screen, end = Spacing.screen, top = Spacing.md, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
-            // Summary Cards
             item {
                 IncomesSummarySection(
                     totalIncome = state.totalIncome,
@@ -88,38 +77,22 @@ fun IncomeScreen(
                     nf = nf
                 )
             }
-            
-            // Section Header
-            item {
-                Text(
-                    text = "Historial de Ingresos",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-            }
-            
-            // Income List
-            if (state.isLoading) {
-                item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
-            } else if (state.incomes.isEmpty()) {
-                item {
-                    EmptyIncomeState()
-                }
-            } else {
-                items(state.incomes) { income ->
-                    IncomeCard(
-                        income = income,
-                        nf = nf,
-                        onClick = { onIncomeClick(income.id) }
+
+            item { SectionHeader(title = "Historial de ingresos") }
+
+            when {
+                state.isLoading -> item { TransactionListSkeleton(itemCount = 5) }
+                state.incomes.isEmpty() -> item {
+                    PremiumEmptyState(
+                        icon = Icons.AutoMirrored.Filled.TrendingUp,
+                        title = "Sin ingresos registrados",
+                        description = "Los ingresos se detectan automáticamente desde tus notificaciones bancarias, o puedes agregarlos manualmente.",
+                        actionLabel = "Agregar ingreso",
+                        onAction = onAddIncomeClick
                     )
+                }
+                else -> items(state.incomes, key = { it.id }) { income ->
+                    IncomeCard(income = income, nf = nf, onClick = { onIncomeClick(income.id) })
                 }
             }
         }
@@ -133,74 +106,46 @@ private fun IncomesSummarySection(
     incomeCount: Int,
     nf: NumberFormat
 ) {
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f)
-        )
+        shape = RoundedCornerShape(24.dp),
+        color = FinanceTheme.colors.profitContainer
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
+        Column(modifier = Modifier.padding(Spacing.card)) {
             Text(
-                text = "Resumen de Ingresos",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF4CAF50)
+                text = "Ingresos totales",
+                style = MaterialTheme.typography.labelLarge,
+                color = FinanceTheme.colors.onProfitContainer.copy(alpha = 0.8f)
             )
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                SummaryItem(
-                    title = "Total",
-                    value = nf.format(totalIncome / 100.0),
-                    icon = "💰"
-                )
-                
-                SummaryItem(
-                    title = "Este mes",
-                    value = nf.format(monthlyIncome / 100.0),
-                    icon = "📅"
-                )
-                
-                SummaryItem(
-                    title = "Cantidad",
-                    value = incomeCount.toString(),
-                    icon = "📊"
-                )
+            Spacer(Modifier.height(Spacing.xxs))
+            Text(
+                text = nf.format(totalIncome / 100.0),
+                style = FinanceTypography.moneyLarge.copy(fontSize = 30.sp),
+                color = FinanceTheme.colors.onProfitContainer
+            )
+            Spacer(Modifier.height(Spacing.lg))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                SummaryStat(label = "Este mes", value = nf.format(monthlyIncome / 100.0), modifier = Modifier.weight(1f))
+                SummaryStat(label = "Movimientos", value = incomeCount.toString(), modifier = Modifier.weight(1f))
             }
         }
     }
 }
 
 @Composable
-private fun SummaryItem(
-    title: String,
-    value: String,
-    icon: String
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
+private fun SummaryStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
     ) {
-        Text(
-            text = icon,
-            style = MaterialTheme.typography.headlineSmall
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF4CAF50)
-        )
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            Text(label, style = MaterialTheme.typography.labelMedium,
+                color = FinanceTheme.colors.onProfitContainer.copy(alpha = 0.8f))
+            Spacer(Modifier.height(Spacing.xxs))
+            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                color = FinanceTheme.colors.onProfitContainer)
+        }
     }
 }
 
@@ -211,100 +156,48 @@ private fun IncomeCard(
     nf: NumberFormat,
     onClick: () -> Unit
 ) {
-    Card(
+    Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = income.description,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(top = 4.dp)
-                    ) {
-                        Text(
-                            text = income.categoryIcon ?: "💰",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = income.categoryName ?: "Sin categoría",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                
-                Column(
-                    horizontalAlignment = Alignment.End
-                ) {
-                    Text(
-                        text = "+${nf.format(income.amountCents / 100.0)}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF4CAF50)
-                    )
-                    Text(
-                        text = "${income.date} ${income.time}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyIncomeState() {
-    Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        )
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(Spacing.lg),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Box(
+                modifier = Modifier
+                    .size(Sizes.avatarMd)
+                    .clip(CircleShape)
+                    .background(FinanceTheme.colors.profit.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(income.categoryIcon ?: "•", style = MaterialTheme.typography.titleMedium)
+            }
+            Spacer(Modifier.width(Spacing.md))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = income.description,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "${income.categoryName ?: "Sin categoría"} · ${income.time}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(Modifier.width(Spacing.sm))
             Text(
-                text = "📈",
-                style = MaterialTheme.typography.displayMedium
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Text(
-                text = "No hay ingresos registrados",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = "Los ingresos se detectarán automáticamente desde SMS bancarios o puedes agregarlos manualmente",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                text = "+ ${nf.format(income.amountCents / 100.0)}",
+                style = FinanceTypography.moneySmall.copy(fontWeight = FontWeight.SemiBold),
+                color = FinanceTheme.colors.profit
             )
         }
     }

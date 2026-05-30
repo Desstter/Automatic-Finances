@@ -6,6 +6,7 @@ import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.TransactionWithCategory
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import android.util.Log
+import javax.inject.Inject
 
 data class TransactionHistoryState(
     val allTransactions: List<TransactionWithCategory> = emptyList(),
@@ -26,9 +28,10 @@ data class TransactionHistoryState(
     val categoryFilter: Long? = null
 )
 
-class TransactionHistoryViewModel(
-    private val transactionRepository: TransactionRepository = TransactionRepository(),
-    private val categoryRepository: CategoryRepository = CategoryRepository()
+@HiltViewModel
+class TransactionHistoryViewModel @Inject constructor(
+    private val transactionRepository: TransactionRepository,
+    private val categoryRepository: CategoryRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(TransactionHistoryState())

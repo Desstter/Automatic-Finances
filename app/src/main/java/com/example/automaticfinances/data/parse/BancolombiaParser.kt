@@ -1,20 +1,29 @@
 package com.example.automaticfinances.data.parse
 
 import com.example.automaticfinances.data.db.Transaction
-import com.example.automaticfinances.data.repo.CategoryRepository
-import com.example.automaticfinances.data.repo.AccountRepository
-import kotlinx.coroutines.runBlocking
 import org.apache.commons.codec.digest.DigestUtils
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+/**
+ * Pure SMS/notification parser. It only performs regex extraction and produces a
+ * [Transaction] with `categoryId` and `accountId` left null — those are resolved downstream
+ * by [com.example.automaticfinances.domain.AddTransactionUseCase], which owns the DB
+ * dependencies. Keeping the parser free of database/DI coupling makes it deterministic and
+ * unit-testable, and removes the fragile static `AppDatabase.get()` singleton dependency.
+ */
 object BancolombiaParser {
 
     // -------------------------------------------
     // Flags y utilidades para Regex
     // -------------------------------------------
     private val RX_FLAGS = setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+
+    // Cola de merchant reutilizable: captura el nombre COMPLETO del comercio hasta el primer
+    // delimitador estructural (marcadores "el/por/con", puntuación, salto de línea o fin de
+    // texto). Reemplaza al antiguo `\ben\s+(.+?)\b` que solo capturaba la primera palabra.
+    private const val MERCHANT_TAIL = """(.+?)(?=\s+(?:el|por|con|usando|a\s+las)\b|[.,;\n]|$)"""
 
     // -------------------------------------------
     // Filtros de mensajes inválidos (rechazos, anulaciones, etc.)
@@ -108,22 +117,22 @@ object BancolombiaParser {
     // REGEX — Otros (Nequi / DaviPlata)
     // -------------------------------------------
     private val nequiRegex = Regex(
-        """Nequi:\s*(?:Pagaste|Pago)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\ben\s+(.+?)\b""",
+        """Nequi:\s*(?:Pagaste|Pago)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\ben\s+$MERCHANT_TAIL""",
         RX_FLAGS
     )
 
     private val nequiIngresoRegex = Regex(
-        """Nequi:\s*(?:Recibiste|Te\s+enviaron)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\bde\s+(.+?)\b""",
+        """Nequi:\s*(?:Recibiste|Te\s+enviaron)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\bde\s+$MERCHANT_TAIL""",
         RX_FLAGS
     )
 
     private val daviRegex = Regex(
-        """DaviPlata:\s*(?:Compraste|Pago)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\ben\s+(.+?)\b""",
+        """DaviPlata:\s*(?:Compraste|Pago)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\ben\s+$MERCHANT_TAIL""",
         RX_FLAGS
     )
 
     private val daviIngresoRegex = Regex(
-        """DaviPlata:\s*(?:Recibiste|Te\s+enviaron)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\bde\s+(.+?)\b""",
+        """DaviPlata:\s*(?:Recibiste|Te\s+enviaron)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\bde\s+$MERCHANT_TAIL""",
         RX_FLAGS
     )
 
@@ -136,39 +145,36 @@ object BancolombiaParser {
     )
 
     // -------------------------------------------
-    // Repos / helpers externos
-    // -------------------------------------------
-    private val categoryRepository = CategoryRepository()
-    private val accountRepository = AccountRepository()
-
-    // Helper para mapear source -> accountId
-    private suspend fun getAccountIdForSource(source: String): Long? {
-        return accountRepository.getAccountForTransaction(source)?.id
-    }
-
-    // -------------------------------------------
     // ENTRYPOINTS
     // -------------------------------------------
-    suspend fun tryParse(text: String): Transaction? {
+    /**
+     * @param now timestamp to use for notifications that don't carry their own date/time
+     *            (app pushes, Nequi, DaviPlata, generic fallback). Pass the notification's
+     *            postTime so re-delivered notifications yield the SAME stable id (no duplicates).
+     *            Defaults to the wall clock for callers that don't have a postTime.
+     */
+    fun tryParse(text: String, now: Long = System.currentTimeMillis()): Transaction? {
         if (looksInvalid(text)) return null
 
-        // Orden: Bancolombia → Nequi → DaviPlata → Ingresos → Fallback genérico
-        return tryParseBancolombia(text)
-            ?: tryParseNequi(text)
-            ?: tryParseDaviPlata(text)
-            ?: tryParseIngresosBancolombia(text)
-            ?: tryParseIngresosNequi(text)
-            ?: tryParseIngresosDaviPlata(text)
-            ?: tryParseFallbackGenerico(text)
+        return try {
+            // Orden: Bancolombia → Nequi → DaviPlata → Ingresos → Fallback genérico
+            tryParseBancolombia(text, now)
+                ?: tryParseNequi(text, now)
+                ?: tryParseDaviPlata(text, now)
+                ?: tryParseIngresosBancolombia(text, now)
+                ?: tryParseIngresosNequi(text, now)
+                ?: tryParseIngresosDaviPlata(text, now)
+                ?: tryParseFallbackGenerico(text, now)
+        } catch (e: Exception) {
+            android.util.Log.e("BancolombiaParser", "Error parsing text", e)
+            null
+        }
     }
-
-    // Versión síncrona para compatibilidad
-    fun tryParseSync(text: String): Transaction? = runBlocking { tryParse(text) }
 
     // -------------------------------------------
     // Parsers por emisor
     // -------------------------------------------
-    private suspend fun tryParseBancolombia(text: String): Transaction? {
+    private fun tryParseBancolombia(text: String, now: Long): Transaction? {
         // Heurística de activación
         if (
             !text.contains("Bancolombia", ignoreCase = true) &&
@@ -184,8 +190,6 @@ object BancolombiaParser {
             val last4 = m.groupValues[3]
             val ts = toEpoch(m.groupValues[4], m.groupValues[5])
             val id = stableId(ts, amount, "RETIRO", last4, atm, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("RETIRO", "Retiro cajero")
-            val accountId = getAccountIdForSource("notif:sms")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -197,9 +201,7 @@ object BancolombiaParser {
                 srcLast4 = last4,
                 dstLast4 = null,
                 source = "notif:sms",
-                rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId
+                rawPreview = text.take(140)
             )
         }
 
@@ -210,8 +212,6 @@ object BancolombiaParser {
             val dst = m.groupValues[3].takeLast(4)
             val ts = toEpoch(m.groupValues[4], m.groupValues[5])
             val id = stableId(ts, amount, "TRANSFERENCIA", src, null, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("TRANSFERENCIA", "Transferencia")
-            val accountId = getAccountIdForSource("notif:sms")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -223,9 +223,7 @@ object BancolombiaParser {
                 srcLast4 = src,
                 dstLast4 = dst,
                 source = "notif:sms",
-                rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId
+                rawPreview = text.take(140)
             )
         }
 
@@ -236,8 +234,6 @@ object BancolombiaParser {
             val last4 = m.groupValues[3]
             val ts = toEpoch(m.groupValues[4], m.groupValues[5])
             val id = stableId(ts, amount, "COMPRA", last4, merchant, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
-            val accountId = getAccountIdForSource("notif:sms")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -249,9 +245,7 @@ object BancolombiaParser {
                 srcLast4 = last4,
                 dstLast4 = null,
                 source = "notif:sms",
-                rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId
+                rawPreview = text.take(140)
             )
         }
 
@@ -262,8 +256,6 @@ object BancolombiaParser {
             val dst = m.groupValues[3].takeLast(4)
             val ts = toEpoch(m.groupValues[4], m.groupValues[5])
             val id = stableId(ts, amount, "TRANSFERENCIA", src, null, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("TRANSFERENCIA", "Transferencia")
-            val accountId = getAccountIdForSource("notif:sms")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -275,9 +267,7 @@ object BancolombiaParser {
                 srcLast4 = src,
                 dstLast4 = dst,
                 source = "notif:sms",
-                rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId
+                rawPreview = text.take(140)
             )
         }
 
@@ -286,10 +276,8 @@ object BancolombiaParser {
             val amount = toCents(m.groupValues[1])
             val merchant = norm(m.groupValues[2])
             val last4 = m.groupValues[3]
-            val ts = System.currentTimeMillis()
+            val ts = now
             val id = stableId(ts, amount, "COMPRA", last4, merchant, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
-            val accountId = getAccountIdForSource("notif:app")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -301,9 +289,7 @@ object BancolombiaParser {
                 srcLast4 = last4,
                 dstLast4 = null,
                 source = "notif:app",
-                rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId
+                rawPreview = text.take(140)
             )
         }
 
@@ -312,10 +298,8 @@ object BancolombiaParser {
             val amount = toCents(m.groupValues[1])
             val src = m.groupValues[2]
             val dst = m.groupValues[3].takeLast(4)
-            val ts = System.currentTimeMillis()
+            val ts = now
             val id = stableId(ts, amount, "TRANSFERENCIA", src, null, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("TRANSFERENCIA", "Transferencia")
-            val accountId = getAccountIdForSource("notif:app")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -327,25 +311,21 @@ object BancolombiaParser {
                 srcLast4 = src,
                 dstLast4 = dst,
                 source = "notif:app",
-                rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId
+                rawPreview = text.take(140)
             )
         }
 
         return null
     }
 
-    private suspend fun tryParseNequi(text: String): Transaction? {
+    private fun tryParseNequi(text: String, now: Long): Transaction? {
         if (!text.contains("Nequi", ignoreCase = true)) return null
 
         nequiRegex.find(text)?.let { m ->
             val amount = toCents(m.groupValues[1])
             val merchant = norm(m.groupValues[2])
-            val ts = System.currentTimeMillis()
+            val ts = now
             val id = stableId(ts, amount, "COMPRA", "NEQU", merchant, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
-            val accountId = getAccountIdForSource("notif:nequi")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -357,25 +337,21 @@ object BancolombiaParser {
                 srcLast4 = "NEQU",
                 dstLast4 = null,
                 source = "notif:nequi",
-                rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId
+                rawPreview = text.take(140)
             )
         }
 
         return null
     }
 
-    private suspend fun tryParseDaviPlata(text: String): Transaction? {
+    private fun tryParseDaviPlata(text: String, now: Long): Transaction? {
         if (!text.contains("DaviPlata", ignoreCase = true)) return null
 
         daviRegex.find(text)?.let { m ->
             val amount = toCents(m.groupValues[1])
             val merchant = norm(m.groupValues[2])
-            val ts = System.currentTimeMillis()
+            val ts = now
             val id = stableId(ts, amount, "COMPRA", "DAVI", merchant, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
-            val accountId = getAccountIdForSource("notif:daviPlata")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -387,16 +363,14 @@ object BancolombiaParser {
                 srcLast4 = "DAVI",
                 dstLast4 = null,
                 source = "notif:daviPlata",
-                rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId
+                rawPreview = text.take(140)
             )
         }
 
         return null
     }
 
-    private suspend fun tryParseIngresosBancolombia(text: String): Transaction? {
+    private fun tryParseIngresosBancolombia(text: String, now: Long): Transaction? {
         if (
             !text.contains("Bancolombia", ignoreCase = true) &&
             !text.contains("Recibiste", ignoreCase = true) &&
@@ -412,8 +386,6 @@ object BancolombiaParser {
             val last4Opt = m.groupValues.getOrNull(3)?.takeIf { it.isNotBlank() }
             val ts = toEpoch(m.groupValues[4], m.groupValues[5])
             val id = stableId(ts, amount, "INGRESO_NOMINA", last4Opt, employer, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Salario")
-            val accountId = getAccountIdForSource("notif:sms")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -426,8 +398,6 @@ object BancolombiaParser {
                 dstLast4 = last4Opt,
                 source = "notif:sms",
                 rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId,
                 isIncome = true
             )
         }
@@ -439,8 +409,6 @@ object BancolombiaParser {
             val dstLast4 = m.groupValues[3]
             val ts = toEpoch(m.groupValues[4], m.groupValues[5])
             val id = stableId(ts, amount, "INGRESO_TRANSFERENCIA", dstLast4, sender, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
-            val accountId = getAccountIdForSource("notif:sms")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -453,8 +421,6 @@ object BancolombiaParser {
                 dstLast4 = dstLast4,
                 source = "notif:sms",
                 rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId,
                 isIncome = true
             )
         }
@@ -465,8 +431,6 @@ object BancolombiaParser {
             val dstLast4 = m.groupValues[2]
             val ts = toEpoch(m.groupValues[3], m.groupValues[4])
             val id = stableId(ts, amount, "INGRESO_TRANSFERENCIA", dstLast4, null, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
-            val accountId = getAccountIdForSource("notif:sms")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -479,8 +443,6 @@ object BancolombiaParser {
                 dstLast4 = dstLast4,
                 source = "notif:sms",
                 rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId,
                 isIncome = true
             )
         }
@@ -491,8 +453,6 @@ object BancolombiaParser {
             val dstLast4 = m.groupValues[2]
             val ts = toEpoch(m.groupValues[3], m.groupValues[4])
             val id = stableId(ts, amount, "INGRESO_DEPOSITO", dstLast4, null, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Depósito")
-            val accountId = getAccountIdForSource("notif:sms")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -505,8 +465,6 @@ object BancolombiaParser {
                 dstLast4 = dstLast4,
                 source = "notif:sms",
                 rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId,
                 isIncome = true
             )
         }
@@ -515,10 +473,8 @@ object BancolombiaParser {
         appIngresoRegex.find(text)?.let { m ->
             val amount = toCents(m.groupValues[1])
             val dstLast4 = m.groupValues[2]
-            val ts = System.currentTimeMillis()
+            val ts = now
             val id = stableId(ts, amount, "INGRESO_APP", dstLast4, null, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
-            val accountId = getAccountIdForSource("notif:app")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -531,8 +487,6 @@ object BancolombiaParser {
                 dstLast4 = dstLast4,
                 source = "notif:app",
                 rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId,
                 isIncome = true
             )
         }
@@ -540,16 +494,14 @@ object BancolombiaParser {
         return null
     }
 
-    private suspend fun tryParseIngresosNequi(text: String): Transaction? {
+    private fun tryParseIngresosNequi(text: String, now: Long): Transaction? {
         if (!text.contains("Nequi", ignoreCase = true) || !text.contains("Recibiste", ignoreCase = true)) return null
 
         nequiIngresoRegex.find(text)?.let { m ->
             val amount = toCents(m.groupValues[1])
             val sender = norm(m.groupValues[2])
-            val ts = System.currentTimeMillis()
+            val ts = now
             val id = stableId(ts, amount, "INGRESO_NEQUI", "NEQU", sender, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
-            val accountId = getAccountIdForSource("notif:nequi")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -562,8 +514,6 @@ object BancolombiaParser {
                 dstLast4 = null,
                 source = "notif:nequi",
                 rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId,
                 isIncome = true
             )
         }
@@ -571,16 +521,14 @@ object BancolombiaParser {
         return null
     }
 
-    private suspend fun tryParseIngresosDaviPlata(text: String): Transaction? {
+    private fun tryParseIngresosDaviPlata(text: String, now: Long): Transaction? {
         if (!text.contains("DaviPlata", ignoreCase = true) || !text.contains("Recibiste", ignoreCase = true)) return null
 
         daviIngresoRegex.find(text)?.let { m ->
             val amount = toCents(m.groupValues[1])
             val sender = norm(m.groupValues[2])
-            val ts = System.currentTimeMillis()
+            val ts = now
             val id = stableId(ts, amount, "INGRESO_DAVI", "DAVI", sender, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("INGRESO", "Transferencia recibida")
-            val accountId = getAccountIdForSource("notif:daviPlata")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -593,8 +541,6 @@ object BancolombiaParser {
                 dstLast4 = null,
                 source = "notif:daviPlata",
                 rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId,
                 isIncome = true
             )
         }
@@ -602,15 +548,13 @@ object BancolombiaParser {
         return null
     }
 
-    private suspend fun tryParseFallbackGenerico(text: String): Transaction? {
+    private fun tryParseFallbackGenerico(text: String, now: Long): Transaction? {
         genericCompraRegex.find(text)?.let { m ->
             val amount = toCents(m.groupValues[2])
             val merchant = norm(m.groupValues[3])
             val last4 = m.groupValues[4]
-            val ts = System.currentTimeMillis()
+            val ts = now
             val id = stableId(ts, amount, "COMPRA", last4, merchant, text)
-            val categoryId = categoryRepository.getDefaultCategoryId("COMPRA", merchant)
-            val accountId = getAccountIdForSource("notif:generic")
 
             return Transaction.fromTimestamp(
                 id = id,
@@ -622,9 +566,7 @@ object BancolombiaParser {
                 srcLast4 = last4,
                 dstLast4 = null,
                 source = "notif:generic",
-                rawPreview = text.take(140),
-                categoryId = categoryId,
-                accountId = accountId
+                rawPreview = text.take(140)
             )
         }
         return null

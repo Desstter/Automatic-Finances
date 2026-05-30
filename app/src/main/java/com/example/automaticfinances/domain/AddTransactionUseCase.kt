@@ -4,27 +4,49 @@ import com.example.automaticfinances.data.db.Transaction
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.AccountRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
+import javax.inject.Inject
 
-class AddTransactionUseCase(
-    private val transactionRepo: TransactionRepository = TransactionRepository(),
-    private val accountRepo: AccountRepository = AccountRepository(),
-    private val categoryRepo: CategoryRepository = CategoryRepository()
+class AddTransactionUseCase @Inject constructor(
+    private val transactionRepo: TransactionRepository,
+    private val accountRepo: AccountRepository,
+    private val categoryRepo: CategoryRepository
 ) {
     suspend operator fun invoke(tx: Transaction) {
-        // Ensure transaction has account assigned
-        val transactionWithAccount = if (tx.accountId == null) {
+        // Enrich with account + category. The parser produces "pure" transactions (no DB
+        // coupling), so account and category are resolved here. Pre-set values (e.g. from a
+        // manual entry where the user picked a category) are always preserved.
+        val enriched = enrich(tx)
+
+        // Handle special case: RETIRO (ATM withdrawal)
+        if (enriched.type == "RETIRO") {
+            handleWithdrawalTransfer(enriched)
+        } else {
+            // Normal transaction processing.
+            // Only adjust the balance if the row was actually inserted; a re-delivered
+            // notification with the same id is ignored and must NOT touch the balance again.
+            val inserted = transactionRepo.insert(enriched)
+            if (inserted) {
+                accountRepo.applyTransactionToBalance(enriched)
+            }
+        }
+    }
+
+    /**
+     * Resolves the account (from source) and category (from type + description) when they
+     * are not already provided. Keeps any caller-supplied account/category untouched.
+     */
+    private suspend fun enrich(tx: Transaction): Transaction {
+        val withAccount = if (tx.accountId == null) {
             accountRepo.assignAccountToTransaction(tx)
         } else {
             tx
         }
-        
-        // Handle special case: RETIRO (ATM withdrawal)
-        if (transactionWithAccount.type == "RETIRO") {
-            handleWithdrawalTransfer(transactionWithAccount)
+        return if (withAccount.categoryId == null) {
+            withAccount.copy(
+                categoryId = categoryRepo.getDefaultCategoryId(withAccount.type, withAccount.description)
+            )
         } else {
-            // Normal transaction processing
-            transactionRepo.insert(transactionWithAccount)
-            accountRepo.applyTransactionToBalance(transactionWithAccount)
+            withAccount
         }
     }
     
@@ -39,8 +61,9 @@ class AddTransactionUseCase(
         
         if (bankAccount == null || cashAccount == null) {
             // Fallback: treat as normal expense if accounts don't exist
-            transactionRepo.insert(withdrawal)
-            accountRepo.applyTransactionToBalance(withdrawal)
+            if (transactionRepo.insert(withdrawal)) {
+                accountRepo.applyTransactionToBalance(withdrawal)
+            }
             return
         }
         
@@ -69,12 +92,12 @@ class AddTransactionUseCase(
             isIncome = true
         )
         
-        // Insert both transactions
-        transactionRepo.insert(bankWithdrawal)
-        transactionRepo.insert(cashDeposit)
-        
-        // Apply to balances
-        accountRepo.applyTransactionToBalance(bankWithdrawal)
-        accountRepo.applyTransactionToBalance(cashDeposit)
+        // Insert both transactions and only apply each balance change if its row was new.
+        if (transactionRepo.insert(bankWithdrawal)) {
+            accountRepo.applyTransactionToBalance(bankWithdrawal)
+        }
+        if (transactionRepo.insert(cashDeposit)) {
+            accountRepo.applyTransactionToBalance(cashDeposit)
+        }
     }
 }

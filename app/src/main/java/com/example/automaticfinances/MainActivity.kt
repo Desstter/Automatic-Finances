@@ -1,9 +1,6 @@
 package com.example.automaticfinances
 
-import android.content.Intent
-import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -13,14 +10,13 @@ import androidx.navigation.compose.rememberNavController
 import com.example.automaticfinances.navigation.AppNavigation
 import com.example.automaticfinances.ui.theme.FinanceTheme
 import com.example.automaticfinances.ui.theme.ThemeViewModel
-import com.example.automaticfinances.ui.theme.ThemeViewModelFactory
+import com.example.automaticfinances.system.ServiceManager
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    
-    // Theme ViewModel para gestionar el estado del tema
-    private val themeViewModel: ThemeViewModel by lazy {
-        ThemeViewModelFactory(this).create()
-    }
+
+    private val themeViewModel: ThemeViewModel by viewModels()
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,7 +36,7 @@ class MainActivity : ComponentActivity() {
                     navController = navController,
                     themeViewModel = themeViewModel,
                     onOpenNotifAccess = {
-                        startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                        ServiceManager.openNotificationListenerSettings(this)
                     }
                 )
             }

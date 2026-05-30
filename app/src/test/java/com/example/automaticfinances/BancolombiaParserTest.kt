@@ -19,7 +19,7 @@ class BancolombiaParserTest {
     }
 
     @Test
-    fun parse_bancolombiaCompra_success() = runBlocking {
+    fun parse_bancolombiaCompra_success(): Unit = runBlocking {
         val sms = "Bancolombia: Compraste $25.500 en RAPPI con tu T.Cred *1234, el 19/08/2024 a las 16:30"
         
         val result = BancolombiaParser.tryParse(sms)
@@ -36,7 +36,7 @@ class BancolombiaParserTest {
     }
 
     @Test
-    fun parse_bancolombiaTransferencia_success() = runBlocking {
+    fun parse_bancolombiaTransferencia_success(): Unit = runBlocking {
         val sms = "Bancolombia: Transferiste $100.000 desde tu cuenta *5678 a la cuenta *9999 el 20/08/2024 a las 10:15"
         
         val result = BancolombiaParser.tryParse(sms)
@@ -52,7 +52,7 @@ class BancolombiaParserTest {
     }
 
     @Test
-    fun parse_bancolombiaRetiro_success() = runBlocking {
+    fun parse_bancolombiaRetiro_success(): Unit = runBlocking {
         val sms = "Bancolombia: Retiraste $50.000,00 en METR_LA70_1 de tu T.Deb *6045 el 19/08/2024 a las 16:11"
         
         val result = BancolombiaParser.tryParse(sms)
@@ -67,7 +67,7 @@ class BancolombiaParserTest {
     }
 
     @Test
-    fun parse_bancolombiaIngreso_nomina_success() = runBlocking {
+    fun parse_bancolombiaIngreso_nomina_success(): Unit = runBlocking {
         val sms = "Bancolombia: Recibiste un pago de Nómina de EMPRESA XYZ por $2.500.000 en tu cuenta de Ahorros el 30/08/2024 a las 08:00"
         
         val result = BancolombiaParser.tryParse(sms)
@@ -82,7 +82,7 @@ class BancolombiaParserTest {
     }
 
     @Test
-    fun parse_nequiCompra_success() = runBlocking {
+    fun parse_nequiCompra_success(): Unit = runBlocking {
         val sms = "Nequi: Pagaste $15.000 en UBER TRIP"
         
         val result = BancolombiaParser.tryParse(sms)
@@ -98,7 +98,7 @@ class BancolombiaParserTest {
     }
 
     @Test
-    fun parse_invalidTransaction_rejected() = runBlocking {
+    fun parse_invalidTransaction_rejected(): Unit = runBlocking {
         val sms = "Bancolombia: Compra rechazada por $50.000 en TIENDA XYZ"
         
         val result = BancolombiaParser.tryParse(sms)
@@ -107,7 +107,7 @@ class BancolombiaParserTest {
     }
 
     @Test
-    fun parse_nonBankingSms_ignored() = runBlocking {
+    fun parse_nonBankingSms_ignored(): Unit = runBlocking {
         val sms = "Tu pedido de pizza está listo para recoger"
         
         val result = BancolombiaParser.tryParse(sms)
@@ -116,7 +116,7 @@ class BancolombiaParserTest {
     }
 
     @Test
-    fun parse_multipleAmountFormats_success() = runBlocking {
+    fun parse_multipleAmountFormats_success(): Unit = runBlocking {
         // Test different amount formats the parser should handle
         val testCases = listOf(
             "Bancolombia: Compraste $1.500,50 en TEST" to 150050L, // Colombian format with decimals
@@ -126,21 +126,21 @@ class BancolombiaParserTest {
         )
         
         testCases.forEach { (sms, expectedCents) ->
-            val result = BancolombiaParser.tryParseSync(sms + " con tu T.Cred *1234, el 19/08/2024 a las 16:30")
+            val result = BancolombiaParser.tryParse(sms + " con tu T.Cred *1234, el 19/08/2024 a las 16:30")
             assertNotNull("Should parse amount format: $sms", result)
             assertEquals("Amount parsing failed for: $sms", expectedCents, result?.amountCents)
         }
     }
 
     @Test
-    fun parse_emptyOrNullInput_handledGracefully() = runBlocking {
+    fun parse_emptyOrNullInput_handledGracefully(): Unit = runBlocking {
         assertNull("Should handle null input", BancolombiaParser.tryParse(""))
         assertNull("Should handle empty input", BancolombiaParser.tryParse(""))
         assertNull("Should handle whitespace input", BancolombiaParser.tryParse("   "))
     }
 
     @Test
-    fun parse_timestampGeneration_consistent() = runBlocking {
+    fun parse_timestampGeneration_consistent(): Unit = runBlocking {
         val sms = "Bancolombia: Compraste $1000 en TEST con tu T.Cred *1234, el 19/08/2024 a las 16:30"
         
         val result1 = BancolombiaParser.tryParse(sms)
@@ -154,7 +154,64 @@ class BancolombiaParserTest {
     }
 
     @Test
-    fun parse_specialCharactersInMerchant_handled() = runBlocking {
+    fun parse_nequiCompra_fullMerchantName_notTruncated(): Unit = runBlocking {
+        // Regression: the old `\ben\s+(.+?)\b` regex captured only the first word ("UBER").
+        val sms = "Nequi: Pagaste $15.000 en UBER TRIP BOGOTA"
+
+        val result = BancolombiaParser.tryParse(sms)
+
+        assertNotNull("Should parse Nequi payment", result)
+        assertEquals("Should capture the full merchant name", "UBER TRIP BOGOTA", result?.description)
+    }
+
+    @Test
+    fun parse_nequiIngreso_fullSenderName_notTruncated(): Unit = runBlocking {
+        val sms = "Nequi: Recibiste $50.000 de JUAN CARLOS PEREZ"
+
+        val result = BancolombiaParser.tryParse(sms)
+
+        assertNotNull("Should parse Nequi income", result)
+        assertTrue("Should be income", result!!.isIncome)
+        assertEquals("Recibido de JUAN CARLOS PEREZ", result.description)
+    }
+
+    @Test
+    fun parse_merchantStopsAtStructuralMarker(): Unit = runBlocking {
+        // Merchant capture must stop before trailing structured info ("el dd/mm...").
+        val sms = "DaviPlata: Compraste $8.000 en TIENDA DON JOSE el 01/02/2024"
+
+        val result = BancolombiaParser.tryParse(sms)
+
+        assertNotNull(result)
+        assertEquals("TIENDA DON JOSE", result?.description)
+    }
+
+    @Test
+    fun parse_isPure_leavesCategoryAndAccountUnresolved(): Unit = runBlocking {
+        // The parser must not resolve category/account (done downstream by the use case).
+        val sms = "Bancolombia: Compraste $25.500 en RAPPI con tu T.Cred *1234, el 19/08/2024 a las 16:30"
+
+        val result = BancolombiaParser.tryParse(sms)
+
+        assertNotNull(result)
+        assertNull("categoryId must be resolved downstream", result?.categoryId)
+        assertNull("accountId must be resolved downstream", result?.accountId)
+    }
+
+    @Test
+    fun parse_sameNotification_sameStableId_forDeduplication(): Unit = runBlocking {
+        val sms = "Nequi: Pagaste $15.000 en UBER TRIP"
+        val postTime = 1_700_000_000_000L
+
+        val a = BancolombiaParser.tryParse(sms, postTime)
+        val b = BancolombiaParser.tryParse(sms, postTime)
+
+        assertNotNull(a)
+        assertEquals("Re-delivered notification must yield the same id", a?.id, b?.id)
+    }
+
+    @Test
+    fun parse_specialCharactersInMerchant_handled(): Unit = runBlocking {
         val sms = "Bancolombia: Compraste $5000 en TIENDA-123_TEST! con tu T.Cred *1234, el 19/08/2024 a las 16:30"
         
         val result = BancolombiaParser.tryParse(sms)

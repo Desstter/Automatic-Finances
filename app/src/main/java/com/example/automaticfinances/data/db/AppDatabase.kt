@@ -1,13 +1,11 @@
 package com.example.automaticfinances.data.db
 
-import android.content.Context
 import androidx.room.Database
-import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [Transaction::class, Category::class, UserCategoryPreference::class, Budget::class, FinancialGoal::class, Account::class, OpeningBalance::class], 
-    version = 10, 
+    entities = [Transaction::class, Category::class, UserCategoryPreference::class, Budget::class, FinancialGoal::class, Account::class, OpeningBalance::class, MerchantResolution::class],
+    version = 11,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -18,17 +16,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun financialGoalDao(): FinancialGoalDao
     abstract fun accountDao(): AccountDao
     abstract fun openingBalanceDao(): OpeningBalanceDao
+    abstract fun merchantResolutionDao(): MerchantResolutionDao
 
     companion object {
-        @Volatile private var INSTANCE: AppDatabase? = null
-        fun init(ctx: Context) {
-            if (INSTANCE == null) {
-                INSTANCE = Room.databaseBuilder(ctx, AppDatabase::class.java, "autobook.db")
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
-                    .build()
-            }
-        }
-        fun get(): AppDatabase = INSTANCE
-            ?: error("AppDatabase not initialized")
+        const val DATABASE_NAME = "autobook.db"
     }
 }

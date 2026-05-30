@@ -54,20 +54,6 @@ enum class AccountType {
     CASH     // Efectivo - transacciones manuales
 }
 
-// Data classes for account analytics and balance tracking
-data class AccountBalance(
-    val account: Account,
-    val currentBalanceCents: Long,
-    val previousBalanceCents: Long,
-    val changeAmountCents: Long,
-    val changePercentage: Float,
-    val lastTransactionDate: Long?
-) {
-    val hasPositiveChange: Boolean get() = changeAmountCents > 0
-    val hasNegativeChange: Boolean get() = changeAmountCents < 0
-    val isStable: Boolean get() = changeAmountCents == 0L
-}
-
 data class AccountSummary(
     val totalBalanceCents: Long,
     val bankBalanceCents: Long,

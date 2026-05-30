@@ -3,6 +3,10 @@
 *.ap_
 *.aab
 
+# Release signing keystore — kept out of the public repo; CI restores it from a secret
+*.keystore
+*.jks
+
 # Files for the ART/Dalvik VM
 *.dex
 

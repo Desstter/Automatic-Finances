@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.TransactionWithCategory
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import javax.inject.Inject
 
 data class IncomeState(
     val incomes: List<TransactionWithCategory> = emptyList(),
@@ -18,8 +20,10 @@ data class IncomeState(
     val error: String? = null
 )
 
-class IncomeViewModel : ViewModel() {
-    private val transactionRepository = TransactionRepository()
+@HiltViewModel
+class IncomeViewModel @Inject constructor(
+    private val transactionRepository: TransactionRepository
+) : ViewModel() {
     
     private val _state = MutableStateFlow(IncomeState())
     val state: StateFlow<IncomeState> = _state.asStateFlow()

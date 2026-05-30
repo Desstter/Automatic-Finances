@@ -8,14 +8,15 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.first
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+import javax.inject.Inject
 
-class AnalyticsRepository(
+class AnalyticsRepository @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val budgetRepository: BudgetRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val transactionDao: TransactionDao,
+    private val categoryDao: CategoryDao
 ) {
-    private val transactionDao = AppDatabase.get().transactionDao()
-    private val categoryDao = AppDatabase.get().categoryDao()
     
     suspend fun getCategorySpendingForMonth(yearMonth: YearMonth): List<CategorySpending> {
         val year = yearMonth.year
@@ -589,6 +590,19 @@ class AnalyticsRepository(
         val daysRemaining: Int,
         val changeFromPreviousMonth: Float,
         val confidence: Float
+    )
+
+    data class RecurringMerchantStats(
+        val merchantName: String,
+        val visitCount: Int,
+        val totalSpentCents: Long,
+        val averagePerVisitCents: Long,
+        val previousMonthVisitCount: Int = 0,
+        val visitChangePercentage: Float = 0f,
+        val spendingChangePercentage: Float? = null,
+        val targetVisits: Int = 0,
+        val potentialMonthlySavingCents: Long = 0L,
+        val potentialYearlySavingCents: Long = 0L
     )
 }
 

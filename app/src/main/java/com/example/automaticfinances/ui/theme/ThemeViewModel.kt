@@ -1,6 +1,5 @@
 package com.example.automaticfinances.ui.theme
 
-import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
@@ -9,15 +8,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.preferences.ThemeMode
 import com.example.automaticfinances.data.preferences.ThemeRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 // ===========================================
 // Theme ViewModel
 // Gestiona el estado del tema y colores dinámicos
 // ===========================================
 
-class ThemeViewModel(
+@HiltViewModel
+class ThemeViewModel @Inject constructor(
     private val themeRepository: ThemeRepository
 ) : ViewModel() {
     
@@ -133,10 +135,3 @@ enum class ThemeIcon {
     AUTO      // auto_mode/brightness_auto icon
 }
 
-// Factory para crear ThemeViewModel
-class ThemeViewModelFactory(private val context: Context) {
-    fun create(): ThemeViewModel {
-        val repository = ThemeRepository(context)
-        return ThemeViewModel(repository)
-    }
-}

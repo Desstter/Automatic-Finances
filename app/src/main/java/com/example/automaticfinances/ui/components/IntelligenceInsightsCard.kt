@@ -2,11 +2,18 @@ package com.example.automaticfinances.ui.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.TrackChanges
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.automaticfinances.data.db.CategoryAccuracy
@@ -20,27 +27,30 @@ fun IntelligenceInsightsCard(
     modifier: Modifier = Modifier
 ) {
     if (totalPreferences == 0) return
-    
+
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.tertiaryContainer
         ),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         onClick = onViewSuggestions
     ) {
         Column(
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
-            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "🧠",
-                        style = MaterialTheme.typography.titleMedium
+                    Icon(
+                        imageVector = Icons.Default.Psychology,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
@@ -56,45 +66,42 @@ fun IntelligenceInsightsCard(
                         )
                     }
                 }
-                
+
                 AccuracyIndicator(accuracy = overallAccuracy)
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
-            // Stats preview
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                val bestCategory = categoryStats.maxByOrNull { it.accuracy }
+
                 QuickStat(
-                    icon = "📚",
+                    icon = Icons.Default.School,
                     label = "Patrones",
                     value = totalPreferences.toString()
                 )
-                
-                val bestCategory = categoryStats.maxByOrNull { it.accuracy }
                 QuickStat(
-                    icon = bestCategory?.let { "🎯" } ?: "📊",
+                    icon = Icons.Default.TrackChanges,
                     label = "Mejor",
                     value = bestCategory?.let { "${(it.accuracy * 100).toInt()}%" } ?: "-"
                 )
-                
                 QuickStat(
-                    icon = "⚡",
+                    icon = Icons.Default.Bolt,
                     label = "Estado",
                     value = when {
                         overallAccuracy > 0.8f -> "Excelente"
                         overallAccuracy > 0.6f -> "Bueno"
                         overallAccuracy > 0.4f -> "Regular"
-                        else -> "Aprendiendo"
+                        else                   -> "Aprendiendo"
                     }
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
-            // Action hint
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -132,18 +139,18 @@ fun AccuracyIndicator(
             color = when {
                 accuracy > 0.8f -> MaterialTheme.colorScheme.primary
                 accuracy > 0.6f -> MaterialTheme.colorScheme.tertiary
-                else -> MaterialTheme.colorScheme.outline
+                else            -> MaterialTheme.colorScheme.outline
             }
         )
         LinearProgressIndicator(
-            progress = accuracy,
+            progress = { accuracy },
             modifier = Modifier
                 .width(32.dp)
-                .height(3.dp),
+                .height(4.dp),
             color = when {
                 accuracy > 0.8f -> MaterialTheme.colorScheme.primary
                 accuracy > 0.6f -> MaterialTheme.colorScheme.tertiary
-                else -> MaterialTheme.colorScheme.outline
+                else            -> MaterialTheme.colorScheme.outline
             },
             trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
         )
@@ -152,7 +159,7 @@ fun AccuracyIndicator(
 
 @Composable
 fun QuickStat(
-    icon: String,
+    icon: ImageVector,
     label: String,
     value: String,
     modifier: Modifier = Modifier
@@ -161,9 +168,11 @@ fun QuickStat(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
     ) {
-        Text(
-            text = icon,
-            style = MaterialTheme.typography.bodyMedium
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.onTertiaryContainer
         )
         Text(
             text = value,
@@ -187,8 +196,9 @@ fun LearningProgressCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -198,9 +208,11 @@ fun LearningProgressCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = if (improvementTrend > 0) "📈" else "📊",
-                    style = MaterialTheme.typography.titleMedium
+                Icon(
+                    imageVector = if (improvementTrend > 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.Default.Analytics,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
@@ -216,14 +228,16 @@ fun LearningProgressCard(
                     )
                 }
             }
-            
+
             if (improvementTrend != 0f) {
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = if (improvementTrend > 0) "+${(improvementTrend * 100).toInt()}%" else "${(improvementTrend * 100).toInt()}%",
+                        text = if (improvementTrend > 0) "+${(improvementTrend * 100).toInt()}%"
+                               else "${(improvementTrend * 100).toInt()}%",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
-                        color = if (improvementTrend > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        color = if (improvementTrend > 0) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.error
                     )
                     Text(
                         text = "vs anterior",

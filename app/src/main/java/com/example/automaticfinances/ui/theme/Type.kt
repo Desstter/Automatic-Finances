@@ -2,126 +2,152 @@ package com.example.automaticfinances.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.googlefonts.Font
+import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import com.example.automaticfinances.R
 
 // ===========================================
-// AutomaticFinances - Material 3 Typography
-// Optimizada para datos financieros y profesional
+// AutomaticFinances — "Peso de Oro" Typography
+// DM Serif Display (headlines) + DM Sans (UI) + DM Mono (numbers)
 // ===========================================
+
+private val provider = GoogleFont.Provider(
+    providerAuthority = "com.google.android.gms.fonts",
+    providerPackage = "com.google.android.gms",
+    certificates = R.array.com_google_android_gms_fonts_certs
+)
+
+private val DmSerifDisplay = FontFamily(
+    Font(GoogleFont("DM Serif Display"), provider, FontWeight.Normal)
+)
+
+private val DmSans = FontFamily(
+    Font(GoogleFont("DM Sans"), provider, FontWeight.Normal),
+    Font(GoogleFont("DM Sans"), provider, FontWeight.Medium),
+    Font(GoogleFont("DM Sans"), provider, FontWeight.SemiBold),
+    Font(GoogleFont("DM Sans"), provider, FontWeight.Bold)
+)
+
+private val DmMono = FontFamily(
+    Font(GoogleFont("DM Mono"), provider, FontWeight.Normal),
+    Font(GoogleFont("DM Mono"), provider, FontWeight.Medium)
+)
 
 val AppTypography = Typography(
-    // === Display Styles (Large Headlines) ===
+    // === Display — DM Serif Display ===
     displayLarge = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSerifDisplay,
         fontWeight = FontWeight.Normal,
         fontSize = 57.sp,
         lineHeight = 64.sp,
         letterSpacing = (-0.25).sp,
     ),
     displayMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSerifDisplay,
         fontWeight = FontWeight.Normal,
         fontSize = 45.sp,
         lineHeight = 52.sp,
         letterSpacing = 0.sp,
     ),
     displaySmall = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSerifDisplay,
         fontWeight = FontWeight.Normal,
         fontSize = 36.sp,
         lineHeight = 44.sp,
         letterSpacing = 0.sp,
     ),
 
-    // === Headline Styles (Section Headers) ===
+    // === Headline — DM Serif Display ===
     headlineLarge = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSerifDisplay,
         fontWeight = FontWeight.Normal,
         fontSize = 32.sp,
         lineHeight = 40.sp,
         letterSpacing = 0.sp,
     ),
     headlineMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSerifDisplay,
         fontWeight = FontWeight.Normal,
         fontSize = 28.sp,
         lineHeight = 36.sp,
         letterSpacing = 0.sp,
     ),
     headlineSmall = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSerifDisplay,
         fontWeight = FontWeight.Normal,
         fontSize = 24.sp,
         lineHeight = 32.sp,
         letterSpacing = 0.sp,
     ),
 
-    // === Title Styles (Cards, Lists) ===
+    // === Title — DM Sans ===
     titleLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
+        fontFamily = DmSans,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
         letterSpacing = 0.sp,
     ),
     titleMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSans,
         fontWeight = FontWeight.Medium,
         fontSize = 16.sp,
         lineHeight = 24.sp,
         letterSpacing = 0.15.sp,
     ),
     titleSmall = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSans,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         letterSpacing = 0.1.sp,
     ),
 
-    // === Body Styles (Main Content) ===
+    // === Body — DM Sans ===
     bodyLarge = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSans,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
         lineHeight = 24.sp,
         letterSpacing = 0.5.sp,
     ),
     bodyMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSans,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         letterSpacing = 0.25.sp,
     ),
     bodySmall = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSans,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.4.sp,
     ),
 
-    // === Label Styles (Buttons, Inputs) ===
+    // === Label — DM Sans ===
     labelLarge = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSans,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         letterSpacing = 0.1.sp,
     ),
     labelMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSans,
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.5.sp,
     ),
     labelSmall = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSans,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
         lineHeight = 16.sp,
@@ -129,68 +155,61 @@ val AppTypography = Typography(
     ),
 )
 
-// === Extended Typography for Finance App ===
+// === Finance-specific typography — DM Mono for all amounts ===
 object FinanceTypography {
-    // Montos de dinero grandes (saldos principales)
     val moneyLarge = TextStyle(
-        fontFamily = FontFamily.Monospace,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 28.sp,
-        lineHeight = 36.sp,
-        letterSpacing = 0.sp,
+        fontFamily = DmMono,
+        fontWeight = FontWeight.Bold,
+        fontSize = 36.sp,
+        lineHeight = 44.sp,
+        letterSpacing = (-0.5).sp,
         textAlign = TextAlign.End,
     )
-    
-    // Montos de dinero medianos (transacciones)
+
     val moneyMedium = TextStyle(
-        fontFamily = FontFamily.Monospace,
+        fontFamily = DmMono,
         fontWeight = FontWeight.Medium,
-        fontSize = 18.sp,
-        lineHeight = 24.sp,
+        fontSize = 20.sp,
+        lineHeight = 28.sp,
         letterSpacing = 0.sp,
         textAlign = TextAlign.End,
     )
-    
-    // Montos de dinero pequeños (detalles)
+
     val moneySmall = TextStyle(
-        fontFamily = FontFamily.Monospace,
+        fontFamily = DmMono,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         letterSpacing = 0.sp,
         textAlign = TextAlign.End,
     )
-    
-    // Números de cuenta y referencias
+
     val accountNumber = TextStyle(
-        fontFamily = FontFamily.Monospace,
+        fontFamily = DmMono,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.5.sp,
     )
-    
-    // Fechas y timestamps
+
     val dateTime = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSans,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.4.sp,
     )
-    
-    // Categorías y tags
+
     val category = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSans,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.5.sp,
     )
-    
-    // Estados de transacciones
+
     val transactionStatus = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = DmSans,
         fontWeight = FontWeight.Medium,
         fontSize = 10.sp,
         lineHeight = 14.sp,

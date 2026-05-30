@@ -7,8 +7,9 @@ import java.time.YearMonth
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlin.math.max
+import javax.inject.Inject
 
-class BudgetRepository(
+class BudgetRepository @Inject constructor(
     private val budgetDao: BudgetDao,
     private val transactionDao: TransactionDao,
     private val categoryDao: CategoryDao

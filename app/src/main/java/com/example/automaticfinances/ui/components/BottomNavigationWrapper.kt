@@ -1,5 +1,7 @@
 package com.example.automaticfinances.ui.components
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
@@ -9,7 +11,10 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -55,10 +60,16 @@ fun BottomNavigationWrapper(
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
         bottomBar = {
+            val isDark = isSystemInDarkTheme()
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 0.dp,
-                windowInsets = WindowInsets.navigationBars
+                windowInsets = WindowInsets.navigationBars,
+                modifier = Modifier.border(
+                    width = Dp.Hairline,
+                    color = if (isDark) MaterialTheme.colorScheme.outlineVariant else Color.Transparent,
+                    shape = RectangleShape
+                )
             ) {
                 bottomNavItems.forEach { item ->
                     val isSelected = currentRoute == item.route

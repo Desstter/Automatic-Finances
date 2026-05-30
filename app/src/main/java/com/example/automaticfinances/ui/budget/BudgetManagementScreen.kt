@@ -6,7 +6,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,13 +17,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.automaticfinances.data.db.Budget
 import com.example.automaticfinances.data.db.Category
-import com.example.automaticfinances.data.db.AppDatabase
-import com.example.automaticfinances.data.repo.BudgetRepository
-import com.example.automaticfinances.data.repo.CategoryRepository
+import com.example.automaticfinances.ui.components.common.PremiumEmptyState
+import com.example.automaticfinances.ui.components.common.SectionHeader
+import com.example.automaticfinances.ui.theme.FinanceTypography
+import com.example.automaticfinances.ui.theme.Spacing
 import java.text.NumberFormat
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -32,19 +36,7 @@ fun BudgetManagementScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val budgetRepository = remember {
-        BudgetRepository(
-            budgetDao = AppDatabase.get().budgetDao(),
-            transactionDao = AppDatabase.get().transactionDao(),
-            categoryDao = AppDatabase.get().categoryDao()
-        )
-    }
-    
-    val categoryRepository = remember { CategoryRepository() }
-    
-    val viewModel: BudgetManagementViewModel = viewModel {
-        BudgetManagementViewModel(budgetRepository, categoryRepository)
-    }
+    val viewModel: BudgetManagementViewModel = hiltViewModel()
     
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -60,9 +52,10 @@ fun BudgetManagementScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
-                        text = "Gestión de Presupuestos",
+                        text = "Presupuestos",
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -75,21 +68,22 @@ fun BudgetManagementScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showCreateDialog = true }
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Crear presupuesto")
-            }
+            ExtendedFloatingActionButton(
+                onClick = { showCreateDialog = true },
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("Presupuesto") },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
         }
     ) { paddingValues ->
         LazyColumn(
             modifier = modifier
                 .fillMaxSize()
-                .statusBarsPadding()
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = Spacing.screen),
+            contentPadding = PaddingValues(top = Spacing.md, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             // Month selector
             item {
@@ -112,11 +106,7 @@ fun BudgetManagementScreen(
             // Budgets list
             if (state.budgets.isNotEmpty()) {
                 item {
-                    Text(
-                        text = "Presupuestos Activos (${state.budgets.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    SectionHeader(title = "Presupuestos activos", subtitle = "${state.budgets.size} en total")
                 }
                 
                 items(state.budgets) { budget ->
@@ -185,36 +175,41 @@ private fun MonthSelector(
     modifier: Modifier = Modifier
 ) {
     val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("es-CO"))
-    
-    Card(
+
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-        )
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(
-                onClick = { onMonthChanged(currentMonth.minusMonths(1)) }
+            FilledIconButton(
+                onClick = { onMonthChanged(currentMonth.minusMonths(1)) },
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                )
             ) {
-                Text("← Anterior")
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Mes anterior")
             }
-            
             Text(
                 text = currentMonth.format(formatter).replaceFirstChar { it.uppercase() },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
-            
-            TextButton(
-                onClick = { onMonthChanged(currentMonth.plusMonths(1)) }
+            FilledIconButton(
+                onClick = { onMonthChanged(currentMonth.plusMonths(1)) },
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                )
             ) {
-                Text("Siguiente →")
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Mes siguiente")
             }
         }
     }
@@ -314,7 +309,7 @@ private fun BudgetManagementCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = category?.icon ?: "💰",
+                        text = category?.icon ?: "•",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -386,39 +381,17 @@ private fun EmptyBudgetsCard(
     onCreateBudget: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = "💰",
-                style = MaterialTheme.typography.displayMedium
-            )
-            
-            Text(
-                text = "No tienes presupuestos para este mes",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            
-            Text(
-                text = "Crea presupuestos para controlar tus gastos mensuales",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            Button(onClick = onCreateBudget) {
-                Text("Crear primer presupuesto")
-            }
-        }
+        PremiumEmptyState(
+            icon = Icons.Default.AccountBalanceWallet,
+            title = "Sin presupuestos este mes",
+            description = "Crea presupuestos por categoría para controlar tus gastos mensuales.",
+            actionLabel = "Crear primer presupuesto",
+            onAction = onCreateBudget
+        )
     }
 }

@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(4.dp),    // Chips pequeños, badges
     small = RoundedCornerShape(8.dp),         // Botones pequeños, inputs
-    medium = RoundedCornerShape(12.dp),       // Tarjetas estándar, cards
+    medium = RoundedCornerShape(16.dp),       // Tarjetas estándar, cards
     large = RoundedCornerShape(16.dp),        // Modales, bottom sheets
     extraLarge = RoundedCornerShape(28.dp)    // FABs, elementos especiales
 )

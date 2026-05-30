@@ -6,18 +6,26 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.automaticfinances.data.db.*
-import com.example.automaticfinances.data.repo.CategoryRepository
+import com.example.automaticfinances.ui.components.common.PremiumEmptyState
+import com.example.automaticfinances.ui.theme.FinanceTheme
+import com.example.automaticfinances.ui.theme.Spacing
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -29,14 +37,7 @@ fun GoalsScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val categoryRepository = remember { CategoryRepository() }
-    
-    val viewModel: GoalsViewModel = viewModel {
-        GoalsViewModel(
-            goalDao = AppDatabase.get().financialGoalDao(),
-            categoryRepository = categoryRepository
-        )
-    }
+    val viewModel: GoalsViewModel = hiltViewModel()
     
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -49,9 +50,10 @@ fun GoalsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
-                        text = "Metas Financieras",
+                        text = "Metas financieras",
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -63,19 +65,21 @@ fun GoalsScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showCreateDialog = true }
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Crear meta")
-            }
+            ExtendedFloatingActionButton(
+                onClick = { showCreateDialog = true },
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("Meta") },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
         }
     ) { paddingValues ->
         LazyColumn(
             modifier = modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(start = Spacing.screen, end = Spacing.screen, top = Spacing.md, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             // Summary card
             state.summary?.let { summary ->
@@ -174,7 +178,7 @@ private fun GoalsSummaryCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+            containerColor = MaterialTheme.colorScheme.primaryContainer
         )
     ) {
         Column(
@@ -196,19 +200,19 @@ private fun GoalsSummaryCard(
                 GoalsSummaryItem(
                     label = "Activas",
                     value = "${summary.activeGoals}",
-                    icon = "🎯"
+                    icon = Icons.Default.Flag
                 )
-                
+
                 GoalsSummaryItem(
                     label = "Completadas",
                     value = "${summary.completedGoals}",
-                    icon = "✅"
+                    icon = Icons.Default.CheckCircle
                 )
-                
+
                 GoalsSummaryItem(
                     label = "Vencidas",
                     value = "${summary.overdueGoals}",
-                    icon = "⚠️"
+                    icon = Icons.Default.WarningAmber
                 )
             }
             
@@ -255,17 +259,20 @@ private fun GoalsSummaryCard(
 private fun GoalsSummaryItem(
     label: String,
     value: String,
-    icon: String,
+    icon: ImageVector,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = icon,
-            style = MaterialTheme.typography.titleMedium
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(22.dp),
+            tint = MaterialTheme.colorScheme.onPrimaryContainer
         )
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = value,
             style = MaterialTheme.typography.titleMedium,
@@ -350,12 +357,14 @@ private fun GoalCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = when (goalWithCategory.type) {
-                            GoalType.SAVINGS -> "💰"
-                            GoalType.EXPENSE_REDUCTION -> "📉"
+                    Icon(
+                        imageVector = when (goalWithCategory.type) {
+                            GoalType.SAVINGS -> Icons.Default.Savings
+                            GoalType.EXPENSE_REDUCTION -> Icons.AutoMirrored.Filled.TrendingDown
                         },
-                        style = MaterialTheme.typography.titleMedium
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
@@ -377,7 +386,7 @@ private fun GoalCard(
                 // Status badge
                 Surface(
                     color = when {
-                        goalWithCategory.isCompleted -> Color(0xFF4CAF50).copy(alpha = 0.1f)
+                        goalWithCategory.isCompleted -> FinanceTheme.colors.profitContainer
                         isOverdue -> MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
                         else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                     },
@@ -391,7 +400,7 @@ private fun GoalCard(
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = when {
-                            goalWithCategory.isCompleted -> Color(0xFF4CAF50)
+                            goalWithCategory.isCompleted -> FinanceTheme.colors.profit
                             isOverdue -> MaterialTheme.colorScheme.error
                             else -> MaterialTheme.colorScheme.primary
                         },
@@ -406,7 +415,7 @@ private fun GoalCard(
             goalWithCategory.categoryName?.let { categoryName ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = goalWithCategory.categoryIcon ?: "📂",
+                        text = goalWithCategory.categoryIcon ?: "•",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -508,49 +517,26 @@ private fun EmptyGoalsCard(
     onCreateGoal: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    val showAction = filter == GoalsFilter.ALL || filter == GoalsFilter.ACTIVE
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = "🎯",
-                style = MaterialTheme.typography.displayMedium
-            )
-            
-            Text(
-                text = when (filter) {
-                    GoalsFilter.ALL -> "No tienes metas financieras"
-                    GoalsFilter.ACTIVE -> "No tienes metas activas"
-                    GoalsFilter.COMPLETED -> "No has completado ninguna meta"
-                    GoalsFilter.OVERDUE -> "No tienes metas vencidas"
-                    GoalsFilter.SAVINGS -> "No tienes metas de ahorro"
-                    GoalsFilter.EXPENSE_REDUCTION -> "No tienes metas de reducción de gastos"
-                },
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            
-            Text(
-                text = "Crea metas para alcanzar tus objetivos financieros",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            if (filter == GoalsFilter.ALL || filter == GoalsFilter.ACTIVE) {
-                Button(onClick = onCreateGoal) {
-                    Text("Crear primera meta")
-                }
-            }
-        }
+        PremiumEmptyState(
+            icon = Icons.Default.Flag,
+            title = when (filter) {
+                GoalsFilter.ALL -> "Aún no tienes metas"
+                GoalsFilter.ACTIVE -> "No tienes metas activas"
+                GoalsFilter.COMPLETED -> "No has completado metas"
+                GoalsFilter.OVERDUE -> "No tienes metas vencidas"
+                GoalsFilter.SAVINGS -> "No tienes metas de ahorro"
+                GoalsFilter.EXPENSE_REDUCTION -> "No tienes metas de reducción"
+            },
+            description = "Crea metas para alcanzar tus objetivos financieros y haz seguimiento de tu progreso.",
+            actionLabel = if (showAction) "Crear primera meta" else null,
+            onAction = if (showAction) onCreateGoal else null
+        )
     }
 }
 

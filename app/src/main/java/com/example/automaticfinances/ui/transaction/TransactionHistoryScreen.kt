@@ -3,64 +3,74 @@ package com.example.automaticfinances.ui.transaction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.automaticfinances.data.repo.TransactionWithCategory
+import com.example.automaticfinances.ui.CompactTransactionItem
+import com.example.automaticfinances.ui.components.common.ExpandableBanner
+import com.example.automaticfinances.ui.components.common.PremiumEmptyState
+import com.example.automaticfinances.ui.components.common.TransactionListSkeleton
+import com.example.automaticfinances.ui.theme.FinanceTypography
+import com.example.automaticfinances.ui.theme.Spacing
 import java.text.NumberFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionHistoryScreen(
-    onNavigateBack: () -> Unit,
-    viewModel: TransactionHistoryViewModel = viewModel()
+    onNavigateBack: () -> Unit
 ) {
+    val viewModel: TransactionHistoryViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val numberFormat = remember { 
-        NumberFormat.getCurrencyInstance(Locale("es", "CO"))
-    }
+    val numberFormat = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                title = { Text("Historial de Transacciones") },
+                title = {
+                    Text("Historial", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "Volver")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.toggleFilters() }) {
-                        Text("🔍", style = MaterialTheme.typography.headlineSmall)
+                        Icon(
+                            Icons.Default.Tune,
+                            contentDescription = "Filtros",
+                            tint = if (state.showFilters) MaterialTheme.colorScheme.primary
+                                   else LocalContentColor.current
+                        )
                     }
-                }
+                },
+                scrollBehavior = scrollBehavior
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            // Estadísticas rápidas
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             StatsCard(
                 totalTransactions = state.filteredTransactions.size,
                 totalAmount = state.filteredTransactions.sumOf { it.amountCents },
                 numberFormat = numberFormat,
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.padding(horizontal = Spacing.screen, vertical = Spacing.md)
             )
 
-            // Filtros (expandible)
-            if (state.showFilters) {
+            ExpandableBanner(visible = state.showFilters) {
                 FiltersCard(
                     selectedSource = state.sourceFilter,
                     selectedType = state.typeFilter,
@@ -70,43 +80,27 @@ fun TransactionHistoryScreen(
                     onTypeChange = viewModel::setTypeFilter,
                     onCategoryChange = viewModel::setCategoryFilter,
                     onClearFilters = viewModel::clearFilters,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    modifier = Modifier.padding(horizontal = Spacing.screen)
                 )
             }
 
-            // Lista de transacciones
-            if (state.isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            } else {
-                LazyColumn(
+            when {
+                state.isLoading -> TransactionListSkeleton(itemCount = 8, modifier = Modifier.padding(top = Spacing.sm))
+                state.filteredTransactions.isEmpty() -> PremiumEmptyState(
+                    icon = Icons.Default.ReceiptLong,
+                    title = "Sin transacciones",
+                    description = "No se encontraron transacciones con los filtros seleccionados."
+                )
+                else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    contentPadding = PaddingValues(top = Spacing.sm, bottom = Spacing.xxl)
                 ) {
-                    items(state.filteredTransactions) { transaction ->
-                        TransactionHistoryItem(
+                    items(state.filteredTransactions, key = { it.id }) { transaction ->
+                        CompactTransactionItem(
                             transaction = transaction,
-                            numberFormat = numberFormat
+                            numberFormat = numberFormat,
+                            onClick = {}
                         )
-                    }
-
-                    if (state.filteredTransactions.isEmpty() && !state.isLoading) {
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = "No se encontraron transacciones con los filtros seleccionados",
-                                    modifier = Modifier.padding(16.dp),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        }
                     }
                 }
             }
@@ -121,33 +115,32 @@ fun StatsCard(
     numberFormat: NumberFormat,
     modifier: Modifier = Modifier
 ) {
-    Card(modifier = modifier.fillMaxWidth()) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer
+    ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(Spacing.card),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "$totalTransactions",
-                    style = MaterialTheme.typography.headlineMedium
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
                 )
-                Text(
-                    text = "Transacciones",
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Text("Transacciones", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            
+            VerticalDivider(modifier = Modifier.height(40.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = numberFormat.format(totalAmount / 100.0),
-                    style = MaterialTheme.typography.headlineMedium
+                    style = FinanceTypography.moneyMedium
                 )
-                Text(
-                    text = "Total",
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Text("Total", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -165,152 +158,40 @@ fun FiltersCard(
     onClearFilters: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(modifier = modifier.fillMaxWidth()) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer
+    ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Filtros",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                
-                TextButton(onClick = onClearFilters) {
-                    Text("Limpiar")
-                }
+                Text("Filtros", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                TextButton(onClick = onClearFilters) { Text("Limpiar") }
             }
 
-            // Filtro por origen
-            Text("Origen:", style = MaterialTheme.typography.bodyMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = selectedSource == null,
-                    onClick = { onSourceChange(null) },
-                    label = { Text("Todos") }
-                )
-                FilterChip(
-                    selected = selectedSource == "manual",
-                    onClick = { onSourceChange("manual") },
-                    label = { Text("✋ Manuales") }
-                )
-                FilterChip(
-                    selected = selectedSource?.startsWith("notif") == true,
-                    onClick = { onSourceChange("notif") },
-                    label = { Text("🤖 Automáticas") }
-                )
+            Text("Origen", style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                FilterChip(selected = selectedSource == null, onClick = { onSourceChange(null) }, label = { Text("Todos") })
+                FilterChip(selected = selectedSource == "manual", onClick = { onSourceChange("manual") }, label = { Text("Manuales") })
+                FilterChip(selected = selectedSource?.startsWith("notif") == true, onClick = { onSourceChange("notif") }, label = { Text("Automáticas") })
             }
 
-            // Filtro por tipo
-            Text("Tipo:", style = MaterialTheme.typography.bodyMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = selectedType == null,
-                    onClick = { onTypeChange(null) },
-                    label = { Text("Todos") }
-                )
-                FilterChip(
-                    selected = selectedType == "COMPRA",
-                    onClick = { onTypeChange("COMPRA") },
-                    label = { Text("Compras") }
-                )
-                FilterChip(
-                    selected = selectedType == "TRANSFERENCIA",
-                    onClick = { onTypeChange("TRANSFERENCIA") },
-                    label = { Text("Transferencias") }
-                )
-                FilterChip(
-                    selected = selectedType == "MANUAL",
-                    onClick = { onTypeChange("MANUAL") },
-                    label = { Text("Efectivo") }
-                )
+            Text("Tipo", style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                FilterChip(selected = selectedType == null, onClick = { onTypeChange(null) }, label = { Text("Todos") })
+                FilterChip(selected = selectedType == "COMPRA", onClick = { onTypeChange("COMPRA") }, label = { Text("Compras") })
+                FilterChip(selected = selectedType == "TRANSFERENCIA", onClick = { onTypeChange("TRANSFERENCIA") }, label = { Text("Transferencias") })
+                FilterChip(selected = selectedType == "MANUAL", onClick = { onTypeChange("MANUAL") }, label = { Text("Efectivo") })
             }
         }
-    }
-}
-
-@Composable
-fun TransactionHistoryItem(
-    transaction: TransactionWithCategory,
-    numberFormat: NumberFormat
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        ListItem(
-            headlineContent = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = transaction.description,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = numberFormat.format(transaction.amountCents / 100.0),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                }
-            },
-            supportingContent = {
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Icono de categoría
-                        transaction.categoryIcon?.let { icon ->
-                            Text(text = icon)
-                        }
-                        
-                        // Nombre de categoría
-                        transaction.categoryName?.let { categoryName ->
-                            Text(
-                                text = categoryName,
-                                color = transaction.categoryColor?.let { 
-                                    Color(android.graphics.Color.parseColor(it))
-                                } ?: MaterialTheme.colorScheme.onSurface,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                        
-                        // Fecha y hora
-                        Text(
-                            text = "${transaction.date} ${transaction.time}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
-                    }
-                    
-                    // Información adicional
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = transaction.type,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        
-                        Text(
-                            text = when {
-                                transaction.source?.startsWith("notif") == true -> "🤖 Automática"
-                                transaction.source == "manual" -> "✋ Manual"
-                                else -> "📱 SMS"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-            }
-        )
     }
 }

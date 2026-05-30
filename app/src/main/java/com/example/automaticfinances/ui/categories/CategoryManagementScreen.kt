@@ -15,9 +15,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
+import com.example.automaticfinances.ui.components.common.PremiumEmptyState
+import com.example.automaticfinances.ui.theme.Spacing
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,21 +31,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoryManagementScreen(
-    onNavigateBack: () -> Unit,
-    viewModel: CategoryManagementViewModel = viewModel()
+    onNavigateBack: () -> Unit
 ) {
+    val viewModel: CategoryManagementViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
-    
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Gestión de Categorías") },
+                title = { Text("Categorías", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
@@ -50,11 +54,13 @@ fun CategoryManagementScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { viewModel.showAddDialog() }
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Agregar categoría")
-            }
+            ExtendedFloatingActionButton(
+                onClick = { viewModel.showAddDialog() },
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("Categoría") },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
         }
     ) { padding ->
         when {
@@ -70,19 +76,32 @@ fun CategoryManagementScreen(
             }
             
             else -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(state.categories) { categoryWithCount ->
-                        CategoryItem(
-                            categoryWithCount = categoryWithCount,
-                            onEdit = { viewModel.showEditDialog(it) },
-                            onDelete = { viewModel.showDeleteDialog(it) }
+                if (state.categories.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                        PremiumEmptyState(
+                            icon = Icons.Default.Category,
+                            title = "Sin categorías",
+                            description = "Crea categorías para organizar y clasificar tus transacciones.",
+                            actionLabel = "Crear categoría",
+                            onAction = { viewModel.showAddDialog() }
                         )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                            .padding(horizontal = Spacing.screen),
+                        contentPadding = PaddingValues(top = Spacing.md, bottom = 96.dp),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                    ) {
+                        items(state.categories) { categoryWithCount ->
+                            CategoryItem(
+                                categoryWithCount = categoryWithCount,
+                                onEdit = { viewModel.showEditDialog(it) },
+                                onDelete = { viewModel.showDeleteDialog(it) }
+                            )
+                        }
                     }
                 }
             }
@@ -92,7 +111,7 @@ fun CategoryManagementScreen(
     // Dialogs
     if (state.showAddDialog) {
         CategoryAddEditDialog(
-            title = "Agregar Categoría",
+            title = "Nueva categoría",
             name = state.newCategoryName,
             icon = state.newCategoryIcon,
             color = state.newCategoryColor,
@@ -108,7 +127,7 @@ fun CategoryManagementScreen(
     
     if (state.showEditDialog && state.selectedCategory != null) {
         CategoryAddEditDialog(
-            title = "Editar Categoría",
+            title = "Editar categoría",
             name = state.newCategoryName,
             icon = state.newCategoryIcon,
             color = state.newCategoryColor,
@@ -389,10 +408,11 @@ fun CategoryAddEditDialog(
                                             .background(Color.White.copy(alpha = 0.3f)),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text(
-                                            text = "✓",
-                                            color = Color.White,
-                                            style = MaterialTheme.typography.labelLarge
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }

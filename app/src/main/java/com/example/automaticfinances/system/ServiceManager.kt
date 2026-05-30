@@ -1,10 +1,18 @@
 package com.example.automaticfinances.system
 
 import android.content.Context
+import android.content.Intent
 import android.provider.Settings
 import android.text.TextUtils
 
 object ServiceManager {
+
+    @Volatile
+    private var serviceRunning: Boolean = false
+
+    fun setServiceRunning(running: Boolean) {
+        serviceRunning = running
+    }
     
     fun isNotificationListenerEnabled(context: Context): Boolean {
         val packageName = context.packageName
@@ -25,14 +33,18 @@ object ServiceManager {
         return false
     }
     
-    fun ensureNotificationListenerEnabled(context: Context) {
-        if (!isNotificationListenerEnabled(context)) {
-            // If not enabled, there's not much we can do programmatically
-            // The user must enable it manually in settings
-            return
-        }
+    /**
+     * Opens the system "Notification access" settings so the user can grant the listener
+     * permission. An app CANNOT grant this permission to itself — this is the only legitimate
+     * programmatic action. Must be triggered by a user action from a UI context; callers should
+     * not invoke it from background loops (it would launch Settings repeatedly).
+     */
+    fun openNotificationListenerSettings(context: Context) {
+        val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
     }
-    
+
     fun startPersistentService(context: Context) {
         ForegroundSmsService.startService(context)
     }
@@ -41,14 +53,5 @@ object ServiceManager {
         ForegroundSmsService.stopService(context)
     }
     
-    fun isServiceRunning(context: Context): Boolean {
-        val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-        @Suppress("DEPRECATION")
-        for (service in manager.getRunningServices(Integer.MAX_VALUE)) {
-            if (ForegroundSmsService::class.java.name == service.service.className) {
-                return true
-            }
-        }
-        return false
-    }
+    fun isServiceRunning(context: Context): Boolean = serviceRunning
 }

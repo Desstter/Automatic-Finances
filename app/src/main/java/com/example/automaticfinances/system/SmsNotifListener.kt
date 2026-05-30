@@ -6,15 +6,26 @@ import android.app.Notification
 import android.util.Log
 import com.example.automaticfinances.data.parse.BancolombiaParser
 import com.example.automaticfinances.domain.AddTransactionUseCase
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicInteger
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class SmsNotifListener : NotificationListenerService() {
 
-    private val scope = CoroutineScope(Dispatchers.IO)
-    private val addTx = AddTransactionUseCase()
+    // Recreated on (re)connect: a NotificationListenerService can be unbound and rebound on the
+    // same instance, so a permanently-cancelled scope would silently stop processing after the
+    // first disconnect. See onListenerConnected / onListenerDisconnected.
+    private var scope = newScope()
+    @Inject lateinit var addTx: AddTransactionUseCase
+
+    private fun newScope() = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
     // Error tracking for monitoring and debugging
     private val parseErrors = AtomicInteger(0)
@@ -28,6 +39,10 @@ class SmsNotifListener : NotificationListenerService() {
 
     override fun onListenerConnected() {
         super.onListenerConnected()
+        // Revive the scope if a previous disconnect cancelled it (same instance can be rebound).
+        if (!scope.isActive) {
+            scope = newScope()
+        }
         // Ensure foreground service is running when listener connects
         ForegroundSmsService.startService(this)
     }
@@ -35,6 +50,7 @@ class SmsNotifListener : NotificationListenerService() {
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         // Try to restart the service if disconnected
+        scope.cancel()
         requestRebind(android.content.ComponentName(this, SmsNotifListener::class.java))
     }
 
@@ -48,13 +64,18 @@ class SmsNotifListener : NotificationListenerService() {
                    " " +
                    (extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "")
 
+        // postTime identifies the notification deterministically: the same SMS/notification
+        // re-delivered (on reconnect, update, etc.) keeps the same postTime, which the parser
+        // folds into the transaction id so we don't create duplicates.
+        val postTime = sbn.postTime
+
         // Filtrar por apps bancarias conocidas o contenido relevante
         if (shouldProcessNotification(packageName, text)) {
             processedNotifications.incrementAndGet()
-            
-            scope.launch { 
+
+            scope.launch {
                 try {
-                    processNotificationSafely(packageName, text)
+                    processNotificationSafely(packageName, text, postTime)
                 } catch (e: Exception) {
                     // Log critical failures but don't crash the service
                     Log.e(TAG, "Critical failure processing notification from $packageName", e)
@@ -64,10 +85,10 @@ class SmsNotifListener : NotificationListenerService() {
         }
     }
     
-    private suspend fun processNotificationSafely(packageName: String, text: String) {
+    private suspend fun processNotificationSafely(packageName: String, text: String, postTime: Long) {
         try {
             // Attempt to parse the SMS text
-            val transaction = BancolombiaParser.tryParse(text)
+            val transaction = BancolombiaParser.tryParse(text, postTime)
             
             if (transaction == null) {
                 // This is normal - not all notifications are parseable transactions
@@ -129,30 +150,50 @@ class SmsNotifListener : NotificationListenerService() {
     }
 
     private fun shouldProcessNotification(packageName: String, text: String): Boolean {
-        // Apps bancarias conocidas
-        val bankApps = setOf(
-            "com.bancolombia.androidapp",      // Bancolombia oficial
-            "com.mobile.bancolombia",          // Bancolombia alternativo
-            "com.nequi.MobileApp",             // Nequi
-            "com.davivienda.daviplata",        // DaviPlata
-            "co.com.ach.pse.app.avianca",      // Avianca LifeMiles
-            "com.bbva.netcash",                // BBVA Colombia
-            "com.bancodebogota.digital",       // Banco de Bogotá
-            "android"                          // SMS system app
-        )
-
-        // Verificar si es de una app bancaria conocida
-        if (bankApps.any { packageName.contains(it, ignoreCase = true) }) {
+        // Bank/fintech apps that push transaction notifications directly.
+        // Matched by EXACT package name — never by substring, otherwise "android"
+        // would match almost every Google/system package (Gmail, Play, GMS, …)
+        // and flood the parser with unrelated notifications.
+        if (packageName in BANK_APPS) {
             return true
         }
 
-        // Verificar por contenido (palabras clave bancarias)
-        val bankKeywords = listOf(
-            "bancolombia", "compraste", "transferiste", "transferencia",
-            "nequi", "pagaste", "daviplata", "transacción", "débito",
-            "compra", "retiro", "consignación", "pago"
-        )
+        // SMS shows up as a notification from the device messaging app, whose package
+        // varies by OEM. For those we additionally require bank-related content so we
+        // don't treat arbitrary chat messages as transactions.
+        if (packageName in MESSAGING_APPS) {
+            return BANK_KEYWORDS.any { text.contains(it, ignoreCase = true) }
+        }
 
-        return bankKeywords.any { text.contains(it, ignoreCase = true) }
+        return false
     }
+
+    private val BANK_APPS = setOf(
+        "com.bancolombia.androidapp",      // Bancolombia oficial
+        "com.mobile.bancolombia",          // Bancolombia alternativo
+        "com.todo1.mobile",                // Bancolombia (app Personas)
+        "com.nequi.MobileApp",             // Nequi
+        "com.davivienda.daviplata",        // DaviPlata
+        "co.com.ach.pse.app.avianca",      // Avianca LifeMiles
+        "com.bbva.netcash",                // BBVA Colombia
+        "com.bancodebogota.digital"        // Banco de Bogotá
+    )
+
+    // Common SMS/messaging app packages across OEMs.
+    private val MESSAGING_APPS = setOf(
+        "com.google.android.apps.messaging", // Google Messages (AOSP/Pixel default)
+        "com.android.messaging",             // AOSP Messaging
+        "com.android.mms",                   // Legacy MMS/SMS
+        "com.samsung.android.messaging",     // Samsung Messages
+        "com.xiaomi.mms",                    // Xiaomi
+        "com.miui.mms",                      // MIUI
+        "com.motorola.messaging",            // Motorola
+        "com.oneplus.mms"                    // OnePlus
+    )
+
+    private val BANK_KEYWORDS = listOf(
+        "bancolombia", "compraste", "transferiste", "transferencia",
+        "nequi", "pagaste", "daviplata", "transacción", "débito",
+        "compra", "retiro", "consignación", "pago", "recibiste", "retiraste"
+    )
 }

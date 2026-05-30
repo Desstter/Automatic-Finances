@@ -11,8 +11,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
@@ -23,8 +25,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.automaticfinances.ui.theme.FinanceTheme
+import com.example.automaticfinances.ui.theme.FinanceTypography
 import java.text.NumberFormat
 import java.util.*
 
@@ -32,11 +36,11 @@ import java.util.*
 @Composable
 fun TransactionDetailScreen(
     transactionId: String,
-    onNavigateBack: () -> Unit,
-    viewModel: TransactionDetailViewModel = viewModel()
+    onNavigateBack: () -> Unit
 ) {
+    val viewModel: TransactionDetailViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
-    
+
     LaunchedEffect(transactionId) {
         viewModel.loadTransaction(transactionId)
     }
@@ -48,7 +52,7 @@ fun TransactionDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Detalle de Transacción") },
+                title = { Text("Detalle", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
@@ -276,15 +280,47 @@ fun TransactionDetailContent(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Rest of the existing content...
-        TransactionDetailCards(
-            state = state,
-            numberFormat = numberFormat,
-            viewModel = viewModel
-        )
+        // Receipt-style hero header
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                text = transaction.description,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = numberFormat.format(transaction.amountCents / 100.0),
+                style = FinanceTypography.moneyLarge,
+                color = FinanceTheme.colors.loss
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "${transaction.date} · ${transaction.time}",
+                style = FinanceTypography.dateTime,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            TransactionDetailCards(
+                state = state,
+                numberFormat = numberFormat,
+                viewModel = viewModel
+            )
+        }
     }
 }
 
@@ -390,9 +426,11 @@ fun TransactionDetailCards(
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "📅",
-                    style = MaterialTheme.typography.bodyLarge
+                Icon(
+                    Icons.Default.CalendarToday,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
@@ -405,9 +443,11 @@ fun TransactionDetailCards(
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "💳",
-                        style = MaterialTheme.typography.bodyLarge
+                    Icon(
+                        Icons.Default.CreditCard,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
@@ -481,7 +521,7 @@ fun TransactionDetailCards(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = category?.icon ?: "📦",
+                        text = category?.icon ?: "•",
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -563,9 +603,11 @@ fun CategorySelector(
                 modifier = Modifier.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "❌",
-                    style = MaterialTheme.typography.bodyLarge
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(

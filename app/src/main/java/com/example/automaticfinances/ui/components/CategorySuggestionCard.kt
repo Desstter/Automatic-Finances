@@ -141,7 +141,7 @@ fun ConfidenceIndicator(
             }
         )
         LinearProgressIndicator(
-            progress = confidence,
+            progress = { confidence },
             modifier = Modifier
                 .width(24.dp)
                 .height(2.dp),

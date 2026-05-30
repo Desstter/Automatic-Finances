@@ -9,106 +9,113 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 // ===========================================
-// AutomaticFinances - Material 3 Complete Theme
-// Professional color scheme for banking/finance
+// AutomaticFinances — "Peso de Oro" (Bogota Modernista)
+// Colombian Gold accent palette
 // ===========================================
 
-/** Seed para generar la identidad visual cuando no hay Dynamic Color */
-private val FinanceSeed = Color(0xFF4CAF50) // Verde sobrio para finanzas
+// === Colombian Gold — Primary brand identity ===
+val BogotaGold      = Color(0xFFD4A853)
+val BogotaGoldDark  = Color(0xFFA07828)
+val BogotaGoldLight = Color(0xFFE8C87A)
 
-// === LIGHT FALLBACK (Material 3 roles completos) ===
-val LightColorSchemeFallback: ColorScheme = lightColorScheme(
-    primary = Color(0xFF4CAF50),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFB8E6B8),
-    onPrimaryContainer = Color(0xFF1B5E20),
+// === Warm dark backgrounds ===
+val DeepCharcoal    = Color(0xFF1A1714)   // dark background
+val WarmCharcoal    = Color(0xFF231F1B)   // dark surface
+val RichCharcoal    = Color(0xFF2C2722)   // dark surfaceContainer
+val CharcoalBorder  = Color(0xFF3D3731)   // dark outlineVariant
 
-    secondary = Color(0xFF2196F3),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFBBDEFB),
-    onSecondaryContainer = Color(0xFF0D47A1),
+// === Warm light backgrounds ===
+val WarmCream       = Color(0xFFFAF7F2)   // light background
+val ParchmentCream  = Color(0xFFF2EDE5)   // light surface
+val LightParchment  = Color(0xFFEDE7DC)   // light surfaceContainer
 
-    tertiary = Color(0xFFFF9800),
-    onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFFFCC80),
-    onTertiaryContainer = Color(0xFFE65100),
+// === Financial semantic ===
+val EmeraldProfit      = Color(0xFF2D8B4E)   // Colombian emerald green
+val EmeraldProfitLight = Color(0xFF4CAF50)
+val CrimsonLoss        = Color(0xFFC0392B)
+val AmberWarning       = Color(0xFFC97B2A)
 
-    error = Color(0xFFE53935),
-    onError = Color(0xFFFFFFFF),
-    errorContainer = Color(0xFFFFEBEE),
-    onErrorContainer = Color(0xFFB71C1C),
-
-    background = Color(0xFFFFFBFE),
-    onBackground = Color(0xFF1D1B20),
-    surface = Color(0xFFFFFBFE),
-    onSurface = Color(0xFF1D1B20),
-    surfaceVariant = Color(0xFFE7E0EC),
-    onSurfaceVariant = Color(0xFF49454F),
-    surfaceContainer = Color(0xFFF7F2FA),
-    surfaceContainerHigh = Color(0xFFF1ECF4),
-    surfaceContainerHighest = Color(0xFFECE6F0),
-    surfaceContainerLow = Color(0xFFFDF8FF),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceBright = Color(0xFFFFFBFE),
-    surfaceDim = Color(0xFFE0D9E1),
-
-    outline = Color(0xFF79747E),
-    outlineVariant = Color(0xFFCAC4D0),
-    inverseSurface = Color(0xFF322F37),
-    inverseOnSurface = Color(0xFFF5EFF7),
-    inversePrimary = Color(0xFF81C784),
-
-    scrim = Color(0xFF000000),
-    surfaceTint = Color(0xFF4CAF50),
-)
-
-// === DARK FALLBACK ===
+// === Material 3 Complete Dark Color Scheme ===
 val DarkColorSchemeFallback: ColorScheme = darkColorScheme(
-    primary = Color(0xFF81C784),
-    onPrimary = Color(0xFF1B5E20),
-    primaryContainer = Color(0xFF2E7D32),
-    onPrimaryContainer = Color(0xFFB8E6B8),
-
-    secondary = Color(0xFF64B5F6),
-    onSecondary = Color(0xFF0D47A1),
-    secondaryContainer = Color(0xFF1565C0),
-    onSecondaryContainer = Color(0xFFBBDEFB),
-
-    tertiary = Color(0xFFFFB74D),
-    onTertiary = Color(0xFFE65100),
-    tertiaryContainer = Color(0xFFF57C00),
-    onTertiaryContainer = Color(0xFFFFCC80),
-
-    error = Color(0xFFFF5449),
-    onError = Color(0xFFB71C1C),
-    errorContainer = Color(0xFFD32F2F),
-    onErrorContainer = Color(0xFFFFEBEE),
-
-    background = Color(0xFF141218),
-    onBackground = Color(0xFFE6E0E9),
-    surface = Color(0xFF141218),
-    onSurface = Color(0xFFE6E0E9),
-    surfaceVariant = Color(0xFF49454F),
-    onSurfaceVariant = Color(0xFFCAC4D0),
-    surfaceContainer = Color(0xFF211F26),
-    surfaceContainerHigh = Color(0xFF2B2930),
-    surfaceContainerHighest = Color(0xFF36343B),
-    surfaceContainerLow = Color(0xFF1D1B20),
-    surfaceContainerLowest = Color(0xFF0F0D13),
-    surfaceBright = Color(0xFF3A383E),
-    surfaceDim = Color(0xFF141218),
-
-    outline = Color(0xFF938F99),
-    outlineVariant = Color(0xFF49454F),
-    inverseSurface = Color(0xFFE6E0E9),
-    inverseOnSurface = Color(0xFF322F37),
-    inversePrimary = Color(0xFF4CAF50),
-
-    scrim = Color(0xFF000000),
-    surfaceTint = Color(0xFF81C784),
+    primary              = BogotaGold,
+    onPrimary            = Color(0xFF1A1714),
+    primaryContainer     = Color(0xFF3D3020),
+    onPrimaryContainer   = BogotaGoldLight,
+    secondary            = Color(0xFF6FB3D3),
+    onSecondary          = Color(0xFF0D2A3A),
+    secondaryContainer   = Color(0xFF1E3D4F),
+    onSecondaryContainer = Color(0xFFB8D9ED),
+    tertiary             = Color(0xFF9B8EA8),
+    onTertiary           = Color(0xFF1C1525),
+    tertiaryContainer    = Color(0xFF332944),
+    onTertiaryContainer  = Color(0xFFD8CCDF),
+    error                = Color(0xFFEF5350),
+    onError              = Color(0xFF1A0000),
+    errorContainer       = Color(0xFF3D1F1F),
+    onErrorContainer     = Color(0xFFFFCDD2),
+    background           = DeepCharcoal,
+    onBackground         = Color(0xFFF5F0E8),
+    surface              = WarmCharcoal,
+    onSurface            = Color(0xFFF5F0E8),
+    surfaceVariant       = Color(0xFF3D3731),
+    onSurfaceVariant     = Color(0xFF9E9086),
+    surfaceContainer     = RichCharcoal,
+    surfaceContainerHigh = Color(0xFF353028),
+    surfaceContainerHighest = Color(0xFF3E382F),
+    surfaceContainerLow  = Color(0xFF26221E),
+    surfaceContainerLowest = DeepCharcoal,
+    surfaceBright        = Color(0xFF4A4440),
+    surfaceDim           = Color(0xFF1A1714),
+    outline              = Color(0xFF6E6560),
+    outlineVariant       = CharcoalBorder,
+    inverseSurface       = WarmCream,
+    inverseOnSurface     = Color(0xFF2C2420),
+    inversePrimary       = BogotaGoldDark,
+    scrim                = Color(0xFF000000),
+    surfaceTint          = BogotaGold,
 )
 
-// === Tokens extra para finanzas ===
+// === Material 3 Complete Light Color Scheme ===
+val LightColorSchemeFallback: ColorScheme = lightColorScheme(
+    primary              = BogotaGoldDark,
+    onPrimary            = Color.White,
+    primaryContainer     = Color(0xFFF5E8C8),
+    onPrimaryContainer   = Color(0xFF4A3200),
+    secondary            = Color(0xFF2E86AB),
+    onSecondary          = Color.White,
+    secondaryContainer   = Color(0xFFCEE8F5),
+    onSecondaryContainer = Color(0xFF0A2D40),
+    tertiary             = Color(0xFF7B6D8E),
+    onTertiary           = Color.White,
+    tertiaryContainer    = Color(0xFFEBDEF7),
+    onTertiaryContainer  = Color(0xFF2B1D40),
+    error                = CrimsonLoss,
+    onError              = Color.White,
+    errorContainer       = Color(0xFFFCE8E6),
+    onErrorContainer     = Color(0xFF7A1210),
+    background           = WarmCream,
+    onBackground         = Color(0xFF2C2420),
+    surface              = ParchmentCream,
+    onSurface            = Color(0xFF2C2420),
+    surfaceVariant       = Color(0xFFE8E0D5),
+    onSurfaceVariant     = Color(0xFF7A6E67),
+    surfaceContainer     = LightParchment,
+    surfaceContainerHigh = Color(0xFFE5DDD2),
+    surfaceContainerHighest = Color(0xFFDDD4C8),
+    surfaceContainerLow  = Color(0xFFF5F0E8),
+    surfaceContainerLowest = WarmCream,
+    surfaceBright        = ParchmentCream,
+    surfaceDim           = Color(0xFFDDD5C8),
+    outline              = Color(0xFFA89E96),
+    outlineVariant       = Color(0xFFDDD5C8),
+    inverseSurface       = Color(0xFF2C2420),
+    inverseOnSurface     = WarmCream,
+    inversePrimary       = BogotaGold,
+    scrim                = Color(0xFF000000),
+    surfaceTint          = BogotaGoldDark,
+)
+
+// === Finance-specific semantic tokens ===
 @Stable
 data class FinanceColors(
     val profit: Color,
@@ -130,114 +137,101 @@ data class FinanceColors(
 )
 
 private val LightFinanceColors = FinanceColors(
-    profit = Color(0xFF2E7D32),
-    onProfit = Color(0xFFFFFFFF),
-    profitContainer = Color(0xFFB8E6B8),
-    onProfitContainer = Color(0xFF1B5E20),
-    loss = Color(0xFFD32F2F),
-    onLoss = Color(0xFFFFFFFF),
-    lossContainer = Color(0xFFFFEBEE),
-    onLossContainer = Color(0xFFB71C1C),
-    warning = Color(0xFFF57C00),
-    onWarning = Color(0xFFFFFFFF),
-    warningContainer = Color(0xFFFFCC80),
-    onWarningContainer = Color(0xFFE65100),
-    info = Color(0xFF1565C0),
-    onInfo = Color(0xFFFFFFFF),
-    infoContainer = Color(0xFFBBDEFB),
-    onInfoContainer = Color(0xFF0D47A1),
+    profit              = EmeraldProfit,
+    onProfit            = Color.White,
+    profitContainer     = Color(0xFFB8E6C4),
+    onProfitContainer   = Color(0xFF0D3D20),
+    loss                = CrimsonLoss,
+    onLoss              = Color.White,
+    lossContainer       = Color(0xFFFCE8E6),
+    onLossContainer     = Color(0xFF7A1210),
+    warning             = AmberWarning,
+    onWarning           = Color.White,
+    warningContainer    = Color(0xFFF5E0C0),
+    onWarningContainer  = Color(0xFF5A3200),
+    info                = Color(0xFF2E86AB),
+    onInfo              = Color.White,
+    infoContainer       = Color(0xFFCEE8F5),
+    onInfoContainer     = Color(0xFF0A2D40),
 )
 
 private val DarkFinanceColors = FinanceColors(
-    profit = Color(0xFF81C784),
-    onProfit = Color(0xFF1B5E20),
-    profitContainer = Color(0xFF2E7D32),
-    onProfitContainer = Color(0xFFB8E6B8),
-    loss = Color(0xFFFF5449),
-    onLoss = Color(0xFFB71C1C),
-    lossContainer = Color(0xFFD32F2F),
-    onLossContainer = Color(0xFFFFEBEE),
-    warning = Color(0xFFFFB74D),
-    onWarning = Color(0xFFE65100),
-    warningContainer = Color(0xFFF57C00),
-    onWarningContainer = Color(0xFFFFCC80),
-    info = Color(0xFF64B5F6),
-    onInfo = Color(0xFF0D47A1),
-    infoContainer = Color(0xFF1565C0),
-    onInfoContainer = Color(0xFFBBDEFB),
+    profit              = EmeraldProfitLight,
+    onProfit            = Color(0xFF0D3D20),
+    profitContainer     = Color(0xFF1A5C30),
+    onProfitContainer   = Color(0xFFB8E6C4),
+    loss                = Color(0xFFEF7070),
+    onLoss              = Color(0xFF5A0000),
+    lossContainer       = Color(0xFF3D1010),
+    onLossContainer     = Color(0xFFFFCDD2),
+    warning             = Color(0xFFE8B060),
+    onWarning           = Color(0xFF3D2000),
+    warningContainer    = Color(0xFF5A3800),
+    onWarningContainer  = Color(0xFFF5DFB0),
+    info                = Color(0xFF6FB3D3),
+    onInfo              = Color(0xFF0A2D40),
+    infoContainer       = Color(0xFF1E3D4F),
+    onInfoContainer     = Color(0xFFB8D9ED),
 )
 
 val LocalFinanceColors = staticCompositionLocalOf { LightFinanceColors }
 
-// Función para seleccionar los colores financieros apropiados
-internal fun getFinanceColors(darkTheme: Boolean): FinanceColors {
-    return if (darkTheme) DarkFinanceColors else LightFinanceColors
-}
+internal fun getFinanceColors(darkTheme: Boolean): FinanceColors =
+    if (darkTheme) DarkFinanceColors else LightFinanceColors
 
-// === Legacy colors for compatibility ===
+// === Legacy aliases for compatibility ===
+val Green80 = BogotaGoldLight
+val Green60 = BogotaGold
+val Green40 = BogotaGoldDark
+val Green20 = Color(0xFF6B4F10)
 
-// Primary Colors - Green (Financial Success & Growth)
-val Green80 = Color(0xFFB8E6B8)      // Light green for dark theme
-val Green60 = Color(0xFF81C784)      // Medium green 
-val Green40 = Color(0xFF4CAF50)      // Main brand green (Material Green)
-val Green20 = Color(0xFF2E7D32)      // Dark green for light theme
+val Blue80  = Color(0xFFB8D9ED)
+val Blue60  = Color(0xFF6FB3D3)
+val Blue40  = Color(0xFF2E86AB)
+val Blue20  = Color(0xFF0A2D40)
 
-// Secondary Colors - Blue (Trust & Security)
-val Blue80 = Color(0xFFBBDEFB)       // Light blue for dark theme
-val Blue60 = Color(0xFF64B5F6)       // Medium blue
-val Blue40 = Color(0xFF2196F3)       // Main blue (Material Blue)
-val Blue20 = Color(0xFF1565C0)       // Dark blue for light theme
+val Orange80 = Color(0xFFF5DFB0)
+val Orange60 = Color(0xFFE8B060)
+val Orange40 = AmberWarning
+val Orange20 = Color(0xFF5A3200)
 
-// Accent Colors - Orange (Attention & Warnings)
-val Orange80 = Color(0xFFFFCC80)     // Light orange for dark theme
-val Orange60 = Color(0xFFFFB74D)     // Medium orange
-val Orange40 = Color(0xFFFF9800)     // Main orange (Material Orange)
-val Orange20 = Color(0xFFF57C00)     // Dark orange for light theme
+val Success  = EmeraldProfitLight
+val Warning  = AmberWarning
+val Error    = CrimsonLoss
+val Info     = Color(0xFF2E86AB)
 
-// Status Colors
-val Success = Color(0xFF4CAF50)      // Green for success states
-val Warning = Color(0xFFFF9800)      // Orange for warnings  
-val Error = Color(0xFFE53935)        // Red for errors
-val Info = Color(0xFF2196F3)         // Blue for info
+val IncomeGreen  = EmeraldProfit
+val ExpenseRed   = CrimsonLoss
+val TransferBlue = Color(0xFF2E86AB)
 
-// Income/Expense Colors
-val IncomeGreen = Color(0xFF4CAF50)   // Positive transactions
-val ExpenseRed = Color(0xFFE53935)    // Negative transactions
-val TransferBlue = Color(0xFF2196F3)  // Transfers
+val Grey90 = Color(0xFF212121)
+val Grey80 = Color(0xFF424242)
+val Grey60 = Color(0xFF757575)
+val Grey40 = Color(0xFFBDBDBD)
+val Grey20 = Color(0xFFE0E0E0)
+val Grey10 = Color(0xFFF5F5F5)
 
-// Neutral Colors
-val Grey90 = Color(0xFF212121)        // Very dark grey
-val Grey80 = Color(0xFF424242)        // Dark grey
-val Grey60 = Color(0xFF757575)        // Medium grey
-val Grey40 = Color(0xFFBDBDBD)        // Light grey
-val Grey20 = Color(0xFFE0E0E0)        // Very light grey
-val Grey10 = Color(0xFFF5F5F5)        // Almost white
+val Neutral99  = WarmCream
+val Neutral95  = Color(0xFFF5F0E8)
+val Neutral90  = LightParchment
+val Neutral80  = Color(0xFFDDD5C8)
+val Neutral70  = Color(0xFFBFB5AB)
+val Neutral60  = Color(0xFFA89E96)
+val Neutral50  = Color(0xFF8E8077)
+val Neutral40  = Color(0xFF7A6E67)
+val Neutral30  = CharcoalBorder
+val Neutral20  = RichCharcoal
+val Neutral10  = WarmCharcoal
+val Neutral0   = Color(0xFF000000)
 
-// Material 3 Neutral Colors (Official Tones)
-val Neutral99 = Color(0xFFFFFBFE)          // Casi blanco para fondos claros
-val Neutral95 = Color(0xFFF7F2FA)          // Superficie muy clara
-val Neutral90 = Color(0xFFE7E0EC)          // Superficie clara variante
-val Neutral80 = Color(0xFFCAC4D0)          // Contornos claros
-val Neutral70 = Color(0xFFAEA9B1)          // Texto secundario claro
-val Neutral60 = Color(0xFF938F99)          // Contornos medios
-val Neutral50 = Color(0xFF79747E)          // Texto terciario
-val Neutral40 = Color(0xFF605D64)          // Contornos oscuros
-val Neutral30 = Color(0xFF49454F)          // Superficie oscura variante
-val Neutral20 = Color(0xFF322F37)          // Superficie oscura
-val Neutral10 = Color(0xFF1D1B20)          // Texto en superficie clara
-val Neutral0 = Color(0xFF000000)           // Negro absoluto (solo para casos especiales)
+val BackgroundLight = WarmCream
+val BackgroundDark  = DeepCharcoal
+val SurfaceLight    = ParchmentCream
+val SurfaceDark     = WarmCharcoal
 
-// Background Colors (Material 3 Compliant)
-val BackgroundLight = Neutral99            // Light theme background
-val BackgroundDark = Color(0xFF141218)     // Dark theme background (ligeramente más claro que negro)
-val SurfaceLight = Neutral99               // Light theme surface
-val SurfaceDark = Color(0xFF141218)        // Dark theme surface
-
-// Legacy colors for compatibility
-val Purple80 = Green80
+val Purple80     = BogotaGoldLight
 val PurpleGrey80 = Grey40
-val Pink80 = Orange80
-
-val Purple40 = Green20
+val Pink80       = Orange80
+val Purple40     = BogotaGoldDark
 val PurpleGrey40 = Grey60
-val Pink40 = Orange20
+val Pink40       = Orange20

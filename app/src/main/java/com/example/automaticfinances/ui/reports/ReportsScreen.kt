@@ -13,8 +13,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,13 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.automaticfinances.data.db.AppDatabase
-import com.example.automaticfinances.data.repo.TransactionRepository
-import com.example.automaticfinances.data.repo.CategoryRepository
-import com.example.automaticfinances.data.repo.BudgetRepository
-import com.example.automaticfinances.data.repo.AnalyticsRepository
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.time.YearMonth
@@ -41,30 +46,7 @@ fun ReportsScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val transactionRepository = remember { TransactionRepository() }
-    val categoryRepository = remember { CategoryRepository() }
-    val budgetRepository = remember { 
-        BudgetRepository(
-            budgetDao = AppDatabase.get().budgetDao(),
-            transactionDao = AppDatabase.get().transactionDao(),
-            categoryDao = AppDatabase.get().categoryDao()
-        )
-    }
-    val analyticsRepository = remember { 
-        AnalyticsRepository(
-            transactionRepository = transactionRepository,
-            budgetRepository = budgetRepository,
-            categoryRepository = categoryRepository
-        )
-    }
-    
-    val viewModel: ReportsViewModel = viewModel {
-        ReportsViewModel(
-            transactionRepository = transactionRepository,
-            categoryRepository = categoryRepository,
-            analyticsRepository = analyticsRepository
-        )
-    }
+    val viewModel: ReportsViewModel = hiltViewModel()
     
     val state by viewModel.state.collectAsStateWithLifecycle()
     
@@ -84,9 +66,10 @@ fun ReportsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
-                        text = "Reportes Financieros",
+                        text = "Reportes",
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -304,20 +287,20 @@ private fun ReportsSummarySection(
                     SummaryItem(
                         label = "Total gastado",
                         value = nf.format(summary.totalSpentCents / 100.0),
-                        icon = "💸",
+                        icon = Icons.AutoMirrored.Filled.TrendingDown,
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.weight(1f)
                     )
-                    
+
                     SummaryItem(
                         label = "Total ingresos",
                         value = nf.format(summary.totalIncomeCents / 100.0),
-                        icon = "💰",
+                        icon = Icons.AutoMirrored.Filled.TrendingUp,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.weight(1f)
                     )
                 }
-                
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -325,20 +308,20 @@ private fun ReportsSummarySection(
                     SummaryItem(
                         label = "Balance neto",
                         value = nf.format(summary.netBalanceCents / 100.0),
-                        icon = if (summary.netBalanceCents >= 0) "📈" else "📉",
+                        icon = if (summary.netBalanceCents >= 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
                         color = if (summary.netBalanceCents >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                         modifier = Modifier.weight(1f)
                     )
-                    
+
                     SummaryItem(
                         label = "Promedio diario",
                         value = nf.format(summary.dailyAverageCents / 100.0),
-                        icon = "📊",
+                        icon = Icons.Default.ShowChart,
                         color = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier.weight(1f)
                     )
                 }
-                
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -346,20 +329,20 @@ private fun ReportsSummarySection(
                     SummaryItem(
                         label = "Gastos",
                         value = "${summary.expenseCount}",
-                        icon = "📄",
+                        icon = Icons.AutoMirrored.Filled.ReceiptLong,
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.weight(1f)
                     )
-                    
+
                     SummaryItem(
                         label = "Ingresos",
                         value = "${summary.incomeCount}",
-                        icon = "💵",
+                        icon = Icons.Default.Payments,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.weight(1f)
                     )
                 }
-                
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -367,15 +350,15 @@ private fun ReportsSummarySection(
                     SummaryItem(
                         label = "Total transacciones",
                         value = "${summary.transactionCount}",
-                        icon = "📊",
+                        icon = Icons.Default.SwapVert,
                         color = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier.weight(1f)
                     )
-                    
+
                     SummaryItem(
                         label = "Categorías activas",
                         value = "${summary.categoriesUsed}",
-                        icon = "📂",
+                        icon = Icons.Default.Category,
                         color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.weight(1f)
                     )
@@ -397,9 +380,11 @@ private fun ReportsSummarySection(
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (isIncrease) "📈" else "📉",
-                                style = MaterialTheme.typography.titleMedium
+                            Icon(
+                                imageVector = if (isIncrease) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = if (isIncrease) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
@@ -419,7 +404,7 @@ private fun ReportsSummarySection(
 private fun SummaryItem(
     label: String,
     value: String,
-    icon: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     color: Color,
     modifier: Modifier = Modifier
 ) {
@@ -427,10 +412,13 @@ private fun SummaryItem(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = icon,
-            style = MaterialTheme.typography.titleMedium
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(20.dp)
         )
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = value,
             style = MaterialTheme.typography.titleMedium,
@@ -574,9 +562,11 @@ private fun MonthlyTrendsSection(
                         
                         trend.changePercentage?.let { change ->
                             val isIncrease = change > 0
-                            Text(
-                                text = if (isIncrease) "↗️" else "↘️",
-                                style = MaterialTheme.typography.bodyMedium
+                            Icon(
+                                imageVector = if (isIncrease) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (isIncrease) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -676,12 +666,21 @@ private fun InsightsSection(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "🔍 Análisis Inteligente",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Insights,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Análisis inteligente",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                     Surface(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                         shape = CircleShape
@@ -887,18 +886,27 @@ private fun ErrorCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "⚠️ Error",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-                
-                IconButton(onClick = onDismiss) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.WarningAmber,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "✕",
+                        text = "Error",
                         style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Cerrar",
+                        tint = MaterialTheme.colorScheme.onErrorContainer
                     )
                 }
             }
@@ -935,34 +943,13 @@ private fun EmptyReportsCard(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = "📊",
-                style = MaterialTheme.typography.displayMedium
-            )
-            
-            Text(
-                text = "No hay datos disponibles",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            
-            Text(
-                text = "No se encontraron transacciones para el período seleccionado",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            Button(onClick = onRetry) {
-                Text("Actualizar")
-            }
-        }
+        com.example.automaticfinances.ui.components.common.PremiumEmptyState(
+            icon = Icons.Default.ShowChart,
+            title = "Sin datos en este período",
+            description = "No se encontraron transacciones para el período seleccionado.",
+            actionLabel = "Actualizar",
+            onAction = onRetry
+        )
     }
 }
 

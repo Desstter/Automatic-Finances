@@ -7,9 +7,9 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
-    override fun migrate(database: SupportSQLiteDatabase) {
+    override fun migrate(db: SupportSQLiteDatabase) {
         // 1. Crear tabla categories
-        database.execSQL("""
+        db.execSQL("""
             CREATE TABLE IF NOT EXISTS categories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                 name TEXT NOT NULL,
@@ -35,11 +35,11 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         )
         
         for (category in defaultCategories) {
-            database.execSQL("INSERT INTO categories (name, color, icon, isDefault, isActive) VALUES $category")
+            db.execSQL("INSERT INTO categories (name, color, icon, isDefault, isActive) VALUES $category")
         }
         
         // 3. Crear nueva tabla transactions temporal
-        database.execSQL("""
+        db.execSQL("""
             CREATE TABLE transactions_new (
                 id TEXT PRIMARY KEY NOT NULL,
                 ts INTEGER NOT NULL,
@@ -61,7 +61,7 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         
         // 4. Migrar datos existentes
         // Primero obtenemos todos los datos de la tabla vieja
-        database.execSQL("""
+        db.execSQL("""
             INSERT INTO transactions_new (
                 id, ts, date, time, type, description, amountCents, 
                 currency, srcLast4, dstLast4, source, categoryId, notes, rawPreview
@@ -91,20 +91,20 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         """)
         
         // 5. Eliminar tabla vieja y renombrar
-        database.execSQL("DROP TABLE transactions")
-        database.execSQL("ALTER TABLE transactions_new RENAME TO transactions")
+        db.execSQL("DROP TABLE transactions")
+        db.execSQL("ALTER TABLE transactions_new RENAME TO transactions")
         
         // 6. Crear índices para mejor performance
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_date ON transactions(date)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_categoryId ON transactions(categoryId)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_type ON transactions(type)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_date ON transactions(date)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_categoryId ON transactions(categoryId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_type ON transactions(type)")
     }
 }
 
 val MIGRATION_2_3 = object : Migration(2, 3) {
-    override fun migrate(database: SupportSQLiteDatabase) {
+    override fun migrate(db: SupportSQLiteDatabase) {
         // Crear tabla user_category_preferences para aprendizaje inteligente
-        database.execSQL("""
+        db.execSQL("""
             CREATE TABLE IF NOT EXISTS user_category_preferences (
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                 merchantKey TEXT NOT NULL,
@@ -119,13 +119,13 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         """)
         
         // Crear índices para performance optimizada
-        database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_user_category_preferences_merchantKey ON user_category_preferences(merchantKey)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_user_category_preferences_categoryId ON user_category_preferences(categoryId)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_user_category_preferences_lastUsed ON user_category_preferences(lastUsed)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_user_category_preferences_frequency ON user_category_preferences(frequency)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_user_category_preferences_merchantKey ON user_category_preferences(merchantKey)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_user_category_preferences_categoryId ON user_category_preferences(categoryId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_user_category_preferences_lastUsed ON user_category_preferences(lastUsed)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_user_category_preferences_frequency ON user_category_preferences(frequency)")
         
         // Poblar con datos existentes de transacciones para inicializar el aprendizaje
-        database.execSQL("""
+        db.execSQL("""
             INSERT OR IGNORE INTO user_category_preferences (merchantKey, categoryId, frequency, source)
             SELECT 
                 LOWER(TRIM(REPLACE(description, '  ', ' '))) as merchantKey,
@@ -141,9 +141,9 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 }
 
 val MIGRATION_3_4 = object : Migration(3, 4) {
-    override fun migrate(database: SupportSQLiteDatabase) {
+    override fun migrate(db: SupportSQLiteDatabase) {
         // 1. Crear tabla budgets
-        database.execSQL("""
+        db.execSQL("""
             CREATE TABLE IF NOT EXISTS budgets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                 categoryId INTEGER NOT NULL,
@@ -160,7 +160,7 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         """)
         
         // 2. Crear tabla financial_goals
-        database.execSQL("""
+        db.execSQL("""
             CREATE TABLE IF NOT EXISTS financial_goals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                 name TEXT NOT NULL,
@@ -178,23 +178,23 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         """)
         
         // 3. Crear índices para performance
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_categoryId ON budgets(categoryId)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_year_month ON budgets(year, month)")
-        database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_budgets_category_month ON budgets(categoryId, year, month) WHERE isActive = 1")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_categoryId ON budgets(categoryId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_year_month ON budgets(year, month)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_budgets_category_month ON budgets(categoryId, year, month) WHERE isActive = 1")
         
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_categoryId ON financial_goals(categoryId)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_targetDate ON financial_goals(targetDate)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_type ON financial_goals(type)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_categoryId ON financial_goals(categoryId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_targetDate ON financial_goals(targetDate)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_type ON financial_goals(type)")
     }
 }
 
 val MIGRATION_4_5 = object : Migration(4, 5) {
-    override fun migrate(database: SupportSQLiteDatabase) {
+    override fun migrate(db: SupportSQLiteDatabase) {
         // Agregar campo isIncome a la tabla transactions
-        database.execSQL("ALTER TABLE transactions ADD COLUMN isIncome INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE transactions ADD COLUMN isIncome INTEGER NOT NULL DEFAULT 0")
         
         // Crear índice para mejor performance en queries de ingresos/gastos
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_isIncome ON transactions(isIncome)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_isIncome ON transactions(isIncome)")
         
         // Crear categorías predefinidas para ingresos
         val incomeCategories = listOf(
@@ -209,34 +209,34 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         )
         
         for (category in incomeCategories) {
-            database.execSQL("INSERT INTO categories (name, color, icon, isDefault, isActive) VALUES $category")
+            db.execSQL("INSERT INTO categories (name, color, icon, isDefault, isActive) VALUES $category")
         }
     }
 }
 
 val MIGRATION_5_6 = object : Migration(5, 6) {
-    override fun migrate(database: SupportSQLiteDatabase) {
+    override fun migrate(db: SupportSQLiteDatabase) {
         // Agregar índices para optimizar performance
         
         // Índices adicionales para transactions (algunos ya existen)
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_isIncome ON transactions(isIncome)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_date_isIncome ON transactions(date, isIncome)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_isIncome ON transactions(isIncome)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_date_isIncome ON transactions(date, isIncome)")
         
         // Índices para budgets
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_year_month ON budgets(year, month)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_category_month ON budgets(categoryId, year, month)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_year_month ON budgets(year, month)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_category_month ON budgets(categoryId, year, month)")
         
         // Índices para financial_goals
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_targetDate ON financial_goals(targetDate)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_type ON financial_goals(type)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_isCompleted ON financial_goals(isCompleted)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_targetDate ON financial_goals(targetDate)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_type ON financial_goals(type)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_financial_goals_isCompleted ON financial_goals(isCompleted)")
     }
 }
 
 val MIGRATION_6_7 = object : Migration(6, 7) {
-    override fun migrate(database: SupportSQLiteDatabase) {
+    override fun migrate(db: SupportSQLiteDatabase) {
         // 1. Crear tabla accounts para balance tracking
-        database.execSQL("""
+        db.execSQL("""
             CREATE TABLE IF NOT EXISTS accounts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                 name TEXT NOT NULL,
@@ -248,17 +248,17 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         """)
         
         // 2. Crear índices para accounts
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_accounts_type ON accounts(type)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_accounts_isActive ON accounts(isActive)")
-        database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_accounts_name ON accounts(name)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_accounts_type ON accounts(type)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_accounts_isActive ON accounts(isActive)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_accounts_name ON accounts(name)")
         
         // 3. Crear cuentas por defecto: Banco y Efectivo
         val currentTime = System.currentTimeMillis()
-        database.execSQL("""
+        db.execSQL("""
             INSERT INTO accounts (name, type, balanceCents, isActive, createdAt) 
             VALUES ('Banco', 'BANK', 0, 1, $currentTime)
         """)
-        database.execSQL("""
+        db.execSQL("""
             INSERT INTO accounts (name, type, balanceCents, isActive, createdAt) 
             VALUES ('Efectivo', 'CASH', 0, 1, $currentTime)
         """)
@@ -267,18 +267,18 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         // Banco = ID 1, Efectivo = ID 2 (por el orden de inserción)
         
         // 5. Agregar accountId a transactions table
-        database.execSQL("ALTER TABLE transactions ADD COLUMN accountId INTEGER")
+        db.execSQL("ALTER TABLE transactions ADD COLUMN accountId INTEGER")
         
         // 6. Asignar cuentas a transacciones existentes
         // SMS transactions (notif:sms) → Banco (ID 1)
-        database.execSQL("""
+        db.execSQL("""
             UPDATE transactions 
             SET accountId = 1 
             WHERE source = 'notif:sms'
         """)
         
         // Manual transactions → Efectivo (ID 2)
-        database.execSQL("""
+        db.execSQL("""
             UPDATE transactions 
             SET accountId = 2 
             WHERE source != 'notif:sms'
@@ -287,7 +287,7 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         // 7. Calcular balances iniciales basados en transacciones existentes
         
         // Balance del banco (transacciones SMS)
-        val bankBalanceCursor = database.query("""
+        val bankBalanceCursor = db.query("""
             SELECT COALESCE(
                 SUM(CASE 
                     WHEN isIncome = 1 THEN amountCents 
@@ -305,7 +305,7 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         bankBalanceCursor.close()
         
         // Balance del efectivo (transacciones manuales)
-        val cashBalanceCursor = database.query("""
+        val cashBalanceCursor = db.query("""
             SELECT COALESCE(
                 SUM(CASE 
                     WHEN isIncome = 1 THEN amountCents 
@@ -323,15 +323,15 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         cashBalanceCursor.close()
         
         // 8. Actualizar balances calculados
-        database.execSQL("UPDATE accounts SET balanceCents = $bankBalance WHERE name = 'Banco'")
-        database.execSQL("UPDATE accounts SET balanceCents = $cashBalance WHERE name = 'Efectivo'")
+        db.execSQL("UPDATE accounts SET balanceCents = $bankBalance WHERE name = 'Banco'")
+        db.execSQL("UPDATE accounts SET balanceCents = $cashBalance WHERE name = 'Efectivo'")
         
         // 9. Crear índices para accountId en transactions
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_accountId ON transactions(accountId)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_accountId_date ON transactions(accountId, date)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_accountId ON transactions(accountId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_accountId_date ON transactions(accountId, date)")
         
         // 10. Agregar foreign key constraint (recrear la tabla)
-        database.execSQL("""
+        db.execSQL("""
             CREATE TABLE transactions_new (
                 id TEXT PRIMARY KEY NOT NULL,
                 ts INTEGER NOT NULL,
@@ -355,29 +355,29 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         """)
         
         // Migrar todos los datos a la nueva tabla
-        database.execSQL("""
+        db.execSQL("""
             INSERT INTO transactions_new 
             SELECT * FROM transactions
         """)
         
         // Eliminar tabla vieja y renombrar
-        database.execSQL("DROP TABLE transactions")
-        database.execSQL("ALTER TABLE transactions_new RENAME TO transactions")
+        db.execSQL("DROP TABLE transactions")
+        db.execSQL("ALTER TABLE transactions_new RENAME TO transactions")
         
         // Recrear índices
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_categoryId ON transactions(categoryId)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_accountId ON transactions(accountId)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_date ON transactions(date)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_isIncome ON transactions(isIncome)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_date_isIncome ON transactions(date, isIncome)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_accountId_date ON transactions(accountId, date)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_categoryId ON transactions(categoryId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_accountId ON transactions(accountId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_date ON transactions(date)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_isIncome ON transactions(isIncome)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_date_isIncome ON transactions(date, isIncome)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_accountId_date ON transactions(accountId, date)")
     }
 }
 
 val MIGRATION_7_8 = object : Migration(7, 8) {
-    override fun migrate(database: SupportSQLiteDatabase) {
+    override fun migrate(db: SupportSQLiteDatabase) {
         // 1. Create opening_balances table
-        database.execSQL("""
+        db.execSQL("""
             CREATE TABLE IF NOT EXISTS opening_balances (
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                 accountId INTEGER NOT NULL,
@@ -391,11 +391,11 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         """)
         
         // 2. Create indices for opening_balances
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_accountId ON opening_balances(accountId)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_effectiveDate ON opening_balances(effectiveDate)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_isActive ON opening_balances(isActive)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_accountId_effectiveDate ON opening_balances(accountId, effectiveDate)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_accountId_isActive ON opening_balances(accountId, isActive)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_accountId ON opening_balances(accountId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_effectiveDate ON opening_balances(effectiveDate)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_isActive ON opening_balances(isActive)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_accountId_effectiveDate ON opening_balances(accountId, effectiveDate)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_opening_balances_accountId_isActive ON opening_balances(accountId, isActive)")
         
         // 3. Optionally initialize opening balances with current account balances
         // This preserves existing balances as the "opening" balance from today
@@ -403,13 +403,13 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"))
         
         // Get all active accounts and create opening balances for them
-        val accountsCursor = database.query("SELECT id, balanceCents FROM accounts WHERE isActive = 1")
+        val accountsCursor = db.query("SELECT id, balanceCents FROM accounts WHERE isActive = 1")
         
         while (accountsCursor.moveToNext()) {
             val accountId = accountsCursor.getLong(0)
             val balanceCents = accountsCursor.getLong(1)
             
-            database.execSQL("""
+            db.execSQL("""
                 INSERT INTO opening_balances (accountId, effectiveDate, balanceCents, note, isActive, createdAt)
                 VALUES ($accountId, '$today', $balanceCents, 'Balance inicial automático', 1, $currentTime)
             """)
@@ -419,9 +419,9 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
 }
 
 val MIGRATION_8_9 = object : Migration(8, 9) {
-    override fun migrate(database: SupportSQLiteDatabase) {
+    override fun migrate(db: SupportSQLiteDatabase) {
         // 1. Add isIncome field to categories table
-        database.execSQL("ALTER TABLE categories ADD COLUMN isIncome INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE categories ADD COLUMN isIncome INTEGER NOT NULL DEFAULT 0")
         
         // 2. Update existing income categories to mark them as income
         // Categories that are clearly income-related
@@ -431,7 +431,7 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         )
         
         for (keyword in incomeKeywords) {
-            database.execSQL("""
+            db.execSQL("""
                 UPDATE categories 
                 SET isIncome = 1 
                 WHERE name LIKE '%$keyword%' AND isDefault = 1
@@ -439,7 +439,7 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         }
         
         // 3. Remove outdated income categories with emojis in names and create proper ones
-        database.execSQL("""
+        db.execSQL("""
             UPDATE categories 
             SET isActive = 0 
             WHERE name LIKE '💰%' OR name LIKE '💼%' OR name LIKE '🏪%' 
@@ -458,24 +458,42 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         )
         
         for (category in newIncomeCategories) {
-            database.execSQL("""
+            db.execSQL("""
                 INSERT OR IGNORE INTO categories (name, color, icon, isDefault, isActive, isIncome) 
                 VALUES $category
             """)
         }
         
         // 5. Create index for better performance on income/expense queries
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_categories_isIncome ON categories(isIncome)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_categories_isIncome_isActive ON categories(isIncome, isActive)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_categories_isIncome ON categories(isIncome)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_categories_isIncome_isActive ON categories(isIncome, isActive)")
+    }
+}
+
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS merchant_resolutions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                gatewayMerchant TEXT NOT NULL,
+                realMerchant TEXT NOT NULL,
+                suggestedCategoryId INTEGER,
+                isPrePopulated INTEGER NOT NULL DEFAULT 0,
+                usageCount INTEGER NOT NULL DEFAULT 0,
+                createdAt INTEGER NOT NULL,
+                lastUsedAt INTEGER
+            )
+        """)
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_merchant_resolutions_gatewayMerchant ON merchant_resolutions(gatewayMerchant)")
     }
 }
 
 val MIGRATION_9_10 = object : Migration(9, 10) {
-    override fun migrate(database: SupportSQLiteDatabase) {
+    override fun migrate(db: SupportSQLiteDatabase) {
         // Remove budget alert fields and simplify budget management
         
         // 1. Create new budgets table without alert fields
-        database.execSQL("""
+        db.execSQL("""
             CREATE TABLE budgets_new (
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                 categoryId INTEGER NOT NULL,
@@ -489,19 +507,19 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
         """)
         
         // 2. Copy existing data without alert fields
-        database.execSQL("""
+        db.execSQL("""
             INSERT INTO budgets_new (id, categoryId, limitAmountCents, year, month, isActive, createdAt)
             SELECT id, categoryId, limitAmountCents, year, month, isActive, createdAt
             FROM budgets
         """)
         
         // 3. Drop old table and rename new one
-        database.execSQL("DROP TABLE budgets")
-        database.execSQL("ALTER TABLE budgets_new RENAME TO budgets")
+        db.execSQL("DROP TABLE budgets")
+        db.execSQL("ALTER TABLE budgets_new RENAME TO budgets")
         
         // 4. Recreate indexes
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_categoryId ON budgets(categoryId)")
-        database.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_year_month ON budgets(year, month)")
-        database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_budgets_category_month ON budgets(categoryId, year, month) WHERE isActive = 1")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_categoryId ON budgets(categoryId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_budgets_year_month ON budgets(year, month)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_budgets_category_month ON budgets(categoryId, year, month) WHERE isActive = 1")
     }
 }

@@ -8,15 +8,13 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.example.automaticfinances.MainActivity
 import com.example.automaticfinances.R
-import kotlinx.coroutines.*
 
 class ForegroundSmsService : Service() {
     
     companion object {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "sms_service_channel"
-        private const val HEALTH_CHECK_INTERVAL = 30000L // 30 seconds
-        
+
         fun startService(context: Context) {
             val intent = Intent(context, ForegroundSmsService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -32,21 +30,15 @@ class ForegroundSmsService : Service() {
         }
     }
     
-    private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private var healthCheckJob: Job? = null
-    
     override fun onCreate() {
         super.onCreate()
+        ServiceManager.setServiceRunning(true)
         createNotificationChannel()
-        startHealthCheck()
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, createNotification())
-        
-        // Ensure notification listener is enabled
-        ServiceManager.ensureNotificationListenerEnabled(this)
-        
+
         return START_STICKY // Restart if killed by system
     }
     
@@ -54,8 +46,7 @@ class ForegroundSmsService : Service() {
     
     override fun onDestroy() {
         super.onDestroy()
-        healthCheckJob?.cancel()
-        serviceScope.cancel()
+        ServiceManager.setServiceRunning(false)
     }
     
     private fun createNotificationChannel() {
@@ -93,29 +84,5 @@ class ForegroundSmsService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
-    }
-    
-    private fun startHealthCheck() {
-        healthCheckJob = serviceScope.launch {
-            while (isActive) {
-                try {
-                    // Update notification with current status
-                    val updatedNotification = createNotification()
-                    val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    manager.notify(NOTIFICATION_ID, updatedNotification)
-                    
-                    // Check if notification listener is still enabled
-                    if (!ServiceManager.isNotificationListenerEnabled(this@ForegroundSmsService)) {
-                        // Try to re-enable or restart
-                        ServiceManager.ensureNotificationListenerEnabled(this@ForegroundSmsService)
-                    }
-                    
-                } catch (e: Exception) {
-                    // Silent fail, continue health check
-                }
-                
-                delay(HEALTH_CHECK_INTERVAL)
-            }
-        }
     }
 }

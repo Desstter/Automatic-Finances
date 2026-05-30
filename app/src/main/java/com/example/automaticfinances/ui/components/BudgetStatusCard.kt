@@ -5,6 +5,11 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.automaticfinances.data.db.BudgetStatus
 import com.example.automaticfinances.data.db.BudgetAlertLevel
+import com.example.automaticfinances.ui.theme.FinanceTheme
 import java.text.NumberFormat
 import java.util.*
 
@@ -41,7 +47,7 @@ fun BudgetStatusCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp),
         onClick = onClick ?: {}
     ) {
@@ -144,7 +150,7 @@ fun BudgetStatusCard(
                         text = nf.format(budgetStatus.remainingCents / 100.0),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
-                        color = if (budgetStatus.remainingCents > 0) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
+                        color = if (budgetStatus.remainingCents > 0) FinanceTheme.colors.profit else MaterialTheme.colorScheme.error
                     )
                 }
                 
@@ -175,10 +181,12 @@ fun BudgetStatusCard(
                             onClick = it,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("✏️ Editar", style = MaterialTheme.typography.labelMedium)
+                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Editar", style = MaterialTheme.typography.labelMedium)
                         }
                     }
-                    
+
                     onDeactivate?.let {
                         OutlinedButton(
                             onClick = it,
@@ -187,10 +195,12 @@ fun BudgetStatusCard(
                                 contentColor = MaterialTheme.colorScheme.secondary
                             )
                         ) {
-                            Text("⏸️ Pausar", style = MaterialTheme.typography.labelMedium)
+                            Icon(Icons.Default.Pause, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Pausar", style = MaterialTheme.typography.labelMedium)
                         }
                     }
-                    
+
                     onDelete?.let {
                         OutlinedButton(
                             onClick = it,
@@ -199,7 +209,9 @@ fun BudgetStatusCard(
                                 contentColor = MaterialTheme.colorScheme.error
                             )
                         ) {
-                            Text("🗑️ Eliminar", style = MaterialTheme.typography.labelMedium)
+                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Eliminar", style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }
@@ -208,15 +220,20 @@ fun BudgetStatusCard(
             // Projection warning if over budget projected
             if (budgetStatus.projectedSpentCents > budgetStatus.budget.limitAmountCents && budgetStatus.daysLeftInMonth > 0) {
                 Surface(
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
-                    shape = RoundedCornerShape(6.dp)
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(8.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "⚠️", style = MaterialTheme.typography.bodySmall)
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "Proyección: ${nf.format(budgetStatus.projectedSpentCents / 100.0)}",
                             style = MaterialTheme.typography.bodySmall,

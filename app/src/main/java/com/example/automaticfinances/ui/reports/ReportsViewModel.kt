@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.repo.AnalyticsRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -15,8 +16,10 @@ import java.time.format.DateTimeFormatter
 import java.text.NumberFormat
 import java.util.*
 import kotlin.math.roundToInt
+import javax.inject.Inject
 
-class ReportsViewModel(
+@HiltViewModel
+class ReportsViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
     private val analyticsRepository: AnalyticsRepository

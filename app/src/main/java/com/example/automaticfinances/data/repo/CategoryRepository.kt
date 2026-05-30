@@ -1,15 +1,17 @@
 package com.example.automaticfinances.data.repo
 
-import com.example.automaticfinances.data.db.AppDatabase
 import com.example.automaticfinances.data.db.Category
+import com.example.automaticfinances.data.db.CategoryDao
 import com.example.automaticfinances.data.db.CategoryWithCount
 import com.example.automaticfinances.data.db.CategorySuggestion
 import com.example.automaticfinances.data.db.DefaultCategories
 import kotlinx.coroutines.flow.Flow
+import javax.inject.Inject
 
-class CategoryRepository {
-    private val dao = AppDatabase.get().categoryDao()
-    private val preferenceRepo = UserCategoryPreferenceRepository()
+class CategoryRepository @Inject constructor(
+    private val dao: CategoryDao,
+    private val preferenceRepo: UserCategoryPreferenceRepository
+) {
     
     fun getAllActive(): Flow<List<Category>> = dao.getAllActive()
     

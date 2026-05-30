@@ -7,8 +7,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import javax.inject.Inject
 
-class OpeningBalanceRepository(
+class OpeningBalanceRepository @Inject constructor(
     private val openingBalanceDao: OpeningBalanceDao,
     private val accountDao: AccountDao,
     private val transactionDao: TransactionDao
@@ -252,13 +253,5 @@ class OpeningBalanceRepository(
             
             Log.d(tag, "Updated ${accountBalance.account.name}: ${accountBalance.formattedCurrentBalance}")
         }
-    }
-    
-    suspend fun getNetWorthCalculation(): Pair<Long, Long> {
-        val summary = getOpeningBalanceSummary()
-        val currentNetWorth = summary.totalCurrentBalanceCents
-        val initialNetWorth = summary.totalOpeningBalanceCents
-        
-        return Pair(currentNetWorth, initialNetWorth)
     }
 }

@@ -5,18 +5,26 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingFlat
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.automaticfinances.data.db.*
-import com.example.automaticfinances.data.repo.OpeningBalanceRepository
+import com.example.automaticfinances.ui.components.common.PremiumEmptyState
+import com.example.automaticfinances.ui.theme.Spacing
 import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
 import java.util.*
@@ -28,17 +36,7 @@ fun OpeningBalanceManagementScreen(
     onNavigateToSetup: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val openingBalanceRepository = remember {
-        OpeningBalanceRepository(
-            openingBalanceDao = AppDatabase.get().openingBalanceDao(),
-            accountDao = AppDatabase.get().accountDao(),
-            transactionDao = AppDatabase.get().transactionDao()
-        )
-    }
-    
-    val viewModel: OpeningBalanceManagementViewModel = viewModel {
-        OpeningBalanceManagementViewModel(openingBalanceRepository)
-    }
+    val viewModel: OpeningBalanceManagementViewModel = hiltViewModel()
     
     val state by viewModel.state.collectAsStateWithLifecycle()
     
@@ -51,7 +49,8 @@ fun OpeningBalanceManagementScreen(
             TopAppBar(
                 title = { 
                     Text(
-                        text = "Administrar Balances",
+                        text = "Balances",
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -211,56 +210,56 @@ private fun OpeningBalanceSummaryCard(
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 SummaryItem(
-                    label = "Balance Inicial",
+                    label = "Balance inicial",
                     value = summary.formattedTotalOpening,
-                    icon = "💰",
+                    icon = Icons.Default.Savings,
                     color = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.weight(1f)
                 )
-                
+
                 SummaryItem(
-                    label = "Balance Actual",
+                    label = "Balance actual",
                     value = summary.formattedTotalCurrent,
-                    icon = "📊",
+                    icon = Icons.Default.AccountBalanceWallet,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f)
                 )
             }
-            
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 SummaryItem(
-                    label = "Cambio Neto",
+                    label = "Cambio neto",
                     value = summary.formattedTotalChange,
-                    icon = if (summary.hasPositiveGrowth) "📈" else "📉",
-                    color = if (summary.hasPositiveGrowth) 
-                        MaterialTheme.colorScheme.primary 
-                    else 
+                    icon = if (summary.hasPositiveGrowth) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                    color = if (summary.hasPositiveGrowth)
+                        MaterialTheme.colorScheme.primary
+                    else
                         MaterialTheme.colorScheme.error,
                     modifier = Modifier.weight(1f)
                 )
-                
+
                 SummaryItem(
                     label = "Crecimiento",
                     value = "${summary.growthPercentage.toInt()}%",
-                    icon = "📊",
-                    color = if (summary.hasPositiveGrowth) 
-                        MaterialTheme.colorScheme.primary 
-                    else 
+                    icon = Icons.Default.ShowChart,
+                    color = if (summary.hasPositiveGrowth)
+                        MaterialTheme.colorScheme.primary
+                    else
                         MaterialTheme.colorScheme.error,
                     modifier = Modifier.weight(1f)
                 )
             }
-            
+
             summary.effectiveDate?.let { date ->
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     shape = MaterialTheme.shapes.small
                 ) {
                     Text(
-                        text = "📅 Fecha efectiva: ${date}",
+                        text = "Fecha efectiva: $date",
                         modifier = Modifier.padding(8.dp),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -275,7 +274,7 @@ private fun OpeningBalanceSummaryCard(
 private fun SummaryItem(
     label: String,
     value: String,
-    icon: String,
+    icon: ImageVector,
     color: androidx.compose.ui.graphics.Color,
     modifier: Modifier = Modifier
 ) {
@@ -284,9 +283,11 @@ private fun SummaryItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(
-            text = icon,
-            style = MaterialTheme.typography.titleMedium
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(22.dp)
         )
         Text(
             text = value,
@@ -332,8 +333,8 @@ private fun AccountBalanceCard(
                     )
                     Text(
                         text = when (accountWithBalance.account.type) {
-                            AccountType.BANK -> "💳 Cuenta bancaria"
-                            AccountType.CASH -> "💵 Efectivo"
+                            AccountType.BANK -> "Cuenta bancaria"
+                            AccountType.CASH -> "Efectivo"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -383,13 +384,19 @@ private fun AccountBalanceCard(
                             }
                         )
                         
-                        Text(
-                            text = when {
-                                accountWithBalance.hasGrowth -> "📈"
-                                accountWithBalance.hasDecline -> "📉"
-                                else -> "➖"
+                        Icon(
+                            imageVector = when {
+                                accountWithBalance.hasGrowth -> Icons.AutoMirrored.Filled.TrendingUp
+                                accountWithBalance.hasDecline -> Icons.AutoMirrored.Filled.TrendingDown
+                                else -> Icons.AutoMirrored.Filled.TrendingFlat
                             },
-                            style = MaterialTheme.typography.bodyMedium
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = when {
+                                accountWithBalance.hasGrowth -> MaterialTheme.colorScheme.primary
+                                accountWithBalance.hasDecline -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                         )
                     }
                 }
@@ -403,7 +410,7 @@ private fun AccountBalanceCard(
                 }
             } else {
                 Text(
-                    text = "⚠️ Sin balance inicial configurado",
+                    text = "Sin balance inicial configurado",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error
                 )
@@ -481,40 +488,18 @@ private fun EmptyBalancesCard(
     onSetupClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = "💰",
-                style = MaterialTheme.typography.displayMedium
-            )
-            
-            Text(
-                text = "No hay balances configurados",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            
-            Text(
-                text = "Configura tus balances iniciales para comenzar a trackear tu progreso financiero",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            Button(onClick = onSetupClick) {
-                Text("Configurar Balances")
-            }
-        }
+        PremiumEmptyState(
+            icon = Icons.Default.Savings,
+            title = "Sin balances configurados",
+            description = "Configura tus balances iniciales para empezar a seguir tu progreso financiero.",
+            actionLabel = "Configurar balances",
+            onAction = onSetupClick
+        )
     }
 }
 

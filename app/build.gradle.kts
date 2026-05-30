@@ -1,30 +1,47 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
-    id("org.jetbrains.kotlin.plugin.compose") version "2.0.21"
-    id("kotlin-kapt")
+    alias(libs.plugins.hilt.android)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
+
+// --- CI/CD: values injected by GitHub Actions environment ---
+val ciVersionCode  = System.getenv("VERSION_CODE")?.toIntOrNull()
+val ciVersionName  = System.getenv("VERSION_NAME")
+val ciKeystorePath = System.getenv("KEYSTORE_PATH")
+val ciKeystorePass = System.getenv("KEYSTORE_PASSWORD")
+val ciKeyAlias     = System.getenv("KEY_ALIAS")
+val ciKeyPass      = System.getenv("KEY_PASSWORD")
 
 android {
     namespace = "com.example.automaticfinances"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.automaticfinances"
         minSdk = 29
-        targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        targetSdk = 35
+        versionCode = ciVersionCode ?: 1
+        versionName = ciVersionName ?: "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
         create("release") {
-            storeFile = file("release-key.keystore")
-            storePassword = "123456"
-            keyAlias = "release"
-            keyPassword = "123456"
+            // In CI the keystore is restored from a secret; locally fall back to the
+            // committed dev keystore so release builds keep the same signing identity.
+            if (ciKeystorePath != null) {
+                storeFile     = file(ciKeystorePath)
+                storePassword = ciKeystorePass
+                keyAlias      = ciKeyAlias
+                keyPassword   = ciKeyPass
+            } else {
+                storeFile     = file("release-key.keystore")
+                storePassword = "123456"
+                keyAlias      = "release"
+                keyPassword   = "123456"
+            }
         }
     }
 
@@ -50,9 +67,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
     buildFeatures {
         compose = true
     }
@@ -68,10 +82,11 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.ui.text.google.fonts)
     
     // Room
     implementation(libs.androidx.room.runtime)
-    kapt(libs.androidx.room.compiler)
+    ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.ktx)
     
     // ViewModel Compose
@@ -86,6 +101,11 @@ dependencies {
     
     // Crypto hash
     implementation(libs.commons.codec)
+
+    // Hilt
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.android.compiler)
+    implementation(libs.hilt.navigation.compose)
     
     // DataStore for theme preferences
     implementation("androidx.datastore:datastore-preferences:1.0.0")

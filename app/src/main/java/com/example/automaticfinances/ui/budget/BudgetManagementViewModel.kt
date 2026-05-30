@@ -6,11 +6,14 @@ import com.example.automaticfinances.data.db.Budget
 import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.repo.BudgetRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.YearMonth
+import javax.inject.Inject
 
-class BudgetManagementViewModel(
+@HiltViewModel
+class BudgetManagementViewModel @Inject constructor(
     private val budgetRepository: BudgetRepository,
     private val categoryRepository: CategoryRepository
 ) : ViewModel() {
