@@ -22,6 +22,9 @@ out/
 .gradle/
 build/
 
+# Kotlin compiler caches (incremental build artifacts)
+.kotlin/
+
 # Local configuration file (sdk path, etc)
 local.properties
 
@@ -37,17 +40,10 @@ proguard/
 # Android Studio captures folder
 captures/
 
-# IntelliJ
+# IntelliJ / Android Studio — ignore the whole IDE folder (machine-specific,
+# includes studiobot.xml, deviceManager.xml, misc.xml, etc.)
 *.iml
-.idea/workspace.xml
-.idea/tasks.xml
-.idea/gradle.xml
-.idea/assetWizardSettings.xml
-.idea/dictionaries
-.idea/libraries
-.idea/caches
-.idea/modules.xml
-.idea/navEditor.xml
+.idea/
 
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild
