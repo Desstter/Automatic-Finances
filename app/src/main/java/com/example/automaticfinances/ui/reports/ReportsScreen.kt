@@ -17,12 +17,17 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
@@ -30,9 +35,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.automaticfinances.ui.theme.FinanceTheme
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -225,30 +232,21 @@ private fun TimePeriodSelector(
             )
             
             Spacer(modifier = Modifier.height(8.dp))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ReportPeriod.values().forEach { period ->
-                    FilterChip(
-                        selected = selectedPeriod == period,
-                        onClick = { onPeriodChanged(period) },
-                        label = { 
-                            Text(
-                                text = when (period) {
-                                    ReportPeriod.CURRENT_MONTH -> "Mes actual"
-                                    ReportPeriod.LAST_MONTH -> "Mes pasado"
-                                    ReportPeriod.LAST_3_MONTHS -> "3 meses"
-                                    ReportPeriod.LAST_6_MONTHS -> "6 meses"
-                                    ReportPeriod.CURRENT_YEAR -> "Año actual"
-                                }
-                            )
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
+
+            com.example.automaticfinances.ui.components.common.FilterChipRow(
+                options = ReportPeriod.values().toList(),
+                selected = selectedPeriod,
+                onSelect = onPeriodChanged,
+                labelFor = { period ->
+                    when (period) {
+                        ReportPeriod.CURRENT_MONTH -> "Mes actual"
+                        ReportPeriod.LAST_MONTH -> "Mes pasado"
+                        ReportPeriod.LAST_3_MONTHS -> "3 meses"
+                        ReportPeriod.LAST_6_MONTHS -> "6 meses"
+                        ReportPeriod.CURRENT_YEAR -> "Año actual"
+                    }
                 }
-            }
+            )
         }
     }
 }
@@ -725,7 +723,7 @@ private fun InsightsSection(
 @Composable
 private fun EnhancedInsightCategory(
     title: String,
-    icon: String,
+    icon: ImageVector,
     color: Color,
     insights: List<String>,
     isExpanded: Boolean,
@@ -752,9 +750,11 @@ private fun EnhancedInsightCategory(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = icon,
-                        style = MaterialTheme.typography.titleMedium
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = color,
+                        modifier = Modifier.size(20.dp)
                     )
                     Text(
                         text = title,
@@ -850,15 +850,18 @@ private fun categorizeInsights(insights: List<String>): Map<String, List<String>
     return categorized
 }
 
-private fun getCategoryStyle(category: String): Triple<String, String, Color> {
+@Composable
+private fun getCategoryStyle(category: String): Triple<ImageVector, String, Color> {
+    val scheme = MaterialTheme.colorScheme
+    val finance = FinanceTheme.colors
     return when (category) {
-        "overview" -> Triple("📊", "Resumen General", Color(0xFF2196F3))
-        "patterns" -> Triple("📅", "Patrones de Gasto", Color(0xFF4CAF50))
-        "merchants" -> Triple("🏪", "Comercios y Transacciones", Color(0xFF9C27B0))
-        "trends" -> Triple("📈", "Tendencias", Color(0xFFFF9800))
-        "warnings" -> Triple("⚠️", "Alertas", Color(0xFFF44336))
-        "predictions" -> Triple("🔮", "Predicciones", Color(0xFF3F51B5))
-        else -> Triple("💡", "Otros Insights", Color(0xFF607D8B))
+        "overview" -> Triple(Icons.Default.Assessment, "Resumen General", finance.info)
+        "patterns" -> Triple(Icons.Default.CalendarMonth, "Patrones de Gasto", scheme.secondary)
+        "merchants" -> Triple(Icons.Default.Store, "Comercios y Transacciones", scheme.tertiary)
+        "trends" -> Triple(Icons.AutoMirrored.Filled.TrendingUp, "Tendencias", scheme.primary)
+        "warnings" -> Triple(Icons.Default.WarningAmber, "Alertas", finance.warning)
+        "predictions" -> Triple(Icons.Default.AutoAwesome, "Predicciones", finance.info)
+        else -> Triple(Icons.Default.Lightbulb, "Otros Insights", scheme.onSurfaceVariant)
     }
 }
 

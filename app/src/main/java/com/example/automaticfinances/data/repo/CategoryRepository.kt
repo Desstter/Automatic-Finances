@@ -68,16 +68,28 @@ class CategoryRepository @Inject constructor(
     
     suspend fun getDefaultCategoryId(transactionType: String, description: String): Long? {
         // 1. PRIORIDAD: Verificar si el usuario ya tiene una preferencia aprendida
-        val userPreference = preferenceRepo.getPreferenceForMerchant(description)
-        if (userPreference != null && userPreference.confidence > 0.6f) {
-            return userPreference.categoryId
-        }
-        
+        getLearnedCategoryId(description)?.let { return it }
+
         // 2. FALLBACK: Usar sistema de reglas por palabras clave
         return if (transactionType == "INGRESO") {
             getIncomeKeywordBasedCategoryId(description)
         } else {
             getExpenseKeywordBasedCategoryId(description)
+        }
+    }
+
+    /**
+     * Devuelve únicamente la categoría aprendida de las correcciones del usuario
+     * (confianza > 0.6), o null si no hay una preferencia suficientemente confiable.
+     * Expuesto para que la resolución de gateway pueda dar prioridad a las correcciones
+     * del usuario por encima de la categoría sugerida del mapping de comercios.
+     */
+    suspend fun getLearnedCategoryId(description: String): Long? {
+        val userPreference = preferenceRepo.getPreferenceForMerchant(description)
+        return if (userPreference != null && userPreference.confidence > 0.6f) {
+            userPreference.categoryId
+        } else {
+            null
         }
     }
     

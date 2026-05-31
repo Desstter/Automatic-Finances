@@ -14,8 +14,12 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 // ===========================================
-// AutomaticFinances - Material 3 Complete Theme
-// Con soporte Dynamic Color y tokens financieros
+// AutomaticFinances - Material 3 Theme ("Oro Refinado", estilo expresivo)
+// Con soporte Dynamic Color y tokens financieros.
+// NOTA: MaterialExpressiveTheme/MotionScheme son `internal` en material3 1.4.0
+// (solo públicos en 1.5.0-alpha). El lenguaje expresivo se consigue aquí con la
+// paleta nueva (Color.kt), formas más redondeadas (Shape.kt) y motion springy
+// (Motion.kt) sobre el MaterialTheme estable.
 // ===========================================
 
 @Composable

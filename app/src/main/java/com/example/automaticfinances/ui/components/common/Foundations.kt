@@ -11,6 +11,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -41,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.automaticfinances.ui.theme.MotionTokens
 import com.example.automaticfinances.ui.theme.Sizes
 import com.example.automaticfinances.ui.theme.Spacing
 
@@ -284,6 +288,44 @@ fun StatusPill(
     }
 }
 
+// === Filter chip row ============================================
+
+/**
+ * Horizontally scrollable row of single-select filter chips. Chips size to their own
+ * content and never wrap their label, which avoids the character-by-character text
+ * wrapping that happens when chips are forced into equal widths inside a fixed [Row].
+ * When the options overflow the screen width the row scrolls instead of squeezing.
+ */
+@Composable
+fun <T> FilterChipRow(
+    options: List<T>,
+    selected: T,
+    labelFor: (T) -> String,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        options.forEach { option ->
+            FilterChip(
+                selected = option == selected,
+                onClick = { onSelect(option) },
+                label = {
+                    Text(
+                        text = labelFor(option),
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                },
+            )
+        }
+    }
+}
+
 /** Animated expand/collapse wrapper with fade — used for transient banners. */
 @Composable
 fun ExpandableBanner(
@@ -291,10 +333,14 @@ fun ExpandableBanner(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
+    // Expressive: springy expand/collapse with a critically-damped fade so the banner
+    // settles with a little bounce instead of a flat tween.
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn() + expandVertically(),
-        exit = fadeOut() + shrinkVertically(),
+        enter = fadeIn(MotionTokens.expressiveEffectsDefault()) +
+            expandVertically(MotionTokens.expressiveSpatialDefault()),
+        exit = fadeOut(MotionTokens.expressiveEffectsDefault()) +
+            shrinkVertically(MotionTokens.expressiveSpatialDefault()),
         modifier = modifier,
     ) {
         content()

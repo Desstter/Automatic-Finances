@@ -1,24 +1,24 @@
 package com.example.automaticfinances.ui.components
 
-import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.automaticfinances.navigation.Routes
+import com.example.automaticfinances.ui.theme.MotionTokens
 
 data class BottomNavItem(
     val route: String,
@@ -38,38 +38,45 @@ fun BottomNavigationWrapper(
             label = "Inicio"
         ),
         BottomNavItem(
-            route = Routes.INCOME_MANAGEMENT,
-            icon = Icons.Filled.AccountBalanceWallet,
-            label = "Ingresos"
+            route = Routes.TRANSACTION_HISTORY,
+            icon = Icons.AutoMirrored.Filled.ReceiptLong,
+            label = "Movimientos"
         ),
         BottomNavItem(
             route = Routes.FINANCIAL_DASHBOARD,
             icon = Icons.Filled.Analytics,
-            label = "Reportes"
+            label = "Análisis"
         ),
         BottomNavItem(
-            route = Routes.CATEGORY_MANAGEMENT,
-            icon = Icons.Filled.Category,
-            label = "Categorías"
+            route = Routes.SETTINGS,
+            icon = Icons.Filled.Settings,
+            label = "Ajustes"
         )
     )
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
+    // The bottom bar only belongs on the four top-level roots. Detail/modal screens
+    // (add, detail, budget, etc.) get the full screen so the bar doesn't read as a
+    // dead-end control there.
+    val showBottomBar = currentRoute in bottomNavItems.map { it.route }
+
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
         bottomBar = {
-            val isDark = isSystemInDarkTheme()
+            // Expressive: lean on a tonal container for separation instead of a manual
+            // hairline border. surfaceContainer reads as a distinct layer in light and dark.
+            AnimatedVisibility(
+                visible = showBottomBar,
+                enter = fadeIn(MotionTokens.expressiveEffectsDefault()) +
+                    expandVertically(MotionTokens.expressiveSpatialDefault()),
+                exit = fadeOut(MotionTokens.expressiveEffectsDefault()) +
+                    shrinkVertically(MotionTokens.expressiveSpatialDefault()),
+            ) {
             NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 0.dp,
-                windowInsets = WindowInsets.navigationBars,
-                modifier = Modifier.border(
-                    width = Dp.Hairline,
-                    color = if (isDark) MaterialTheme.colorScheme.outlineVariant else Color.Transparent,
-                    shape = RectangleShape
-                )
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                windowInsets = WindowInsets.navigationBars
             ) {
                 bottomNavItems.forEach { item ->
                     val isSelected = currentRoute == item.route
@@ -112,6 +119,7 @@ fun BottomNavigationWrapper(
                         )
                     )
                 }
+            }
             }
         }
     ) { paddingValues ->

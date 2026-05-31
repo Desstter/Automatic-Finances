@@ -3,7 +3,6 @@ package com.example.automaticfinances.ui.components.charts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
@@ -20,6 +19,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.automaticfinances.data.models.CategorySpending
@@ -49,7 +50,14 @@ fun SpendingPieChart(
     val sectors = remember(processedData) {
         calculatePieChartSectors(processedData)
     }
-    
+
+    // Parse the category hex colors once per data change, never inside the DrawScope (which runs
+    // every animation frame). Bad/missing colors fall back to a neutral grey instead of crashing.
+    val sectorColors = remember(sectors) {
+        sectors.map { ChartUtils.parseHexColor(it.color) }
+    }
+    val chartColors = ChartUtils.rememberChartColors()
+
     // Animation states
     val chartAnimation = ChartUtils.rememberChartAnimationState(
         targetValue = 1f,
@@ -79,7 +87,20 @@ fun SpendingPieChart(
     
     var selectedSectorIndex by remember { mutableStateOf(-1) }
     val haptic = LocalHapticFeedback.current
-    
+
+    // Center text with total
+    val totalAmount = remember(categorySpending) { categorySpending.sumOf { it.amountCents } }
+    val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
+
+    // One spoken description of the whole chart for TalkBack, since the slices themselves are
+    // drawn on a Canvas and are otherwise invisible to accessibility services.
+    val chartDescription = remember(processedData, totalAmount) {
+        val parts = processedData.joinToString(", ") {
+            "${it.category.name} ${it.percentage.toInt()} por ciento"
+        }
+        "Gastos por categoría. Total ${nf.format(totalAmount / 100.0)}. $parts"
+    }
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -89,35 +110,25 @@ fun SpendingPieChart(
             modifier = Modifier
                 .size(240.dp)
                 .align(Alignment.CenterHorizontally)
-                .scale(chartAnimation.value),
+                .scale(chartAnimation.value)
+                .semantics { contentDescription = chartDescription },
             contentAlignment = Alignment.Center
         ) {
-            Canvas(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        // Handle sector click based on touch position
-                        // This would require more complex touch handling
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    }
-            ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
                 rotate(rotationAnimation % 360f) {
                     drawAnimatedPieChart(
                         sectors = sectors,
+                        sectorColors = sectorColors,
                         sectorAnimations = sectorAnimations.map { it.value },
                         selectedIndex = selectedSectorIndex,
-                        canvasSize = size
+                        canvasSize = size,
+                        neutralColor = chartColors.neutral,
+                        strokeColor = chartColors.sliceStroke,
+                        highlightColor = chartColors.sliceHighlight
                     )
                 }
             }
-            
-            // Center text with total
-            val totalAmount = categorySpending.sumOf { it.amountCents }
-            val nf = NumberFormat.getCurrencyInstance(Locale("es", "CO"))
-            
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -218,6 +229,9 @@ private fun PieChartLegendItem(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Color indicator
+        val dotColor = remember(categorySpending.category.color) {
+            ChartUtils.parseHexColor(categorySpending.category.color)
+        }
         Box(
             modifier = Modifier
                 .size(16.dp)
@@ -225,12 +239,12 @@ private fun PieChartLegendItem(
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 drawCircle(
-                    color = Color(android.graphics.Color.parseColor(categorySpending.category.color)),
+                    color = dotColor,
                     radius = size.minDimension / 2
                 )
             }
         }
-        
+
         // Category icon and name
         Row(
             modifier = Modifier.weight(1f),
@@ -247,7 +261,7 @@ private fun PieChartLegendItem(
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
-        
+
         // Percentage and amount
         Column(
             horizontalAlignment = Alignment.End
@@ -380,6 +394,9 @@ private fun AnimatedPieChartLegendItem(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Color indicator with pulse animation
+            val dotColor = remember(categorySpending.category.color) {
+                ChartUtils.parseHexColor(categorySpending.category.color)
+            }
             Box(
                 modifier = Modifier
                     .size(16.dp)
@@ -388,7 +405,7 @@ private fun AnimatedPieChartLegendItem(
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     drawCircle(
-                        color = Color(android.graphics.Color.parseColor(categorySpending.category.color)),
+                        color = dotColor,
                         radius = size.minDimension / 2
                     )
                 }
@@ -434,23 +451,27 @@ private fun AnimatedPieChartLegendItem(
 
 private fun DrawScope.drawAnimatedPieChart(
     sectors: List<PieChartSector>,
+    sectorColors: List<Color>,
     sectorAnimations: List<Float>,
     selectedIndex: Int,
-    canvasSize: Size
+    canvasSize: Size,
+    neutralColor: Color,
+    strokeColor: Color,
+    highlightColor: Color
 ) {
     val baseRadius = (canvasSize.minDimension * 0.4f)
     val center = Offset(canvasSize.width / 2, canvasSize.height / 2)
     val strokeWidth = 4.dp.toPx()
-    
+
     sectors.forEachIndexed { index, sector ->
         val animationProgress = sectorAnimations.getOrElse(index) { 0f }
         val isSelected = index == selectedIndex
-        
+
         // Calculate dynamic radius for selection effect
         val radius = baseRadius * (if (isSelected) 1.1f else 1f) * animationProgress
-        val color = Color(android.graphics.Color.parseColor(sector.color))
+        val color = sectorColors.getOrElse(index) { neutralColor }
         val animatedSweepAngle = sector.sweepAngle * animationProgress
-        
+
         // Draw pie slice with animation
         if (animatedSweepAngle > 0) {
             drawArc(
@@ -464,11 +485,11 @@ private fun DrawScope.drawAnimatedPieChart(
                 ),
                 size = Size(radius * 2, radius * 2)
             )
-            
+
             // Draw selection highlight
             if (isSelected) {
                 drawArc(
-                    color = Color.White.copy(alpha = 0.3f),
+                    color = highlightColor.copy(alpha = 0.3f),
                     startAngle = sector.startAngle,
                     sweepAngle = animatedSweepAngle,
                     useCenter = true,
@@ -479,10 +500,10 @@ private fun DrawScope.drawAnimatedPieChart(
                     size = Size(radius * 2, radius * 2)
                 )
             }
-            
-            // Draw border
+
+            // Draw border — gap between slices, matches the surface behind the chart
             drawArc(
-                color = Color.White.copy(alpha = animationProgress),
+                color = strokeColor.copy(alpha = animationProgress),
                 startAngle = sector.startAngle,
                 sweepAngle = animatedSweepAngle,
                 useCenter = true,
@@ -495,14 +516,4 @@ private fun DrawScope.drawAnimatedPieChart(
             )
         }
     }
-}
-
-// Keep the original function for compatibility
-private fun DrawScope.drawPieChart(sectors: List<PieChartSector>, canvasSize: Size) {
-    drawAnimatedPieChart(
-        sectors = sectors,
-        sectorAnimations = List(sectors.size) { 1f },
-        selectedIndex = -1,
-        canvasSize = canvasSize
-    )
 }

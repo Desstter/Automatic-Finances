@@ -91,34 +91,34 @@ class SmsNotifListener : NotificationListenerService() {
             val transaction = BancolombiaParser.tryParse(text, postTime)
             
             if (transaction == null) {
-                // This is normal - not all notifications are parseable transactions
-                Log.d(TAG, "No transaction parsed from $packageName: ${text.take(50)}...")
+                // This is normal - not all notifications are parseable transactions.
+                // Do NOT log the notification text: it can contain financial/PII content.
+                Log.d(TAG, "No transaction parsed from $packageName")
                 return
             }
-            
+
             // Attempt to save the transaction
             try {
                 addTx(transaction)
-                Log.d(TAG, "Successfully processed ${transaction.type} transaction: ${transaction.description}")
+                // Log only the non-sensitive type, never the merchant/amount.
+                Log.d(TAG, "Successfully processed ${transaction.type} transaction from $packageName")
             } catch (e: Exception) {
-                // Database or business logic error
+                // Database or business logic error. Log the type only; the amount and
+                // description are sensitive and must not reach logcat.
                 dbErrors.incrementAndGet()
-                Log.e(TAG, "Database error saving transaction from $packageName", e)
-                Log.e(TAG, "Transaction details: ${transaction.type}, ${transaction.description}, ${transaction.amountCents}")
-                
+                Log.e(TAG, "Database error saving ${transaction.type} transaction from $packageName", e)
+
                 // For critical business errors, we might want to retry or store for later
                 handleDatabaseError(transaction, e)
             }
-            
+
         } catch (e: Exception) {
-            // Parser error
+            // Parser error. Do not log the raw notification text (financial/PII content).
             parseErrors.incrementAndGet()
-            val safeText = text.take(MAX_TEXT_LENGTH)
             Log.e(TAG, "Parser error for notification from $packageName", e)
-            Log.e(TAG, "Problematic text: $safeText")
-            
+
             // For parser errors, log for improvement but continue processing
-            handleParserError(packageName, safeText, e)
+            handleParserError(packageName, text.take(MAX_TEXT_LENGTH), e)
         }
     }
     

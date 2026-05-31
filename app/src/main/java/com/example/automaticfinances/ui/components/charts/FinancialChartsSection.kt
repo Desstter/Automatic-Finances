@@ -407,23 +407,23 @@ private fun ShimmerChartPlaceholder(
     shimmerAlpha: Float,
     modifier: Modifier = Modifier
 ) {
+    val shimmerBase = MaterialTheme.colorScheme.onSurfaceVariant
+    val shimmerCenter = MaterialTheme.colorScheme.surface
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val shimmerColor = Color.Gray.copy(alpha = shimmerAlpha)
-            
             // Draw shimmer chart shape (pie chart style)
             drawCircle(
-                color = shimmerColor,
+                color = shimmerBase.copy(alpha = shimmerAlpha),
                 radius = size.minDimension * 0.3f,
                 center = center
             )
-            
+
             // Draw shimmer center
             drawCircle(
-                color = Color.White.copy(alpha = 0.8f),
+                color = shimmerCenter.copy(alpha = 0.8f),
                 radius = size.minDimension * 0.15f,
                 center = center
             )
@@ -457,7 +457,7 @@ private fun ShimmerLegendItem(
             modifier = Modifier
                 .size(16.dp)
                 .clip(CircleShape)
-                .background(Color.Gray.copy(alpha = delayedAlpha))
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = delayedAlpha))
         )
         
         // Text placeholders
@@ -470,14 +470,14 @@ private fun ShimmerLegendItem(
                     .fillMaxWidth(0.6f)
                     .height(14.dp)
                     .clip(RoundedCornerShape(7.dp))
-                    .background(Color.Gray.copy(alpha = delayedAlpha))
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = delayedAlpha))
             )
             Box(
                 modifier = Modifier
                     .fillMaxWidth(0.4f)
                     .height(10.dp)
                     .clip(RoundedCornerShape(5.dp))
-                    .background(Color.Gray.copy(alpha = delayedAlpha * 0.7f))
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = delayedAlpha * 0.7f))
             )
         }
         
@@ -487,7 +487,7 @@ private fun ShimmerLegendItem(
                 .width(80.dp)
                 .height(16.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.Gray.copy(alpha = delayedAlpha))
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = delayedAlpha))
         )
     }
 }

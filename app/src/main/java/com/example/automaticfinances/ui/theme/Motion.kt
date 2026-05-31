@@ -35,4 +35,26 @@ object MotionTokens {
     /** Gentle spring for content reveals / scale-in micro-interactions. */
     fun <T> gentleSpring(): FiniteAnimationSpec<T> =
         spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)
+
+    // === Expressive springs ===
+    // Reproduce the feel of Material 3 Expressive's MotionScheme (which is `internal`
+    // in material3 1.4.0) using the public `spring` API. "Spatial" springs animate
+    // position/size and carry a little bounce; "effects" springs animate color/alpha
+    // and are critically damped (no overshoot). Use these for the expressive look.
+
+    /** Spatial — quick reactions (chips, small toggles). */
+    fun <T> expressiveSpatialFast(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = 0.9f, stiffness = 1400f)
+
+    /** Spatial — default container/content motion, gently springy. */
+    fun <T> expressiveSpatialDefault(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = 0.8f, stiffness = 380f)
+
+    /** Spatial — large/slow hero transitions, more visible bounce. */
+    fun <T> expressiveSpatialSlow(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = 0.8f, stiffness = 200f)
+
+    /** Effects — color/alpha/elevation, no overshoot. */
+    fun <T> expressiveEffectsDefault(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = 1f, stiffness = 1600f)
 }

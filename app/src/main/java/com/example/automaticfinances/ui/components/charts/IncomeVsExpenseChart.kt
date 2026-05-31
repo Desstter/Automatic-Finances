@@ -4,6 +4,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,6 +18,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.automaticfinances.data.models.IncomeVsExpenseComparison
+import com.example.automaticfinances.ui.theme.FinanceTheme
 import java.text.NumberFormat
 import java.util.*
 
@@ -94,9 +96,9 @@ fun IncomeVsExpenseChart(
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = if (comparison.hasPositiveBalance) {
-                            Color(0xFF4CAF50)
+                            FinanceTheme.colors.profit
                         } else {
-                            Color(0xFFF44336)
+                            FinanceTheme.colors.loss
                         }
                     )
                 }
@@ -150,18 +152,16 @@ private fun IncomeExpenseBar(
             label = "Ingresos",
             amount = incomeAmount,
             percentage = incomePercentage,
-            color = Color(0xFF4CAF50),
-            icon = "💰",
+            color = FinanceTheme.colors.profit,
             numberFormat = numberFormat
         )
-        
+
         // Expense Bar
         IncomeExpenseBarItem(
             label = "Gastos",
             amount = expenseAmount,
             percentage = expensePercentage,
-            color = Color(0xFFF44336),
-            icon = "💸",
+            color = FinanceTheme.colors.loss,
             numberFormat = numberFormat
         )
     }
@@ -173,7 +173,6 @@ private fun IncomeExpenseBarItem(
     amount: Long,
     percentage: Float,
     color: Color,
-    icon: String,
     numberFormat: NumberFormat
 ) {
     Column {
@@ -184,9 +183,11 @@ private fun IncomeExpenseBarItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = icon,
-                    style = MaterialTheme.typography.titleMedium
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(color)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(

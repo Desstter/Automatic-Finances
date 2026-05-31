@@ -19,6 +19,7 @@ import com.example.automaticfinances.data.db.MIGRATION_9_10
 import com.example.automaticfinances.data.db.MIGRATION_10_11
 import com.example.automaticfinances.data.db.MerchantResolutionDao
 import com.example.automaticfinances.data.db.OpeningBalanceDao
+import com.example.automaticfinances.data.db.RoomTransactionRunner
 import com.example.automaticfinances.data.db.TransactionDao
 import com.example.automaticfinances.data.db.UserCategoryPreferenceDao
 import com.example.automaticfinances.data.preferences.ThemeRepository
@@ -31,6 +32,7 @@ import com.example.automaticfinances.data.repo.OpeningBalanceRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.UserCategoryPreferenceRepository
 import com.example.automaticfinances.domain.AddTransactionUseCase
+import com.example.automaticfinances.domain.TransactionRunner
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -124,12 +126,19 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideTransactionRunner(db: AppDatabase): TransactionRunner =
+        RoomTransactionRunner(db)
+
+    @Provides
+    @Singleton
     fun provideAddTransactionUseCase(
         transactionRepo: TransactionRepository,
         accountRepo: AccountRepository,
-        categoryRepo: CategoryRepository
+        categoryRepo: CategoryRepository,
+        merchantResolutionRepo: MerchantResolutionRepository,
+        transactionRunner: TransactionRunner
     ): AddTransactionUseCase =
-        AddTransactionUseCase(transactionRepo, accountRepo, categoryRepo)
+        AddTransactionUseCase(transactionRepo, accountRepo, categoryRepo, merchantResolutionRepo, transactionRunner)
 
     @Provides
     @Singleton

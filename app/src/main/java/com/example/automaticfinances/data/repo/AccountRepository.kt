@@ -48,30 +48,36 @@ class AccountRepository @Inject constructor(
      * Updates account balance when a transaction is added
      * For expenses: balance decreases (negative amount)
      * For income: balance increases (positive amount)
+     *
+     * @return true if a balance was adjusted; false if the transaction had no account
+     * (an orphaned transaction that does not contribute to any balance). Callers can use the
+     * result to detect/report this anomaly instead of it failing silently.
      */
-    suspend fun applyTransactionToBalance(transaction: Transaction) {
-        transaction.accountId?.let { accountId ->
-            val adjustmentAmount = if (transaction.isIncome) {
-                transaction.amountCents // Income increases balance
-            } else {
-                -transaction.amountCents // Expense decreases balance
-            }
-            adjustAccountBalance(accountId, adjustmentAmount)
+    suspend fun applyTransactionToBalance(transaction: Transaction): Boolean {
+        val accountId = transaction.accountId ?: return false
+        val adjustmentAmount = if (transaction.isIncome) {
+            transaction.amountCents // Income increases balance
+        } else {
+            -transaction.amountCents // Expense decreases balance
         }
+        adjustAccountBalance(accountId, adjustmentAmount)
+        return true
     }
-    
+
     /**
-     * Reverts account balance when a transaction is deleted
+     * Reverts account balance when a transaction is deleted.
+     *
+     * @return true if a balance was reverted; false if the transaction had no account.
      */
-    suspend fun revertTransactionFromBalance(transaction: Transaction) {
-        transaction.accountId?.let { accountId ->
-            val adjustmentAmount = if (transaction.isIncome) {
-                -transaction.amountCents // Revert income
-            } else {
-                transaction.amountCents // Revert expense
-            }
-            adjustAccountBalance(accountId, adjustmentAmount)
+    suspend fun revertTransactionFromBalance(transaction: Transaction): Boolean {
+        val accountId = transaction.accountId ?: return false
+        val adjustmentAmount = if (transaction.isIncome) {
+            -transaction.amountCents // Revert income
+        } else {
+            transaction.amountCents // Revert expense
         }
+        adjustAccountBalance(accountId, adjustmentAmount)
+        return true
     }
     
     // ========== ANALYTICS & INSIGHTS ==========

@@ -11,13 +11,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Brightness3
-import androidx.compose.material.icons.filled.BrightnessAuto
-import androidx.compose.material.icons.filled.BrightnessHigh
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartToy
@@ -42,6 +39,9 @@ import com.example.automaticfinances.ui.components.FilterBottomSheet
 import com.example.automaticfinances.ui.components.FilterPreviewCard
 import com.example.automaticfinances.ui.components.FilterSummary
 import com.example.automaticfinances.ui.components.IntelligenceInsightsCard
+import com.example.automaticfinances.ui.components.SpeedDialAction
+import com.example.automaticfinances.ui.components.SpeedDialFab
+import com.example.automaticfinances.ui.components.SpeedDialScrim
 import com.example.automaticfinances.ui.components.common.ExpandableBanner
 import com.example.automaticfinances.ui.components.common.PremiumEmptyState
 import com.example.automaticfinances.ui.components.common.SectionHeader
@@ -50,6 +50,7 @@ import com.example.automaticfinances.ui.components.common.StatusTone
 import com.example.automaticfinances.ui.components.common.TransactionListSkeleton
 import com.example.automaticfinances.ui.theme.FinanceTheme
 import com.example.automaticfinances.ui.theme.FinanceTypography
+import com.example.automaticfinances.ui.theme.MotionTokens
 import com.example.automaticfinances.ui.theme.Sizes
 import com.example.automaticfinances.ui.theme.Spacing
 import kotlinx.coroutines.flow.StateFlow
@@ -60,11 +61,11 @@ import java.util.*
 @Composable
 fun HomeScreen(
     stateFlow: StateFlow<HomeState>,
-    themeViewModel: com.example.automaticfinances.ui.theme.ThemeViewModel? = null,
     onOpenNotifAccess: () -> Unit,
     onTransactionClick: (String) -> Unit = {},
     onManageCategoriesClick: () -> Unit = {},
     onAddTransactionClick: () -> Unit = {},
+    onAddVoiceClick: () -> Unit = {},
     onViewHistoryClick: () -> Unit = {},
     onViewInsightsClick: () -> Unit = {},
     onViewIncomesClick: () -> Unit = {},
@@ -85,6 +86,7 @@ fun HomeScreen(
     val context = LocalContext.current
 
     var showFilterBottomSheet by remember { mutableStateOf(false) }
+    var fabExpanded by remember { mutableStateOf(false) }
 
     val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
 
@@ -125,24 +127,32 @@ fun HomeScreen(
                 hasActiveFilters = activeFilters,
                 onClearFilters = onClearFilters,
                 onOpenFilters = { showFilterBottomSheet = true },
-                themeViewModel = themeViewModel,
                 scrollBehavior = scrollBehavior
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onAddTransactionClick,
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Registrar") },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+            SpeedDialFab(
+                expanded = fabExpanded,
+                onExpandedChange = { fabExpanded = it },
+                actions = listOf(
+                    SpeedDialAction(
+                        label = "Voz",
+                        icon = Icons.Default.Mic,
+                        onClick = onAddVoiceClick
+                    ),
+                    SpeedDialAction(
+                        label = "Manual",
+                        icon = Icons.Default.Edit,
+                        onClick = onAddTransactionClick
+                    )
+                )
             )
         }
     ) { padding ->
+      Box(modifier = Modifier.padding(padding)) {
         PullToRefreshBox(
             isRefreshing = state.isRefreshing,
-            onRefresh = onRefresh,
-            modifier = Modifier.padding(padding)
+            onRefresh = onRefresh
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -253,7 +263,10 @@ fun HomeScreen(
                                     transaction = tx,
                                     numberFormat = nf,
                                     onClick = { onTransactionClick(tx.id) },
-                                    modifier = Modifier.animateItem()
+                                    // Expressive springy reordering when items move/insert.
+                                    modifier = Modifier.animateItem(
+                                        placementSpec = MotionTokens.expressiveSpatialDefault()
+                                    )
                                 )
                             }
                         }
@@ -261,6 +274,12 @@ fun HomeScreen(
                 }
             }
         }
+
+        SpeedDialScrim(
+            visible = fabExpanded,
+            onDismiss = { fabExpanded = false }
+        )
+      }
     }
 
     if (showFilterBottomSheet) {
@@ -351,7 +370,13 @@ fun CompactTransactionItem(
                         transaction.source == "manual" -> Icons.Default.Edit
                         else -> Icons.Default.PhoneAndroid
                     },
-                    contentDescription = null,
+                    // The icon encodes the entry source, which isn't repeated in the text, so it
+                    // carries meaning for screen readers.
+                    contentDescription = when {
+                        transaction.source.startsWith("notif") -> "Detectado automáticamente"
+                        transaction.source == "manual" -> "Entrada manual"
+                        else -> "Otro origen"
+                    },
                     modifier = Modifier.size(12.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -422,7 +447,6 @@ fun EnhancedTopAppBar(
     hasActiveFilters: Boolean,
     onClearFilters: () -> Unit,
     onOpenFilters: () -> Unit = {},
-    themeViewModel: com.example.automaticfinances.ui.theme.ThemeViewModel? = null,
     scrollBehavior: TopAppBarScrollBehavior? = null
 ) {
     var isSearchActive by remember { mutableStateOf(false) }
@@ -472,18 +496,6 @@ fun EnhancedTopAppBar(
                 )
             },
             actions = {
-                themeViewModel?.let { viewModel ->
-                    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
-                    val themeIcon = when (themeMode) {
-                        com.example.automaticfinances.data.preferences.ThemeMode.LIGHT -> Icons.Default.BrightnessHigh
-                        com.example.automaticfinances.data.preferences.ThemeMode.DARK -> Icons.Default.Brightness3
-                        com.example.automaticfinances.data.preferences.ThemeMode.AUTO -> Icons.Default.BrightnessAuto
-                    }
-                    IconButton(onClick = { viewModel.toggleTheme() }) {
-                        Icon(themeIcon, contentDescription = "Cambiar tema")
-                    }
-                }
-
                 IconButton(onClick = { isSearchActive = true }) {
                     Icon(Icons.Default.Search, contentDescription = "Buscar")
                 }
@@ -554,7 +566,7 @@ fun CompactServiceStatusCard(
                     text = when {
                         isServiceRunning && isListenerEnabled -> "Monitoreando notificaciones bancarias"
                         isListenerEnabled && !isServiceRunning -> "Conectando con el sistema"
-                        else -> "Otorga acceso a notificaciones para registrar gastos solo"
+                        else -> "Otorga acceso a las notificaciones para registrar tus gastos automáticamente"
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

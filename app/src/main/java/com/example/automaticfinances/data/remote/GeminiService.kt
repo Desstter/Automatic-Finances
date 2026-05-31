@@ -41,27 +41,19 @@ class GeminiException(
 ) : Exception(message, cause)
 
 /**
- * Thin, transport-only client for the Gemini `generateContent` endpoint. It performs a single
- * structured-output request and returns the raw model JSON text (matching the supplied
- * [responseSchema]); it never interprets transactions. Callers own the schema and deserialize
- * the result. Failures are normalized into [GeminiException] with a typed [GeminiFailure].
+ * Thin, transport-only client for the Gemini `generateContent` endpoint. Tries each model in
+ * [FALLBACK_MODELS] in order; moves to the next on quota or server errors. Callers own the
+ * schema and deserialize the result. Failures are normalized into [GeminiException].
  */
 @Singleton
 class GeminiService @Inject constructor(
     private val client: OkHttpClient,
     private val json: Json,
     @param:Named("geminiApiKey") private val apiKey: String,
-    @param:Named("geminiModel") private val model: String,
 ) : LlmJsonClient {
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
-    /**
-     * Sends [prompt] (the user transcript) plus a [systemInstruction] and forces the model to
-     * answer with JSON matching [responseSchema]. Returns the model's JSON text.
-     *
-     * @throws GeminiException on any failure, with a [GeminiFailure] the UI can branch on.
-     */
     override suspend fun generateStructuredJson(
         systemInstruction: String,
         prompt: String,
@@ -72,6 +64,28 @@ class GeminiService @Inject constructor(
             throw GeminiException(GeminiFailure.MISSING_KEY, "No Gemini API key configured")
         }
 
+        var lastException: GeminiException? = null
+        for (model in FALLBACK_MODELS) {
+            try {
+                return@withContext callModel(model, systemInstruction, prompt, responseSchema, temperature)
+            } catch (e: GeminiException) {
+                if (e.failure in RETRYABLE_FAILURES) {
+                    lastException = e
+                } else {
+                    throw e
+                }
+            }
+        }
+        throw lastException ?: GeminiException(GeminiFailure.UNKNOWN, "All Gemini models exhausted")
+    }
+
+    private fun callModel(
+        model: String,
+        systemInstruction: String,
+        prompt: String,
+        responseSchema: JsonObject,
+        temperature: Double,
+    ): String {
         val requestBody = GeminiRequest(
             systemInstruction = GeminiContent(parts = listOf(GeminiPart(systemInstruction))),
             contents = listOf(GeminiContent(role = "user", parts = listOf(GeminiPart(prompt)))),
@@ -82,9 +96,12 @@ class GeminiService @Inject constructor(
             ),
         )
 
-        val url = "$BASE_URL/models/$model:generateContent?key=$apiKey"
+        // The API key travels in the `x-goog-api-key` header rather than as a `?key=` query
+        // parameter, so it does not leak into server/proxy access logs or request history.
+        val url = "$BASE_URL/models/$model:generateContent"
         val httpRequest = Request.Builder()
             .url(url)
+            .header("x-goog-api-key", apiKey)
             .post(json.encodeToString(GeminiRequest.serializer(), requestBody).toRequestBody(jsonMediaType))
             .build()
 
@@ -99,10 +116,10 @@ class GeminiService @Inject constructor(
         } catch (e: GeminiException) {
             throw e
         } catch (e: IOException) {
-            throw GeminiException(GeminiFailure.NETWORK, "Network error talking to Gemini", e)
+            throw GeminiException(GeminiFailure.NETWORK, "Network error talking to $model", e)
         }
 
-        parseCandidateText(responseText)
+        return parseCandidateText(responseText)
     }
 
     private fun parseCandidateText(rawJson: String): String {
@@ -145,8 +162,15 @@ class GeminiService @Inject constructor(
 
     companion object {
         private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-        // gemini-2.0-flash is no longer offered to new API keys; 2.5-flash is the current
-        // free-tier flash model. Verified working against the live endpoint.
-        const val DEFAULT_MODEL = "gemini-2.5-flash"
+
+        private val RETRYABLE_FAILURES = setOf(GeminiFailure.QUOTA, GeminiFailure.SERVER)
+
+        // Tried in order: cheapest/fastest first, most capable last.
+        val FALLBACK_MODELS = listOf(
+            "gemini-3.1-flash-lite",
+            "gemma-4-31b-it",
+            "gemini-3.5-flash",
+            "gemini-2.5-flash",
+        )
     }
 }

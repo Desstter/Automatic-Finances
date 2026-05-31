@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -124,10 +125,12 @@ private fun AccountSelectionItem(
                 contentAlignment = Alignment.Center
             ) {
                 if (isSelected) {
+                    // Dot sits on the arbitrary account color; pick contrast by luminance.
+                    val onAccount = if (accountColor.luminance() > 0.5f) Color.Black else Color.White
                     Box(
                         modifier = Modifier
                             .size(8.dp)
-                            .background(Color.White, CircleShape)
+                            .background(onAccount, CircleShape)
                     )
                 }
             }

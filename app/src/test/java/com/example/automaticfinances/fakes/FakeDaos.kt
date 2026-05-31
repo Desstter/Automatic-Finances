@@ -12,11 +12,14 @@ import com.example.automaticfinances.data.db.CategoryDao
 import com.example.automaticfinances.data.db.CategorySuggestion
 import com.example.automaticfinances.data.db.CategoryWithCount
 import com.example.automaticfinances.data.db.DefaultCategories
+import com.example.automaticfinances.data.db.MerchantResolution
+import com.example.automaticfinances.data.db.MerchantResolutionDao
 import com.example.automaticfinances.data.db.Transaction
 import com.example.automaticfinances.data.db.TransactionDao
 import com.example.automaticfinances.data.db.UserCategoryPreference
 import com.example.automaticfinances.data.db.UserCategoryPreferenceDao
 import com.example.automaticfinances.data.repo.TransactionWithCategory
+import com.example.automaticfinances.domain.TransactionRunner
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -74,7 +77,11 @@ class FakeTransactionDao : TransactionDao {
     val rows = LinkedHashMap<String, Transaction>()
     private var nextRowId = 1L
 
+    /** When set, inserting a row with this id throws — used to simulate a mid-operation failure. */
+    var failOnInsertId: String? = null
+
     override suspend fun insertIgnore(tx: Transaction): Long {
+        if (tx.id == failOnInsertId) throw RuntimeException("Simulated insert failure for ${tx.id}")
         if (rows.containsKey(tx.id)) return -1L
         rows[tx.id] = tx
         return nextRowId++
@@ -137,6 +144,13 @@ class FakeAccountDao : AccountDao {
         return id
     }
 
+    /** Snapshot/restore hooks so a [FakeTransactionRunner] can roll back balance changes. */
+    fun snapshot(): Map<Long, Account> = LinkedHashMap(store)
+    fun restore(snapshot: Map<Long, Account>) {
+        store.clear()
+        store.putAll(snapshot)
+    }
+
     override suspend fun getAllActiveAccounts(): List<Account> = store.values.filter { it.isActive }
     override suspend fun getAccountById(accountId: Long): Account? = store[accountId]
     override suspend fun getAccountByName(name: String): Account? = store.values.find { it.name == name }
@@ -164,4 +178,52 @@ class FakeAccountDao : AccountDao {
     override suspend fun deactivateAccount(accountId: Long) = throw NotImplementedError()
     override suspend fun activateAccount(accountId: Long) = throw NotImplementedError()
     override suspend fun getInactiveAccounts(): List<Account> = throw NotImplementedError()
+}
+
+/**
+ * In-memory [TransactionRunner] with real rollback semantics over the fake DAOs: it snapshots
+ * their state before running the block and restores it if the block throws. This lets unit tests
+ * assert that a failure mid-operation leaves no partial writes (atomicity).
+ */
+class FakeTransactionRunner(
+    private val txDao: FakeTransactionDao,
+    private val accountDao: FakeAccountDao,
+) : TransactionRunner {
+    override suspend fun <R> runInTransaction(block: suspend () -> R): R {
+        val txSnapshot = LinkedHashMap(txDao.rows)
+        val accountSnapshot = accountDao.snapshot()
+        return try {
+            block()
+        } catch (t: Throwable) {
+            txDao.rows.clear()
+            txDao.rows.putAll(txSnapshot)
+            accountDao.restore(accountSnapshot)
+            throw t
+        }
+    }
+}
+
+/**
+ * No gateway mappings. The financial tests use plain descriptions (never gateway-prefixed names),
+ * so `isGatewayMerchant` is false and `resolve()` is never reached; everything throws to keep an
+ * accidental dependency loud.
+ */
+class FakeMerchantResolutionDao : MerchantResolutionDao {
+    override suspend fun getByGatewayMerchant(gatewayMerchant: String): MerchantResolution? = null
+    override suspend fun count(): Int = 0
+    override suspend fun countPrePopulated(): Int = 0
+
+    override suspend fun insert(resolution: MerchantResolution): Long = throw NotImplementedError()
+    override suspend fun insertAll(resolutions: List<MerchantResolution>) = throw NotImplementedError()
+    override suspend fun update(resolution: MerchantResolution) = throw NotImplementedError()
+    override suspend fun delete(resolution: MerchantResolution) = throw NotImplementedError()
+    override suspend fun deleteById(id: Long) = throw NotImplementedError()
+    override suspend fun incrementUsage(gatewayMerchant: String, timestamp: Long) = throw NotImplementedError()
+    override suspend fun findSimilar(pattern: String): List<MerchantResolution> = throw NotImplementedError()
+    override suspend fun updateSuggestedCategory(gatewayMerchant: String, categoryId: Long) = throw NotImplementedError()
+    override fun getAll(): Flow<List<MerchantResolution>> = throw NotImplementedError()
+    override fun getPrePopulated(): Flow<List<MerchantResolution>> = throw NotImplementedError()
+    override fun getUserCreated(): Flow<List<MerchantResolution>> = throw NotImplementedError()
+    override fun getTopUsed(): Flow<List<MerchantResolution>> = throw NotImplementedError()
+    override fun getByCategory(categoryId: Long): Flow<List<MerchantResolution>> = throw NotImplementedError()
 }

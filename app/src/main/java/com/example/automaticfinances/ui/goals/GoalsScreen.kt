@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.automaticfinances.data.db.*
+import com.example.automaticfinances.ui.components.common.FilterChipRow
 import com.example.automaticfinances.ui.components.common.PremiumEmptyState
 import com.example.automaticfinances.ui.theme.FinanceTheme
 import com.example.automaticfinances.ui.theme.Spacing
@@ -112,8 +113,7 @@ fun GoalsScreen(
             } else {
                 item {
                     EmptyGoalsCard(
-                        filter = state.selectedFilter,
-                        onCreateGoal = { showCreateDialog = true }
+                        filter = state.selectedFilter
                     )
                 }
             }
@@ -292,30 +292,22 @@ private fun GoalsFilterTabs(
     onFilterChanged: (GoalsFilter) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        GoalsFilter.values().forEach { filter ->
-            FilterChip(
-                selected = selectedFilter == filter,
-                onClick = { onFilterChanged(filter) },
-                label = { 
-                    Text(
-                        text = when (filter) {
-                            GoalsFilter.ALL -> "Todas"
-                            GoalsFilter.ACTIVE -> "Activas"
-                            GoalsFilter.COMPLETED -> "Completadas"
-                            GoalsFilter.OVERDUE -> "Vencidas"
-                            GoalsFilter.SAVINGS -> "Ahorros"
-                            GoalsFilter.EXPENSE_REDUCTION -> "Reducir Gastos"
-                        }
-                    )
-                },
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
+    FilterChipRow(
+        options = GoalsFilter.values().toList(),
+        selected = selectedFilter,
+        onSelect = onFilterChanged,
+        labelFor = { filter ->
+            when (filter) {
+                GoalsFilter.ALL -> "Todas"
+                GoalsFilter.ACTIVE -> "Activas"
+                GoalsFilter.COMPLETED -> "Completadas"
+                GoalsFilter.OVERDUE -> "Vencidas"
+                GoalsFilter.SAVINGS -> "Ahorros"
+                GoalsFilter.EXPENSE_REDUCTION -> "Reducir gastos"
+            }
+        },
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -514,10 +506,9 @@ private fun GoalCard(
 @Composable
 private fun EmptyGoalsCard(
     filter: GoalsFilter,
-    onCreateGoal: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val showAction = filter == GoalsFilter.ALL || filter == GoalsFilter.ACTIVE
+    val showHint = filter == GoalsFilter.ALL || filter == GoalsFilter.ACTIVE
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -533,9 +524,10 @@ private fun EmptyGoalsCard(
                 GoalsFilter.SAVINGS -> "No tienes metas de ahorro"
                 GoalsFilter.EXPENSE_REDUCTION -> "No tienes metas de reducción"
             },
-            description = "Crea metas para alcanzar tus objetivos financieros y haz seguimiento de tu progreso.",
-            actionLabel = if (showAction) "Crear primera meta" else null,
-            onAction = if (showAction) onCreateGoal else null
+            description = if (showHint)
+                "Usa el botón \"Meta\" para crear tu primera meta y seguir tu progreso."
+            else
+                "No hay metas en esta categoría por ahora."
         )
     }
 }

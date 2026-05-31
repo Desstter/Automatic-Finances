@@ -117,10 +117,11 @@ private fun BudgetChartHeader(
     val criticalCount = budgetComparisons.count { 
         it.budgetStatus.alertLevel == BudgetAlertLevel.CRITICAL 
     }
-    val safeCount = budgetComparisons.count { 
-        it.budgetStatus.alertLevel == BudgetAlertLevel.SAFE 
+    val safeCount = budgetComparisons.count {
+        it.budgetStatus.alertLevel == BudgetAlertLevel.SAFE
     }
-    
+    val chartColors = ChartUtils.rememberChartColors()
+
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -153,14 +154,14 @@ private fun BudgetChartHeader(
                 StatusIndicator(
                     count = criticalCount,
                     label = "Crítico",
-                    color = Color(0xFFFF9800)
+                    color = chartColors.critical
                 )
             }
             if (safeCount > 0) {
                 StatusIndicator(
                     count = safeCount,
                     label = "Seguro",
-                    color = Color(0xFF4CAF50)
+                    color = chartColors.safe
                 )
             }
         }
@@ -210,11 +211,13 @@ private fun BudgetComparisonBar(
     val budget = budgetComparison.budgetStatus.budget
     val spent = budgetComparison.budgetStatus.currentSpentCents
     val alertLevel = budgetComparison.budgetStatus.alertLevel
-    
+    val chartColors = ChartUtils.rememberChartColors()
+    val barBackground = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+
     val barColor = when (alertLevel) {
-        BudgetAlertLevel.SAFE -> Color(0xFF4CAF50)
-        BudgetAlertLevel.WARNING -> Color(0xFFFFC107)
-        BudgetAlertLevel.CRITICAL -> Color(0xFFFF9800)
+        BudgetAlertLevel.SAFE -> chartColors.safe
+        BudgetAlertLevel.WARNING -> chartColors.warning
+        BudgetAlertLevel.CRITICAL -> chartColors.critical
         BudgetAlertLevel.OVER_BUDGET -> MaterialTheme.colorScheme.error
     }
     
@@ -273,8 +276,8 @@ private fun BudgetComparisonBar(
                         budgetAmountCents = budget.limitAmountCents,
                         spentAmountCents = spent,
                         barColor = barColor,
-                        backgroundColor = Color.Gray.copy(alpha = 0.2f),
-                        errorColor = Color(0xFFF44336),
+                        backgroundColor = barBackground,
+                        errorColor = chartColors.error,
                         canvasSize = size
                     )
                 }
@@ -303,7 +306,7 @@ private fun BudgetComparisonBar(
                 Text(
                     text = "Restante: ${nf.format(remaining / 100.0)}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF4CAF50),
+                    color = chartColors.safe,
                     fontWeight = FontWeight.Medium
                 )
             } else {
@@ -339,22 +342,23 @@ private fun BudgetComparisonBar(
 private fun BudgetChartLegend(
     modifier: Modifier = Modifier
 ) {
+    val chartColors = ChartUtils.rememberChartColors()
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         LegendItem(
-            color = Color(0xFF4CAF50),
+            color = chartColors.safe,
             label = "Seguro (< 50%)",
             modifier = Modifier.weight(1f)
         )
         LegendItem(
-            color = Color(0xFFFFC107),
+            color = chartColors.warning,
             label = "Precaución (50-74%)",
             modifier = Modifier.weight(1f)
         )
         LegendItem(
-            color = Color(0xFFFF9800),
+            color = chartColors.critical,
             label = "Crítico (75-99%)",
             modifier = Modifier.weight(1f)
         )

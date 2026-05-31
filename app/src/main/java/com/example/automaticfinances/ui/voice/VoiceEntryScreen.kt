@@ -6,14 +6,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -43,15 +40,18 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -72,6 +72,7 @@ import java.util.Locale
 
 private val sheetShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoiceEntryScreen(
     state: VoiceUiState,
@@ -86,64 +87,53 @@ fun VoiceEntryScreen(
     onIncomeToggle: (String, Boolean) -> Unit,
     onRemoveDraft: (String) -> Unit,
 ) {
-    val dismissable = state !is VoiceUiState.Saving
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                enabled = dismissable,
-                onClick = onDismiss,
-            ),
-        contentAlignment = Alignment.BottomCenter,
+    // Keep the dismissable flag fresh inside confirmValueChange so a drag can't dismiss
+    // the sheet mid-save.
+    val dismissable by rememberUpdatedState(state !is VoiceUiState.Saving)
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { dismissable },
+    )
+
+    ModalBottomSheet(
+        onDismissRequest = { if (dismissable) onDismiss() },
+        sheetState = sheetState,
+        shape = sheetShape,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        // Custom grab handle is rendered inside the content for consistent spacing.
+        dragHandle = null,
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                // Swallow taps so clicks on the sheet don't dismiss via the scrim.
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {},
-                ),
-            shape = sheetShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = 3.dp,
-        ) {
-            AnimatedContent(
-                targetState = state,
-                transitionSpec = { fadeIn() togetherWith fadeOut() },
-                label = "voiceState",
-            ) { current ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.xl, vertical = Spacing.xl),
-                ) {
-                    GrabHandle()
-                    Spacer(Modifier.height(Spacing.lg))
-                    when (current) {
-                        is VoiceUiState.Preparing -> CenteredLoader("Preparando micrófono…")
-                        is VoiceUiState.PermissionDenied -> PermissionContent(onOpenAppSettings, onDismiss)
-                        is VoiceUiState.Listening -> ListeningContent(current, onDismiss)
-                        is VoiceUiState.Processing -> ProcessingContent(current)
-                        is VoiceUiState.Review -> ReviewContent(
-                            state = current,
-                            categories = categories,
-                            onConfirmSave = onConfirmSave,
-                            onDismiss = onDismiss,
-                            onAmountChange = onAmountChange,
-                            onDescriptionChange = onDescriptionChange,
-                            onCategorySelect = onCategorySelect,
-                            onIncomeToggle = onIncomeToggle,
-                            onRemoveDraft = onRemoveDraft,
-                        )
-                        is VoiceUiState.Saving -> CenteredLoader("Guardando…")
-                        is VoiceUiState.Saved -> SavedContent(current)
-                        is VoiceUiState.Failed -> FailedContent(current, onRetry, onDismiss, onOpenAppSettings)
-                    }
+        AnimatedContent(
+            targetState = state,
+            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            label = "voiceState",
+        ) { current ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.xl, vertical = Spacing.xl),
+            ) {
+                GrabHandle()
+                Spacer(Modifier.height(Spacing.lg))
+                when (current) {
+                    is VoiceUiState.Preparing -> CenteredLoader("Preparando micrófono…")
+                    is VoiceUiState.PermissionDenied -> PermissionContent(onOpenAppSettings, onDismiss)
+                    is VoiceUiState.Listening -> ListeningContent(current, onDismiss)
+                    is VoiceUiState.Processing -> ProcessingContent(current)
+                    is VoiceUiState.Review -> ReviewContent(
+                        state = current,
+                        categories = categories,
+                        onConfirmSave = onConfirmSave,
+                        onDismiss = onDismiss,
+                        onAmountChange = onAmountChange,
+                        onDescriptionChange = onDescriptionChange,
+                        onCategorySelect = onCategorySelect,
+                        onIncomeToggle = onIncomeToggle,
+                        onRemoveDraft = onRemoveDraft,
+                    )
+                    is VoiceUiState.Saving -> CenteredLoader("Guardando…")
+                    is VoiceUiState.Saved -> SavedContent(current)
+                    is VoiceUiState.Failed -> FailedContent(current, onRetry, onDismiss, onOpenAppSettings)
                 }
             }
         }
@@ -360,7 +350,9 @@ private fun DraftCard(
                     )
                 }
                 if (canRemove) {
-                    IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+                    // 48dp keeps the tap target at the accessibility minimum even though the
+                    // glyph itself is small.
+                    IconButton(onClick = onRemove, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Filled.Delete, contentDescription = "Quitar", modifier = Modifier.size(18.dp))
                     }
                 }

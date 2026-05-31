@@ -27,6 +27,7 @@ import androidx.compose.ui.window.PopupProperties
 import com.example.automaticfinances.data.models.LineChartPoint
 import com.example.automaticfinances.data.models.MonthlySpending
 import com.example.automaticfinances.ui.components.charts.ChartUtils
+import com.example.automaticfinances.ui.theme.FinanceTheme
 import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
 import java.util.*
@@ -247,9 +248,9 @@ private fun TrendChartHeader(
                                  else (change.toFloat() / previousMonth.totalCents.toFloat()) * 100f
             
             val (icon, color) = when {
-                change > 0 -> "↗️" to MaterialTheme.colorScheme.error
-                change < 0 -> "↘️" to Color(0xFF4CAF50)
-                else -> "➡️" to MaterialTheme.colorScheme.onSurfaceVariant
+                change > 0 -> "↗" to MaterialTheme.colorScheme.error
+                change < 0 -> "↘" to FinanceTheme.colors.profit
+                else -> "→" to MaterialTheme.colorScheme.onSurfaceVariant
             }
             
             Row(
@@ -488,7 +489,7 @@ private fun DrawScope.drawTrendChart(
             center = point
         )
         drawCircle(
-            color = Color.White,
+            color = surfaceColor,
             radius = 2.dp.toPx(),
             center = point
         )
@@ -682,9 +683,9 @@ private fun DrawScope.drawInteractiveTrendChart(
                 center = point
             )
             
-            // Draw white center
+            // Draw surface-colored center (theme-aware "hole")
             drawCircle(
-                color = Color.White,
+                color = surfaceColor,
                 radius = (pointRadius * 0.5f) * animationProgress,
                 center = point
             )

@@ -29,7 +29,7 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionHistoryScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: (() -> Unit)? = null
 ) {
     val viewModel: TransactionHistoryViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -44,8 +44,10 @@ fun TransactionHistoryScreen(
                     Text("Historial", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
+                    if (onNavigateBack != null) {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
+                        }
                     }
                 },
                 actions = {

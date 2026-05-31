@@ -32,6 +32,7 @@ import com.example.automaticfinances.ui.income.IncomeScreen
 import com.example.automaticfinances.ui.income.AddIncomeScreen
 import com.example.automaticfinances.ui.openingbalance.OpeningBalanceSetupScreen
 import com.example.automaticfinances.ui.openingbalance.OpeningBalanceManagementScreen
+import com.example.automaticfinances.ui.settings.SettingsScreen
 import com.example.automaticfinances.ui.components.BottomNavigationWrapper
 
 // Definición de rutas
@@ -50,7 +51,8 @@ object Routes {
     const val ADD_INCOME = "add_income"
     const val OPENING_BALANCE_SETUP = "opening_balance_setup"
     const val OPENING_BALANCE_MANAGEMENT = "opening_balance_management"
-    
+    const val SETTINGS = "settings"
+
     fun transactionDetail(transactionId: String) = "transaction_detail/$transactionId"
     fun budgetDetail(budgetId: String) = "budget_detail/$budgetId"
 }
@@ -59,7 +61,8 @@ object Routes {
 fun AppNavigation(
     navController: NavHostController = rememberNavController(),
     themeViewModel: com.example.automaticfinances.ui.theme.ThemeViewModel,
-    onOpenNotifAccess: () -> Unit
+    onOpenNotifAccess: () -> Unit,
+    onVoiceEntry: () -> Unit = {}
 ) {
     BottomNavigationWrapper(navController = navController) { paddingValues ->
         val slideDuration = MotionTokens.DurationEnter
@@ -91,14 +94,14 @@ fun AppNavigation(
         composable(Routes.HOME) { backStackEntry ->
             val homeViewModel: HomeViewModel = hiltViewModel()
             
-            // Refrescar datos cuando se vuelve a Home desde otra pantalla
+            // Al volver a Home, solo re-leemos los saldos (las transacciones ya se actualizan en
+            // vivo vía el flow de Room); evita una recarga completa en cada navegación.
             LaunchedEffect(backStackEntry) {
-                homeViewModel.forceRefresh()
+                homeViewModel.refreshBalances()
             }
             
             HomeScreen(
                 stateFlow = homeViewModel.state,
-                themeViewModel = themeViewModel,
                 onOpenNotifAccess = onOpenNotifAccess,
                 onTransactionClick = { transactionId ->
                     navController.navigate(Routes.transactionDetail(transactionId))
@@ -109,6 +112,7 @@ fun AppNavigation(
                 onAddTransactionClick = {
                     navController.navigate(Routes.ADD_TRANSACTION)
                 },
+                onAddVoiceClick = onVoiceEntry,
                 onViewHistoryClick = {
                     navController.navigate(Routes.TRANSACTION_HISTORY)
                 },
@@ -122,10 +126,10 @@ fun AppNavigation(
                     navController.navigate(Routes.OPENING_BALANCE_MANAGEMENT)
                 },
                 onBankBalanceClick = {
-                    navController.navigate(Routes.OPENING_BALANCE_MANAGEMENT + "?account_type=bank")
+                    navController.navigate(Routes.OPENING_BALANCE_MANAGEMENT)
                 },
                 onCashBalanceClick = {
-                    navController.navigate(Routes.OPENING_BALANCE_MANAGEMENT + "?account_type=cash")
+                    navController.navigate(Routes.OPENING_BALANCE_MANAGEMENT)
                 },
                 onRefresh = {
                     homeViewModel.refreshData()
@@ -184,11 +188,8 @@ fun AppNavigation(
         }
 
         composable(Routes.TRANSACTION_HISTORY) {
-            TransactionHistoryScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
+            // Reached as a bottom-nav root → no back arrow; the nav bar is the way out.
+            TransactionHistoryScreen(onNavigateBack = null)
         }
         
         composable(Routes.FINANCIAL_DASHBOARD) {
@@ -287,6 +288,22 @@ fun AppNavigation(
                 },
                 onNavigateToSetup = {
                     navController.navigate(Routes.OPENING_BALANCE_SETUP)
+                }
+            )
+        }
+
+        composable(Routes.SETTINGS) {
+            SettingsScreen(
+                themeViewModel = themeViewModel,
+                onOpenNotifAccess = onOpenNotifAccess,
+                onNavigateToCategories = {
+                    navController.navigate(Routes.CATEGORY_MANAGEMENT)
+                },
+                onNavigateToIncomes = {
+                    navController.navigate(Routes.INCOME_MANAGEMENT)
+                },
+                onNavigateToBalances = {
+                    navController.navigate(Routes.OPENING_BALANCE_MANAGEMENT)
                 }
             )
         }

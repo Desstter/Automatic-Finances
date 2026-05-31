@@ -5,24 +5,33 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.example.automaticfinances.MainActivity
-import com.example.automaticfinances.R
 import com.example.automaticfinances.ui.voice.VoiceEntryActivity
 
 class ForegroundSmsService : Service() {
     
     companion object {
+        private const val TAG = "ForegroundSmsService"
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "sms_service_channel"
         private const val REQUEST_VOICE_ENTRY = 2001
 
+        /**
+         * Best-effort service start. Wrapped so background-start restrictions on Android 12+
+         * (e.g. when triggered from a boot broadcast) can never crash the caller — the
+         * notification listener rebind path will bring the service back regardless.
+         */
         fun startService(context: Context) {
-            val intent = Intent(context, ForegroundSmsService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                val intent = Intent(context, ForegroundSmsService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not start foreground service", e)
             }
         }
         
@@ -39,7 +48,14 @@ class ForegroundSmsService : Service() {
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, createNotification())
+        try {
+            startForeground(NOTIFICATION_ID, createNotification())
+        } catch (e: Exception) {
+            // Promotion to foreground can be denied (background-start restrictions). Don't crash;
+            // stop quietly and let the listener rebind restart us from a valid context.
+            Log.w(TAG, "startForeground denied; stopping", e)
+            stopSelf()
+        }
 
         return START_STICKY // Restart if killed by system
     }
@@ -55,10 +71,10 @@ class ForegroundSmsService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "SMS Monitoring Service",
+                "Registro por voz",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Monitorea SMS de Bancolombia"
+                description = "Acceso rápido para registrar gastos hablando"
                 setShowBadge(false)
                 enableLights(false)
                 enableVibration(false)
@@ -70,15 +86,10 @@ class ForegroundSmsService : Service() {
     }
     
     private fun createNotification(): Notification {
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // Tapping this action opens the translucent voice-entry overlay. NEW_TASK + CLEAR_TOP so it
-        // floats over whatever is on screen and reuses the single-top instance if already open.
+        // Tapping anywhere on the notification (or the explicit action) opens the translucent
+        // voice-entry overlay — the voice flow is the primary, most direct purpose of this
+        // persistent notification. NEW_TASK + CLEAR_TOP so it floats over whatever is on screen
+        // and reuses the single-top instance if already open.
         val voiceIntent = Intent(this, VoiceEntryActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val voicePendingIntent = PendingIntent.getActivity(
@@ -89,13 +100,13 @@ class ForegroundSmsService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("AutomaticFinances Activo")
-            .setContentText("Monitoreando SMS de Bancolombia")
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // Using system icon
-            .setContentIntent(pendingIntent)
+            .setContentTitle("Registrar un gasto")
+            .setContentText("Toca para hablar y registrarlo al instante")
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now) // Mic — signals the voice shortcut
+            .setContentIntent(voicePendingIntent)
             .addAction(
                 android.R.drawable.ic_btn_speak_now,
-                "Registrar gasto por voz",
+                "Hablar",
                 voicePendingIntent
             )
             .setOngoing(true)

@@ -18,14 +18,16 @@ import javax.inject.Inject
  */
 class RestoreTransactionUseCase @Inject constructor(
     private val transactionRepo: TransactionRepository,
-    private val accountRepo: AccountRepository
+    private val accountRepo: AccountRepository,
+    private val transactionRunner: TransactionRunner
 ) {
     /** @return true if the transaction was re-inserted (false if it still existed). */
-    suspend operator fun invoke(transaction: Transaction): Boolean {
-        val inserted = transactionRepo.insert(transaction)
-        if (inserted) {
-            accountRepo.applyTransactionToBalance(transaction)
+    suspend operator fun invoke(transaction: Transaction): Boolean =
+        transactionRunner.runInTransaction {
+            val inserted = transactionRepo.insert(transaction)
+            if (inserted) {
+                accountRepo.applyTransactionToBalance(transaction)
+            }
+            inserted
         }
-        return inserted
-    }
 }

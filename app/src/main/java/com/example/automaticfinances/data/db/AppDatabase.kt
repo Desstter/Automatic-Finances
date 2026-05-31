@@ -6,7 +6,9 @@ import androidx.room.RoomDatabase
 @Database(
     entities = [Transaction::class, Category::class, UserCategoryPreference::class, Budget::class, FinancialGoal::class, Account::class, OpeningBalance::class, MerchantResolution::class],
     version = 11,
-    exportSchema = false
+    // Schemas are exported to app/schemas (see room.schemaLocation in build.gradle.kts) so future
+    // migrations can be validated with Room's MigrationTestHelper.
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao

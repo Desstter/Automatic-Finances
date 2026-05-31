@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -393,11 +394,15 @@ fun CategoryAddEditDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(availableColors) { availableColor ->
+                            val swatchColor = Color(android.graphics.Color.parseColor(availableColor))
+                            // Contrast for the check sits on an arbitrary DB color, so derive it
+                            // from luminance rather than a theme token.
+                            val onSwatch = if (swatchColor.luminance() > 0.5f) Color.Black else Color.White
                             Box(
                                 modifier = Modifier
                                     .size(32.dp)
                                     .clip(CircleShape)
-                                    .background(Color(android.graphics.Color.parseColor(availableColor)))
+                                    .background(swatchColor)
                                     .clickable { onColorChange(availableColor) }
                             ) {
                                 if (availableColor == color) {
@@ -405,13 +410,13 @@ fun CategoryAddEditDialog(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .clip(CircleShape)
-                                            .background(Color.White.copy(alpha = 0.3f)),
+                                            .background(onSwatch.copy(alpha = 0.25f)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Check,
                                             contentDescription = null,
-                                            tint = Color.White,
+                                            tint = onSwatch,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }

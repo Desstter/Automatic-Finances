@@ -5,31 +5,32 @@ import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
 // ===========================================
-// AutomaticFinances - Material 3 Shapes
-// Shape system optimizado para finanzas
+// AutomaticFinances - Material 3 Shapes (estilo Expressive)
+// Escala más redondeada/generosa para un look expresivo, manteniendo
+// la legibilidad financiera. (M3 Expressive favorece radios mayores.)
 // ===========================================
 
 val AppShapes = Shapes(
-    extraSmall = RoundedCornerShape(4.dp),    // Chips pequeños, badges
-    small = RoundedCornerShape(8.dp),         // Botones pequeños, inputs
-    medium = RoundedCornerShape(16.dp),       // Tarjetas estándar, cards
-    large = RoundedCornerShape(16.dp),        // Modales, bottom sheets
-    extraLarge = RoundedCornerShape(28.dp)    // FABs, elementos especiales
+    extraSmall = RoundedCornerShape(8.dp),    // Chips pequeños, badges
+    small = RoundedCornerShape(12.dp),        // Botones pequeños, inputs
+    medium = RoundedCornerShape(20.dp),       // Tarjetas estándar, cards
+    large = RoundedCornerShape(28.dp),        // Modales, contenedores grandes
+    extraLarge = RoundedCornerShape(36.dp)    // FABs, elementos especiales
 )
 
 // === Shapes específicas para finanzas ===
 object FinanceShapes {
     // Cards de transacciones
-    val transactionCard = RoundedCornerShape(12.dp)
-    
+    val transactionCard = RoundedCornerShape(20.dp)
+
     // Cards de balance/saldo
-    val balanceCard = RoundedCornerShape(16.dp)
-    
-    // Botones de acción principal
-    val primaryButton = RoundedCornerShape(8.dp)
-    
+    val balanceCard = RoundedCornerShape(28.dp)
+
+    // Botones de acción principal (full/pill para look expresivo)
+    val primaryButton = RoundedCornerShape(percent = 50)
+
     // Chips de categorías
-    val categoryChip = RoundedCornerShape(16.dp)
+    val categoryChip = RoundedCornerShape(percent = 50)
     
     // Bottom sheets y modales
     val bottomSheet = RoundedCornerShape(
@@ -40,17 +41,17 @@ object FinanceShapes {
     )
     
     // Dialog containers
-    val dialog = RoundedCornerShape(24.dp)
-    
+    val dialog = RoundedCornerShape(28.dp)
+
     // Input fields
-    val textField = RoundedCornerShape(8.dp)
-    
+    val textField = RoundedCornerShape(12.dp)
+
     // Indicadores de estado
-    val statusIndicator = RoundedCornerShape(4.dp)
-    
+    val statusIndicator = RoundedCornerShape(percent = 50)
+
     // Charts y gráficos contenedores
-    val chartContainer = RoundedCornerShape(12.dp)
-    
-    // Progress indicators
-    val progressIndicator = RoundedCornerShape(8.dp)
+    val chartContainer = RoundedCornerShape(20.dp)
+
+    // Progress indicators (pill)
+    val progressIndicator = RoundedCornerShape(percent = 50)
 }

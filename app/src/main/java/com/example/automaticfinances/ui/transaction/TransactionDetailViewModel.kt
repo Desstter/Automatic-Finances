@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.db.Transaction
 import com.example.automaticfinances.data.repo.CategoryRepository
+import com.example.automaticfinances.data.repo.MerchantResolutionRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.domain.DeleteTransactionUseCase
 import com.example.automaticfinances.domain.RestoreTransactionUseCase
@@ -35,6 +36,7 @@ data class TransactionDetailState(
 class TransactionDetailViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
+    private val merchantResolutionRepository: MerchantResolutionRepository,
     private val deleteTransactionUseCase: DeleteTransactionUseCase,
     private val restoreTransactionUseCase: RestoreTransactionUseCase
 ) : ViewModel() {
@@ -123,7 +125,20 @@ class TransactionDetailViewModel @Inject constructor(
                 )
                 
                 transactionRepository.update(updatedTransaction)
-                
+
+                // If this transaction still carries a raw gateway name (an unknown gateway we
+                // couldn't resolve at insert time), remember the user's correction so future
+                // charges from the same gateway resolve to the real merchant + category
+                // automatically. Known gateways were already rewritten to the real merchant on
+                // insert, so isGatewayMerchant is false for them and this is a no-op.
+                if (merchantResolutionRepository.isGatewayMerchant(transaction.description)) {
+                    merchantResolutionRepository.learn(
+                        gatewayMerchant = transaction.description,
+                        realMerchant = updatedTransaction.description,
+                        categoryId = updatedTransaction.categoryId
+                    )
+                }
+
                 _state.value = _state.value.copy(
                     transaction = updatedTransaction,
                     isSaving = false,

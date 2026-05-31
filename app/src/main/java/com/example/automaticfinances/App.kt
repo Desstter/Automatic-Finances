@@ -2,6 +2,7 @@ package com.example.automaticfinances
 
 import android.app.Application
 import com.example.automaticfinances.data.repo.CategoryRepository
+import com.example.automaticfinances.data.repo.MerchantResolutionRepository
 import com.example.automaticfinances.system.ServiceManager
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -13,6 +14,7 @@ import javax.inject.Inject
 @HiltAndroidApp
 class App : Application() {
     @Inject lateinit var categoryRepository: CategoryRepository
+    @Inject lateinit var merchantResolutionRepository: MerchantResolutionRepository
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -23,6 +25,9 @@ class App : Application() {
         // independent connection pools / invalidation trackers.
         appScope.launch {
             categoryRepository.initializeDefaultCategories()
+            // Seed the gateway→merchant mappings AFTER categories exist: the seed maps category
+            // names to their ids, so the categories must already be persisted.
+            merchantResolutionRepository.initializeDefaultResolutions()
         }
         ServiceManager.startPersistentService(this)
     }

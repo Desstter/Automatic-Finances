@@ -15,14 +15,16 @@ import javax.inject.Inject
  */
 class DeleteTransactionUseCase @Inject constructor(
     private val transactionRepo: TransactionRepository,
-    private val accountRepo: AccountRepository
+    private val accountRepo: AccountRepository,
+    private val transactionRunner: TransactionRunner
 ) {
     /** @return true if the transaction existed and was deleted. */
-    suspend operator fun invoke(transaction: Transaction): Boolean {
-        val deleted = transactionRepo.deleteTransaction(transaction.id)
-        if (deleted) {
-            accountRepo.revertTransactionFromBalance(transaction)
+    suspend operator fun invoke(transaction: Transaction): Boolean =
+        transactionRunner.runInTransaction {
+            val deleted = transactionRepo.deleteTransaction(transaction.id)
+            if (deleted) {
+                accountRepo.revertTransactionFromBalance(transaction)
+            }
+            deleted
         }
-        return deleted
-    }
 }

@@ -1,8 +1,10 @@
 package com.example.automaticfinances.ui.components.charts
 
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import com.example.automaticfinances.ui.theme.FinanceTheme
 import com.example.automaticfinances.data.models.CategorySpending
 import com.example.automaticfinances.data.models.MonthlySpending
 import com.example.automaticfinances.data.models.BudgetComparison
@@ -135,10 +137,10 @@ object ChartPerformance {
     @Composable
     fun rememberColorCache(
         primaryColor: Color,
-        secondaryColor: Color = Color.Gray,
-        successColor: Color = Color(0xFF4CAF50),
-        warningColor: Color = Color(0xFFFF9800),
-        errorColor: Color = Color(0xFFF44336)
+        secondaryColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+        successColor: Color = FinanceTheme.colors.profit,
+        warningColor: Color = FinanceTheme.colors.warning,
+        errorColor: Color = FinanceTheme.colors.loss
     ): ColorCache {
         return remember(primaryColor, secondaryColor, successColor, warningColor, errorColor) {
             ColorCache(

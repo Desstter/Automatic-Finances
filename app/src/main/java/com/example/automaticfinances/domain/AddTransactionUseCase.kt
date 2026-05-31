@@ -4,12 +4,15 @@ import com.example.automaticfinances.data.db.Transaction
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.AccountRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
+import com.example.automaticfinances.data.repo.MerchantResolutionRepository
 import javax.inject.Inject
 
 class AddTransactionUseCase @Inject constructor(
     private val transactionRepo: TransactionRepository,
     private val accountRepo: AccountRepository,
-    private val categoryRepo: CategoryRepository
+    private val categoryRepo: CategoryRepository,
+    private val merchantResolutionRepo: MerchantResolutionRepository,
+    private val transactionRunner: TransactionRunner
 ) {
     suspend operator fun invoke(tx: Transaction) {
         // Enrich with account + category. The parser produces "pure" transactions (no DB
@@ -17,16 +20,22 @@ class AddTransactionUseCase @Inject constructor(
         // manual entry where the user picked a category) are always preserved.
         val enriched = enrich(tx)
 
-        // Handle special case: RETIRO (ATM withdrawal)
-        if (enriched.type == "RETIRO") {
-            handleWithdrawalTransfer(enriched)
-        } else {
-            // Normal transaction processing.
-            // Only adjust the balance if the row was actually inserted; a re-delivered
-            // notification with the same id is ignored and must NOT touch the balance again.
-            val inserted = transactionRepo.insert(enriched)
-            if (inserted) {
-                accountRepo.applyTransactionToBalance(enriched)
+        // The insert and its balance adjustment must commit together. Wrapping them in a single
+        // transaction guarantees the financial invariant survives a crash/failure mid-operation:
+        // we never end up with a persisted row whose balance effect was lost, nor (for a RETIRO)
+        // a bank leg applied without its matching cash leg.
+        transactionRunner.runInTransaction {
+            // Handle special case: RETIRO (ATM withdrawal)
+            if (enriched.type == "RETIRO") {
+                handleWithdrawalTransfer(enriched)
+            } else {
+                // Normal transaction processing.
+                // Only adjust the balance if the row was actually inserted; a re-delivered
+                // notification with the same id is ignored and must NOT touch the balance again.
+                val inserted = transactionRepo.insert(enriched)
+                if (inserted) {
+                    accountRepo.applyTransactionToBalance(enriched)
+                }
             }
         }
     }
@@ -41,13 +50,38 @@ class AddTransactionUseCase @Inject constructor(
         } else {
             tx
         }
-        return if (withAccount.categoryId == null) {
-            withAccount.copy(
-                categoryId = categoryRepo.getDefaultCategoryId(withAccount.type, withAccount.description)
-            )
+
+        // Gateway resolution: a charge routed through a payment gateway shows the gateway in the
+        // SMS (e.g. "PAYU*NETFLIX") instead of the real merchant. Translate it to the real
+        // merchant name so reports read cleanly, and reuse the curated category it carries.
+        // We try the full normalized name first, then fall back to the gateway base (prefix +
+        // first word) so "PAYU*NETFLIX BOGOTA" still resolves to the "PAYU*NETFLIX" mapping.
+        val resolution = if (merchantResolutionRepo.isGatewayMerchant(withAccount.description)) {
+            merchantResolutionRepo.resolve(withAccount.description)
+                ?: merchantResolutionRepo.resolve(
+                    merchantResolutionRepo.extractGatewayBase(withAccount.description)
+                )
+        } else {
+            null
+        }
+        val withMerchant = if (resolution != null) {
+            withAccount.copy(description = resolution.realMerchant)
         } else {
             withAccount
         }
+
+        // Category resolution only when the caller didn't already set one (e.g. manual entry).
+        if (withMerchant.categoryId != null) return withMerchant
+
+        val categoryId = if (resolution?.suggestedCategoryId != null) {
+            // A learned user correction (keyed on the real merchant) always wins over the
+            // curated gateway category; otherwise fall back to the curated suggestion.
+            categoryRepo.getLearnedCategoryId(withMerchant.description)
+                ?: resolution.suggestedCategoryId
+        } else {
+            categoryRepo.getDefaultCategoryId(withMerchant.type, withMerchant.description)
+        }
+        return withMerchant.copy(categoryId = categoryId)
     }
     
     /**

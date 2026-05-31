@@ -89,6 +89,7 @@ fun IncomeTrendChart(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Chart Canvas
+                val chartColors = ChartUtils.rememberChartColors()
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -108,6 +109,9 @@ fun IncomeTrendChart(
                         drawIncomeTrendChart(
                             monthlyIncome = processedData,
                             progress = animationProgress,
+                            lineColor = chartColors.income,
+                            gridColor = chartColors.grid,
+                            pointStrokeColor = chartColors.sliceStroke,
                             selectedPointIndex = selectedPointIndex
                         )
                     }
@@ -411,6 +415,9 @@ private fun findNearestPoint(clickOffset: Offset, points: List<LineChartPoint>):
 private fun DrawScope.drawIncomeTrendChart(
     monthlyIncome: List<MonthlySpending>,
     progress: Float,
+    lineColor: Color,
+    gridColor: Color,
+    pointStrokeColor: Color,
     selectedPointIndex: Int = -1
 ) {
     if (monthlyIncome.isEmpty()) return
@@ -427,66 +434,66 @@ private fun DrawScope.drawIncomeTrendChart(
         drawGrid(
             canvasSize = size,
             padding = padding,
-            color = Color.Gray.copy(alpha = 0.2f)
+            color = gridColor.copy(alpha = 0.4f)
         )
     }
-    
+
     // Draw income line with gradient
     val path = Path()
     val gradientPath = Path()
-    
+
     path.moveTo(visiblePoints.first().x, visiblePoints.first().y)
     gradientPath.moveTo(visiblePoints.first().x, size.height)
     gradientPath.lineTo(visiblePoints.first().x, visiblePoints.first().y)
-    
+
     for (i in 1 until visiblePoints.size) {
         val point = visiblePoints[i]
         path.lineTo(point.x, point.y)
         gradientPath.lineTo(point.x, point.y)
     }
-    
+
     // Close gradient path
     if (visiblePoints.isNotEmpty()) {
         gradientPath.lineTo(visiblePoints.last().x, size.height)
         gradientPath.close()
     }
-    
+
     // Draw gradient fill
     drawPath(
         path = gradientPath,
-        color = Color(0xFF4CAF50).copy(alpha = 0.3f) // Green for income
+        color = lineColor.copy(alpha = 0.3f)
     )
-    
+
     // Draw main line
     drawPath(
         path = path,
-        color = Color(0xFF4CAF50), // Green for income
+        color = lineColor,
         style = Stroke(width = 3.dp.toPx())
     )
-    
+
     // Draw points
     visiblePoints.forEachIndexed { index, point ->
         val isSelected = index == selectedPointIndex
         val pointRadius = if (isSelected) 8.dp.toPx() else 5.dp.toPx()
-        
-        // Outer circle (white background)
+
+        // Outer circle (surface-colored background ring)
         drawCircle(
-            color = Color.White,
+            color = pointStrokeColor,
             radius = pointRadius + 2.dp.toPx(),
             center = Offset(point.x, point.y)
         )
-        
+
         // Inner circle (colored)
         drawCircle(
-            color = Color(0xFF4CAF50),
+            color = lineColor,
             radius = pointRadius,
             center = Offset(point.x, point.y)
         )
-        
+
         // Selection highlight
         if (isSelected) {
             drawCircle(
-                color = Color(0xFF4CAF50).copy(alpha = 0.3f),
+                color = lineColor.copy(alpha = 0.3f),
                 radius = pointRadius + 8.dp.toPx(),
                 center = Offset(point.x, point.y)
             )

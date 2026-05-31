@@ -1,6 +1,7 @@
 package com.example.automaticfinances.ui.components.charts
 
 import androidx.compose.animation.core.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -9,25 +10,75 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import com.example.automaticfinances.ui.theme.FinanceTheme
 import java.text.NumberFormat
 import java.util.*
 import kotlin.math.*
 
+/**
+ * Theme-derived palette for Canvas charts. Built from [MaterialTheme] + [FinanceTheme] so charts
+ * respond to light/dark and the brand palette instead of fixed MD2 hues. Read once via
+ * [ChartUtils.rememberChartColors] in a Composable, then pass the colors into `DrawScope` helpers
+ * (which can't access the theme themselves).
+ */
+@Immutable
+data class ChartColors(
+    val safe: Color,
+    val warning: Color,
+    val critical: Color,
+    val error: Color,
+    val neutral: Color,
+    val grid: Color,
+    val income: Color,
+    val expense: Color,
+    /** Gap/stroke drawn between adjacent pie slices — matches the card surface behind the chart. */
+    val sliceStroke: Color,
+    /** Subtle highlight overlay on slices / data points. */
+    val sliceHighlight: Color,
+)
+
 object ChartUtils {
-    
+
     // Colombian peso formatter
     val colombianPesoFormatter: NumberFormat = NumberFormat.getCurrencyInstance(Locale("es", "CO"))
     val compactFormatter: NumberFormat = NumberFormat.getInstance(Locale("es", "CO"))
-    
-    // Common chart colors
-    object Colors {
-        val safe = Color(0xFF4CAF50)
-        val warning = Color(0xFFFFC107)  
-        val critical = Color(0xFFFF9800)
-        val error = Color(0xFFF44336)
-        val neutral = Color(0xFF9E9E9E)
-        val grid = Color(0xFF000000).copy(alpha = 0.1f)
+
+    /** Static neutral used only as a last-resort fallback for malformed DB category hex. */
+    val neutralFallback = Color(0xFF9E9E9E)
+
+    /**
+     * Theme-aware chart palette. Maps budget/status hues and income/expense to the brand's
+     * finance semantics so charts track light/dark and the "Oro Refinado" palette.
+     */
+    @Composable
+    fun rememberChartColors(): ChartColors {
+        val scheme = MaterialTheme.colorScheme
+        val finance = FinanceTheme.colors
+        return remember(scheme, finance) {
+            ChartColors(
+                safe = finance.profit,
+                warning = finance.warning,
+                critical = finance.loss,
+                error = scheme.error,
+                neutral = scheme.onSurfaceVariant,
+                grid = scheme.outlineVariant,
+                income = finance.profit,
+                expense = finance.loss,
+                sliceStroke = scheme.surface,
+                sliceHighlight = scheme.onSurface,
+            )
+        }
     }
+
+    /**
+     * Parses a category color stored as a hex string (e.g. "#9E9E9E") into a Compose [Color].
+     * Returns [fallback] on malformed input instead of throwing — category colors come from the
+     * DB and a bad value must never crash a chart. Call this OUTSIDE of `DrawScope` (e.g. in a
+     * `remember`) so the string isn't re-parsed on every frame. Pass a theme color (e.g.
+     * `chartColors.neutral`) as [fallback] to stay theme-aware.
+     */
+    fun parseHexColor(hex: String?, fallback: Color = neutralFallback): Color =
+        runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(fallback)
     
     // Animation configurations
     object Animations {
@@ -179,7 +230,7 @@ object ChartUtils {
         padding: ChartPadding,
         horizontalLines: Int = 5,
         verticalLines: Int = 5,
-        color: Color = Colors.grid,
+        color: Color,
         strokeWidth: Float = 1f
     ) {
         val chartWidth = canvasSize.width - padding.left - padding.right

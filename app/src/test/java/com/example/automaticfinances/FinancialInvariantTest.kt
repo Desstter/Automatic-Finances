@@ -4,6 +4,7 @@ import com.example.automaticfinances.data.db.Account
 import com.example.automaticfinances.data.db.Transaction
 import com.example.automaticfinances.data.repo.AccountRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
+import com.example.automaticfinances.data.repo.MerchantResolutionRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.UserCategoryPreferenceRepository
 import com.example.automaticfinances.domain.AddTransactionUseCase
@@ -11,7 +12,9 @@ import com.example.automaticfinances.domain.DeleteTransactionUseCase
 import com.example.automaticfinances.domain.RestoreTransactionUseCase
 import com.example.automaticfinances.fakes.FakeAccountDao
 import com.example.automaticfinances.fakes.FakeCategoryDao
+import com.example.automaticfinances.fakes.FakeMerchantResolutionDao
 import com.example.automaticfinances.fakes.FakeTransactionDao
+import com.example.automaticfinances.fakes.FakeTransactionRunner
 import com.example.automaticfinances.fakes.FakeUserCategoryPreferenceDao
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -53,9 +56,11 @@ class FinancialInvariantTest {
             FakeCategoryDao(),
             UserCategoryPreferenceRepository(FakeUserCategoryPreferenceDao())
         )
-        addUseCase = AddTransactionUseCase(txRepo, accountRepo, categoryRepo)
-        deleteUseCase = DeleteTransactionUseCase(txRepo, accountRepo)
-        restoreUseCase = RestoreTransactionUseCase(txRepo, accountRepo)
+        val merchantRepo = MerchantResolutionRepository(FakeMerchantResolutionDao(), FakeCategoryDao())
+        val runner = FakeTransactionRunner(txDao, accountDao)
+        addUseCase = AddTransactionUseCase(txRepo, accountRepo, categoryRepo, merchantRepo, runner)
+        deleteUseCase = DeleteTransactionUseCase(txRepo, accountRepo, runner)
+        restoreUseCase = RestoreTransactionUseCase(txRepo, accountRepo, runner)
     }
 
     private fun cashBalance(): Long = runBlocking { accountRepo.getAccountBalance(cashId)!! }
@@ -135,5 +140,32 @@ class FinancialInvariantTest {
         assertEquals("Bank decreases by withdrawal", bankOpening - 50_000L, bankBalance())
         assertEquals("Cash increases by withdrawal", cashOpening + 50_000L, cashBalance())
         assertEquals("Total balance is conserved across the transfer", totalBefore, bankBalance() + cashBalance())
+    }
+
+    @Test
+    fun atmWithdrawal_isAtomic_whenCashLegFailsTheBankLegRollsBack() = runBlocking {
+        val bankBefore = bankBalance()
+        val cashBefore = cashBalance()
+
+        // Simulate a failure inserting the cash leg AFTER the bank leg has already been applied.
+        txDao.failOnInsertId = "r2_CASH"
+        val retiro = Transaction.fromTimestamp(
+            id = "r2", ts = 1_700_000_000_000L, type = "RETIRO", description = "Retiro cajero ATM",
+            amountCents = 50_000L, currency = "COP", srcLast4 = "6045", dstLast4 = null,
+            source = "notif:sms", rawPreview = "test", isIncome = false
+        )
+
+        var threw = false
+        try {
+            addUseCase(retiro)
+        } catch (e: Exception) {
+            threw = true
+        }
+
+        assertTrue("The mid-operation failure must surface to the caller", threw)
+        assertEquals("Bank leg must be rolled back, not left half-applied", bankBefore, bankBalance())
+        assertEquals("Cash must be untouched", cashBefore, cashBalance())
+        assertNull("No bank leg row may survive a rolled-back transaction", txRepo.getById("r2_BANK"))
+        assertNull("No cash leg row may survive a rolled-back transaction", txRepo.getById("r2_CASH"))
     }
 }

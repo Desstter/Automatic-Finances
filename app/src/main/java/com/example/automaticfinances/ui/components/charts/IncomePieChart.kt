@@ -3,7 +3,6 @@ package com.example.automaticfinances.ui.components.charts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
@@ -20,6 +19,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.automaticfinances.data.models.CategorySpending
@@ -45,9 +46,19 @@ fun IncomePieChart(
     val processedData = remember(categoryIncome) {
         processDataForIncomePieChart(categoryIncome)
     }
-    
-    val hapticFeedback = LocalHapticFeedback.current
-    
+
+    // Compute sectors and parse hex colors once per data change — never inside the DrawScope,
+    // which runs on every animation frame.
+    val sectors = remember(processedData) { calculateIncomePieChartSectors(processedData) }
+    val sectorColors = remember(sectors) { sectors.map { ChartUtils.parseHexColor(it.color) } }
+    val totalIncomeAmount = remember(categoryIncome) { categoryIncome.sumOf { it.amountCents } }
+    val chartDescription = remember(processedData, totalIncomeAmount) {
+        val parts = processedData.joinToString(", ") {
+            "${it.category.name} ${it.percentage.toInt()} por ciento"
+        }
+        "Distribución de ingresos. Total ${ChartUtils.formatCurrency(totalIncomeAmount)}. $parts"
+    }
+
     // Animation for pie chart entrance
     val animationProgress by animateFloatAsState(
         targetValue = 1f,
@@ -57,7 +68,9 @@ fun IncomePieChart(
         ),
         label = "pie_chart_animation"
     )
-    
+
+    val chartColors = ChartUtils.rememberChartColors()
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -76,28 +89,18 @@ fun IncomePieChart(
             Box(
                 modifier = Modifier
                     .size(200.dp)
-                    .weight(1f),
+                    .weight(1f)
+                    .semantics { contentDescription = chartDescription },
                 contentAlignment = Alignment.Center
             ) {
-                val totalAmount = categoryIncome.sumOf { it.amountCents }
-                
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() }
-                        ) {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                        }
-                ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
                     drawIncomePieChart(
-                        processedData,
-                        animationProgress,
-                        onSectorClick
+                        sectors, sectorColors, animationProgress,
+                        neutralColor = chartColors.neutral,
+                        strokeColor = chartColors.sliceStroke
                     )
                 }
-                
+
                 // Center text with total income
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -107,7 +110,7 @@ fun IncomePieChart(
                         style = MaterialTheme.typography.headlineMedium
                     )
                     Text(
-                        text = ChartUtils.formatCurrency(totalAmount),
+                        text = ChartUtils.formatCurrency(totalIncomeAmount),
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold
                         )
@@ -213,6 +216,9 @@ private fun IncomePieChartLegendItem(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Color indicator
+            val dotColor = remember(categoryIncome.category.color) {
+                ChartUtils.parseHexColor(categoryIncome.category.color)
+            }
             Box(
                 modifier = Modifier
                     .size(16.dp)
@@ -221,7 +227,7 @@ private fun IncomePieChartLegendItem(
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     drawCircle(
-                        color = Color(android.graphics.Color.parseColor(categoryIncome.category.color)),
+                        color = dotColor,
                         radius = size.minDimension / 2
                     )
                 }
@@ -371,34 +377,35 @@ private fun IncomePieChartHeader(
 }
 
 private fun DrawScope.drawIncomePieChart(
-    data: List<CategorySpending>,
+    sectors: List<PieChartSector>,
+    sectorColors: List<Color>,
     progress: Float,
-    onSectorClick: (CategorySpending) -> Unit
+    neutralColor: Color,
+    strokeColor: Color
 ) {
-    if (data.isEmpty()) return
-    
-    val sectors = calculateIncomePieChartSectors(data)
+    if (sectors.isEmpty()) return
+
     val center = Offset(size.width / 2f, size.height / 2f)
     val radius = size.minDimension / 2f * 0.85f
-    
+
     // Draw sectors with entrance animation
     sectors.forEachIndexed { index, sector ->
         val sectorProgress = ((progress * sectors.size) - index).coerceIn(0f, 1f)
         val animatedSweepAngle = sector.sweepAngle * sectorProgress
-        
+
         if (animatedSweepAngle > 0f) {
             drawArc(
-                color = Color(android.graphics.Color.parseColor(sector.color)),
+                color = sectorColors.getOrElse(index) { neutralColor },
                 startAngle = sector.startAngle - 90f, // Start from top
                 sweepAngle = animatedSweepAngle,
                 useCenter = true,
                 topLeft = Offset(center.x - radius, center.y - radius),
                 size = Size(radius * 2, radius * 2)
             )
-            
-            // Draw stroke
+
+            // Draw stroke — gap between slices, matches the surface behind the chart
             drawArc(
-                color = androidx.compose.ui.graphics.Color.White,
+                color = strokeColor,
                 startAngle = sector.startAngle - 90f,
                 sweepAngle = animatedSweepAngle,
                 useCenter = true,

@@ -72,71 +72,62 @@ class HomeViewModel @Inject constructor(
     
     init {
         initializeAccounts()
-        loadData()
+        observeData()
         loadIntelligenceData()
     }
-    
+
+    // Unfiltered source data, cached so that filter changes (every keystroke in search, every
+    // chip tap) re-derive the visible list in memory instead of re-querying the database.
+    private var allTransactions: List<TransactionWithCategory> = emptyList()
+
     private fun initializeAccounts() {
         viewModelScope.launch {
             accountRepository.initializeDefaultAccounts()
         }
     }
-    
-    private fun loadData(isRefresh: Boolean = false) {
+
+    /**
+     * Single long-lived collector of categories + transactions. Room emits a new value whenever
+     * the underlying tables change, so monthly totals and balances stay live without manual
+     * reloads. Filters are NOT applied here beyond the initial render — they run in memory via
+     * [reapplyFilters].
+     */
+    private fun observeData() {
         viewModelScope.launch {
-            if (isRefresh) {
-                _state.value = _state.value.copy(isRefreshing = true, error = null)
-            } else {
-                _state.value = _state.value.copy(isLoading = true, error = null)
-            }
-            
+            _state.value = _state.value.copy(isLoading = true, error = null)
             try {
-                // Combinar categorías y transacciones en un solo flow
                 combine(
                     categoryRepository.getAllActive(),
                     transactionRepository.getTransactionsWithCategories()
                 ) { categories, transactions ->
                     Pair(categories, transactions)
-                }.collectLatest { (categories, allTransactions) ->
-                    Log.d("HomeViewModel", "Received ${categories.size} categories and ${allTransactions.size} transactions")
-                    
+                }.collectLatest { (categories, transactions) ->
+                    allTransactions = transactions
+
                     val currentDate = LocalDate.now()
                     val monthStart = currentDate.withDayOfMonth(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
                     val monthEnd = currentDate.withDayOfMonth(currentDate.lengthOfMonth()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-                    
-                    // Calcular totales del mes separados por tipo
-                    val monthlyTransactions = allTransactions.filter { transaction ->
-                        transaction.date >= monthStart && transaction.date <= monthEnd
-                    }
+
+                    val monthlyTransactions = transactions.filter { it.date in monthStart..monthEnd }
                     val monthlyIncome = monthlyTransactions.filter { it.isIncome }.sumOf { it.amountCents }
                     val monthlyExpenses = monthlyTransactions.filter { !it.isIncome }.sumOf { it.amountCents }
-                    val monthlyTotal = monthlyExpenses // Mantener compatibilidad
-                    val monthlyBalance = monthlyIncome - monthlyExpenses
-                    
-                    // Aplicar todos los filtros
-                    val filteredTransactions = applyFilters(allTransactions)
-                    
-                    Log.d("HomeViewModel", "Filtered transactions: ${filteredTransactions.size}")
-                    
-                    // Get correct balances using OpeningBalanceRepository
+
                     val balanceSummary = openingBalanceRepository.getOpeningBalanceSummary()
-                    
+
                     _state.value = _state.value.copy(
                         categories = categories,
-                        transactions = filteredTransactions,
-                        totalMonthCOP = monthlyTotal,
+                        transactions = filterTransactions(transactions),
+                        totalMonthCOP = monthlyExpenses,
                         monthlyIncome = monthlyIncome,
                         monthlyExpenses = monthlyExpenses,
-                        // Update account balances using correct calculation
                         bankBalanceCents = balanceSummary.bankCurrentBalanceCents,
                         cashBalanceCents = balanceSummary.cashCurrentBalanceCents,
                         totalBalanceCents = balanceSummary.totalCurrentBalanceCents,
-                        monthlyBalance = monthlyBalance,
+                        monthlyBalance = monthlyIncome - monthlyExpenses,
                         isLoading = false,
                         isRefreshing = false
                     )
                 }
-                
             } catch (e: Exception) {
                 Log.e("HomeViewModel", "Error loading data", e)
                 _state.value = _state.value.copy(
@@ -147,22 +138,27 @@ class HomeViewModel @Inject constructor(
             }
         }
     }
-    
-    private fun applyFilters(transactions: List<TransactionWithCategory>): List<TransactionWithCategory> {
+
+    /** Re-derives the visible transaction list from the in-memory cache — no DB round-trip. */
+    private fun reapplyFilters() {
+        _state.value = _state.value.copy(transactions = filterTransactions(allTransactions))
+    }
+
+    private fun filterTransactions(transactions: List<TransactionWithCategory>): List<TransactionWithCategory> {
         var filtered = transactions
-        
+
         // Filtro de categoría
         _state.value.selectedCategoryFilter?.let { categoryId ->
             filtered = filtered.filter { it.categoryId == categoryId }
         }
-        
+
         // Filtro de búsqueda
         if (_state.value.searchQuery.isNotBlank()) {
-            filtered = filtered.filter { 
+            filtered = filtered.filter {
                 it.description.contains(_state.value.searchQuery, ignoreCase = true)
             }
         }
-        
+
         // Filtro de fecha
         _state.value.dateFilterStart?.let { startDate ->
             filtered = filtered.filter { it.date >= startDate }
@@ -170,7 +166,7 @@ class HomeViewModel @Inject constructor(
         _state.value.dateFilterEnd?.let { endDate ->
             filtered = filtered.filter { it.date <= endDate }
         }
-        
+
         // Filtro de monto
         _state.value.minAmountFilter?.let { minAmount ->
             filtered = filtered.filter { it.amountCents >= minAmount }
@@ -178,13 +174,13 @@ class HomeViewModel @Inject constructor(
         _state.value.maxAmountFilter?.let { maxAmount ->
             filtered = filtered.filter { it.amountCents <= maxAmount }
         }
-        
+
         return filtered
     }
-    
+
     fun filterByCategory(categoryId: Long?) {
         _state.value = _state.value.copy(selectedCategoryFilter = categoryId)
-        loadData() // Recargar con el nuevo filtro
+        reapplyFilters()
     }
     
     fun clearCategoryFilter() {
@@ -205,37 +201,75 @@ class HomeViewModel @Inject constructor(
     
     fun refreshData() {
         Log.d("HomeViewModel", "Manual refresh requested")
-        loadData(isRefresh = true)
+        // The data flow is already live; a manual refresh just re-reads the balance summary
+        // (which is not part of the flow) and re-applies filters. No collector restart.
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isRefreshing = true)
+            try {
+                val balanceSummary = openingBalanceRepository.getOpeningBalanceSummary()
+                _state.value = _state.value.copy(
+                    transactions = filterTransactions(allTransactions),
+                    bankBalanceCents = balanceSummary.bankCurrentBalanceCents,
+                    cashBalanceCents = balanceSummary.cashCurrentBalanceCents,
+                    totalBalanceCents = balanceSummary.totalCurrentBalanceCents,
+                    isRefreshing = false
+                )
+            } catch (e: Exception) {
+                Log.e("HomeViewModel", "Error refreshing data", e)
+                _state.value = _state.value.copy(isRefreshing = false)
+            }
+        }
     }
 
     fun forceRefresh() {
-        Log.d("HomeViewModel", "Force refresh - clearing state and reloading")
-        _state.value = HomeState()
-        loadData()
+        // Kept for callers that want an explicit refresh; delegates to refreshData() rather than
+        // wiping state (which would blank the screen until the next flow emission).
+        refreshData()
     }
-    
+
+    /**
+     * Silent re-read of the balance summary only. Transactions/categories already update live via
+     * the Room flow, but opening balances live in a separate table that the flow doesn't observe,
+     * so this is called when returning to Home (e.g. after editing an opening balance). No loading
+     * spinner is shown — it's a cheap, invisible top-up.
+     */
+    fun refreshBalances() {
+        viewModelScope.launch {
+            try {
+                val balanceSummary = openingBalanceRepository.getOpeningBalanceSummary()
+                _state.value = _state.value.copy(
+                    bankBalanceCents = balanceSummary.bankCurrentBalanceCents,
+                    cashBalanceCents = balanceSummary.cashCurrentBalanceCents,
+                    totalBalanceCents = balanceSummary.totalCurrentBalanceCents
+                )
+            } catch (e: Exception) {
+                Log.e("HomeViewModel", "Error refreshing balances", e)
+            }
+        }
+    }
+
     // Nuevas funciones para búsqueda y filtros
     fun updateSearchQuery(query: String) {
         _state.value = _state.value.copy(searchQuery = query)
-        loadData() // Recargar con el nuevo filtro
+        reapplyFilters()
     }
-    
+
     fun setDateFilter(startDate: String?, endDate: String?) {
         _state.value = _state.value.copy(
             dateFilterStart = startDate,
             dateFilterEnd = endDate
         )
-        loadData()
+        reapplyFilters()
     }
-    
+
     fun setAmountFilter(minAmount: Long?, maxAmount: Long?) {
         _state.value = _state.value.copy(
             minAmountFilter = minAmount,
             maxAmountFilter = maxAmount
         )
-        loadData()
+        reapplyFilters()
     }
-    
+
     fun clearAllFilters() {
         _state.value = _state.value.copy(
             selectedCategoryFilter = null,
@@ -246,7 +280,7 @@ class HomeViewModel @Inject constructor(
             maxAmountFilter = null,
             showFilters = false
         )
-        loadData()
+        reapplyFilters()
         Log.d("HomeViewModel", "Cleared all filters")
     }
     
@@ -315,7 +349,7 @@ class HomeViewModel @Inject constructor(
             minAmountFilter = minAmount,
             maxAmountFilter = maxAmount
         )
-        loadData()
+        reapplyFilters()
         Log.d("HomeViewModel", "Applied multiple filters: category=$categoryId, search=$searchQuery, dates=$dateStart-$dateEnd, amounts=$minAmount-$maxAmount")
     }
     

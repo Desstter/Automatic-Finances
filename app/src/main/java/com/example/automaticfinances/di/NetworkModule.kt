@@ -45,10 +45,6 @@ object NetworkModule {
     fun provideGeminiApiKey(): String = BuildConfig.GEMINI_API_KEY
 
     @Provides
-    @Named("geminiModel")
-    fun provideGeminiModel(): String = GeminiService.DEFAULT_MODEL
-
-    @Provides
     @Singleton
     fun provideLlmJsonClient(impl: GeminiService): LlmJsonClient = impl
 }
