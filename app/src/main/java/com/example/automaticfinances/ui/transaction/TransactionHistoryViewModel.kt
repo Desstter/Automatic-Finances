@@ -16,17 +16,31 @@ import kotlinx.coroutines.launch
 import android.util.Log
 import javax.inject.Inject
 
+/**
+ * State for the full-history screen. This is the single advanced-filter surface in the app:
+ * "Origen"/"Tipo" are exposed as quick chips, while category/date/amount/search are driven by
+ * the shared [com.example.automaticfinances.ui.components.FilterBottomSheet].
+ */
 data class TransactionHistoryState(
     val allTransactions: List<TransactionWithCategory> = emptyList(),
     val filteredTransactions: List<TransactionWithCategory> = emptyList(),
     val categories: List<Category> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val showFilters: Boolean = false,
     val sourceFilter: String? = null, // "manual", "notif", null
     val typeFilter: String? = null,   // "COMPRA", "TRANSFERENCIA", "MANUAL", null
-    val categoryFilter: Long? = null
-)
+    val categoryFilter: Long? = null,
+    val searchQuery: String = "",
+    val dateStart: String? = null,
+    val dateEnd: String? = null,
+    val minAmount: Long? = null,
+    val maxAmount: Long? = null
+) {
+    val hasActiveFilters: Boolean
+        get() = sourceFilter != null || typeFilter != null || categoryFilter != null ||
+            searchQuery.isNotBlank() || dateStart != null || dateEnd != null ||
+            minAmount != null || maxAmount != null
+}
 
 @HiltViewModel
 class TransactionHistoryViewModel @Inject constructor(
@@ -44,7 +58,7 @@ class TransactionHistoryViewModel @Inject constructor(
     private fun loadData() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, error = null)
-            
+
             try {
                 combine(
                     transactionRepository.getTransactionsWithCategories(),
@@ -52,13 +66,9 @@ class TransactionHistoryViewModel @Inject constructor(
                 ) { transactions, categories ->
                     Pair(transactions, categories)
                 }.collectLatest { (transactions, categories) ->
-                    Log.d("TransactionHistoryVM", "Loaded ${transactions.size} transactions and ${categories.size} categories")
-                    
-                    val filtered = applyFilters(transactions, _state.value)
-                    
                     _state.value = _state.value.copy(
                         allTransactions = transactions,
-                        filteredTransactions = filtered,
+                        filteredTransactions = applyFilters(transactions, _state.value),
                         categories = categories,
                         isLoading = false
                     )
@@ -75,72 +85,91 @@ class TransactionHistoryViewModel @Inject constructor(
 
     private fun applyFilters(
         transactions: List<TransactionWithCategory>,
-        currentState: TransactionHistoryState
+        s: TransactionHistoryState
     ): List<TransactionWithCategory> {
         var filtered = transactions
 
-        // Filtro por origen
-        currentState.sourceFilter?.let { sourceFilter ->
-            filtered = when (sourceFilter) {
+        s.sourceFilter?.let { source ->
+            filtered = when (source) {
                 "manual" -> filtered.filter { it.source == "manual" }
-                "notif" -> filtered.filter { it.source?.startsWith("notif") == true }
+                "notif" -> filtered.filter { it.source.startsWith("notif") }
                 else -> filtered
             }
         }
-
-        // Filtro por tipo
-        currentState.typeFilter?.let { typeFilter ->
-            filtered = filtered.filter { it.type == typeFilter }
+        s.typeFilter?.let { type -> filtered = filtered.filter { it.type == type } }
+        s.categoryFilter?.let { id -> filtered = filtered.filter { it.categoryId == id } }
+        if (s.searchQuery.isNotBlank()) {
+            filtered = filtered.filter { it.description.contains(s.searchQuery, ignoreCase = true) }
         }
-
-        // Filtro por categoría
-        currentState.categoryFilter?.let { categoryFilter ->
-            filtered = filtered.filter { it.categoryId == categoryFilter }
-        }
-
-        Log.d("TransactionHistoryVM", "Applied filters: source=${currentState.sourceFilter}, type=${currentState.typeFilter}, category=${currentState.categoryFilter}")
-        Log.d("TransactionHistoryVM", "Filtered from ${transactions.size} to ${filtered.size} transactions")
+        s.dateStart?.let { start -> filtered = filtered.filter { it.date >= start } }
+        s.dateEnd?.let { end -> filtered = filtered.filter { it.date <= end } }
+        s.minAmount?.let { min -> filtered = filtered.filter { it.amountCents >= min } }
+        s.maxAmount?.let { max -> filtered = filtered.filter { it.amountCents <= max } }
 
         return filtered.sortedByDescending { "${it.date} ${it.time}" }
     }
 
-    fun toggleFilters() {
-        _state.value = _state.value.copy(showFilters = !_state.value.showFilters)
-    }
-
-    fun setSourceFilter(source: String?) {
-        val newState = _state.value.copy(sourceFilter = source)
+    private fun update(newState: TransactionHistoryState) {
         _state.value = newState.copy(
-            filteredTransactions = applyFilters(_state.value.allTransactions, newState)
+            filteredTransactions = applyFilters(newState.allTransactions, newState)
         )
     }
 
-    fun setTypeFilter(type: String?) {
-        val newState = _state.value.copy(typeFilter = type)
-        _state.value = newState.copy(
-            filteredTransactions = applyFilters(_state.value.allTransactions, newState)
-        )
-    }
+    fun setSourceFilter(source: String?) = update(_state.value.copy(sourceFilter = source))
 
-    fun setCategoryFilter(categoryId: Long?) {
-        val newState = _state.value.copy(categoryFilter = categoryId)
-        _state.value = newState.copy(
-            filteredTransactions = applyFilters(_state.value.allTransactions, newState)
-        )
-    }
+    fun setTypeFilter(type: String?) = update(_state.value.copy(typeFilter = type))
 
-    fun clearFilters() {
-        val newState = _state.value.copy(
+    /** Commit category/date/amount/search from the shared filter sheet. */
+    fun applyAdvancedFilters(
+        categoryId: Long?,
+        search: String,
+        dateStart: String?,
+        dateEnd: String?,
+        minAmount: Long?,
+        maxAmount: Long?
+    ) = update(
+        _state.value.copy(
+            categoryFilter = categoryId,
+            searchQuery = search,
+            dateStart = dateStart,
+            dateEnd = dateEnd,
+            minAmount = minAmount,
+            maxAmount = maxAmount
+        )
+    )
+
+    /** Count how many transactions a pending sheet selection would match (live preview). */
+    fun countMatching(
+        categoryId: Long?,
+        search: String,
+        dateStart: String?,
+        dateEnd: String?,
+        minAmount: Long?,
+        maxAmount: Long?
+    ): Int = applyFilters(
+        _state.value.allTransactions,
+        _state.value.copy(
+            categoryFilter = categoryId,
+            searchQuery = search,
+            dateStart = dateStart,
+            dateEnd = dateEnd,
+            minAmount = minAmount,
+            maxAmount = maxAmount
+        )
+    ).size
+
+    fun clearFilters() = update(
+        _state.value.copy(
             sourceFilter = null,
             typeFilter = null,
-            categoryFilter = null
+            categoryFilter = null,
+            searchQuery = "",
+            dateStart = null,
+            dateEnd = null,
+            minAmount = null,
+            maxAmount = null
         )
-        _state.value = newState.copy(
-            filteredTransactions = applyFilters(_state.value.allTransactions, newState)
-        )
-    }
+    )
 
-    fun refreshData() {
-        loadData()
-    }
+    fun refreshData() = loadData()
 }

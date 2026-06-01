@@ -36,7 +36,6 @@ fun BalanceOverviewCard(
     onBankClick: () -> Unit = {},
     onCashClick: () -> Unit = {},
     onViewHistoryClick: () -> Unit = {},
-    onViewBalancesClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showBalances by remember { mutableStateOf(true) }

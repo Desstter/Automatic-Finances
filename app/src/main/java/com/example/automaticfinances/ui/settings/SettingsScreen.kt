@@ -63,6 +63,10 @@ fun SettingsScreen(
 ) {
     val themeMode by themeViewModel.themeMode.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val systemHealth by com.example.automaticfinances.system.SystemConfigurationChecker
+        .rememberSystemHealth(context)
+    val detectionActive = systemHealth.isServiceRunning && systemHealth.isListenerEnabled
 
     androidx.compose.material3.Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -141,7 +145,10 @@ fun SettingsScreen(
                     SettingRow(
                         icon = Icons.Default.Notifications,
                         title = "Acceso a notificaciones",
-                        subtitle = "Permite registrar gastos desde las alertas del banco",
+                        subtitle = if (detectionActive)
+                            "Activa · registrando gastos desde las alertas del banco"
+                        else
+                            "Inactiva · toca para otorgar el permiso",
                         onClick = onOpenNotifAccess,
                     )
                 }

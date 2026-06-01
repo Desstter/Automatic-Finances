@@ -1,239 +1,220 @@
 package com.example.automaticfinances.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import com.example.automaticfinances.data.db.Category
-import com.example.automaticfinances.ui.HomeState
+import com.example.automaticfinances.ui.theme.Sizes
+import com.example.automaticfinances.ui.theme.Spacing
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.util.*
 
+/**
+ * Single advanced-filter surface for the whole app. State-agnostic: the caller owns
+ * the current filter values and applies the result, so the same sheet drives both the
+ * transactions screen and any future list. Selections are previewed locally and only
+ * committed on "Aplicar", with a live result count provided by [resultCount].
+ *
+ * Lives inside a [ModalBottomSheet] that should be given a bounded height
+ * (e.g. `Modifier.fillMaxHeight(0.9f)`) so the scrollable body + pinned actions lay out
+ * correctly without a hardcoded content height.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilterBottomSheet(
-    state: HomeState,
+    categories: List<Category>,
+    selectedCategoryId: Long?,
+    dateStart: String?,
+    dateEnd: String?,
+    minAmount: Long?,
+    maxAmount: Long?,
+    searchQuery: String,
     numberFormat: NumberFormat,
-    onDateFilterChange: (String?, String?) -> Unit,
-    onAmountFilterChange: (Long?, Long?) -> Unit,
-    onCategoryFilterChange: (Long?) -> Unit,
-    onSearchQueryChange: (String) -> Unit,
-    onClearAllFilters: () -> Unit,
-    onApplyFilters: () -> Unit,
-    onDismiss: () -> Unit
+    resultCount: (categoryId: Long?, search: String, dateStart: String?, dateEnd: String?, min: Long?, max: Long?) -> Int,
+    onApply: (categoryId: Long?, search: String, dateStart: String?, dateEnd: String?, min: Long?, max: Long?) -> Unit,
+    onClearAll: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Categorías", "Fechas", "Montos", "Buscar")
-    
-    // Temporary state for previewing changes before applying
-    var tempCategoryFilter by remember(state.selectedCategoryFilter) { mutableStateOf(state.selectedCategoryFilter ?: -1L) }
-    var tempSearchQuery by remember(state.searchQuery) { mutableStateOf(state.searchQuery) }
-    var tempDateStart by remember(state.dateFilterStart) { mutableStateOf(state.dateFilterStart) }
-    var tempDateEnd by remember(state.dateFilterEnd) { mutableStateOf(state.dateFilterEnd) }
-    var tempMinAmount by remember(state.minAmountFilter) { mutableStateOf(state.minAmountFilter ?: -1L) }
-    var tempMaxAmount by remember(state.maxAmountFilter) { mutableStateOf(state.maxAmountFilter ?: -1L) }
-    
-    val hasActiveFilters = tempCategoryFilter != -1L || 
-                          tempSearchQuery.isNotBlank() || 
-                          tempDateStart != null || 
-                          tempDateEnd != null || 
-                          tempMinAmount != -1L || 
-                          tempMaxAmount != -1L
-    
-    // Calculate preview count (simplified)
-    val filteredCount = state.transactions.size // TODO: Apply temp filters for real preview
-    
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large.copy(
-            bottomStart = androidx.compose.foundation.shape.CornerSize(0.dp),
-            bottomEnd = androidx.compose.foundation.shape.CornerSize(0.dp)
-        ),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 8.dp
+
+    // Pending (un-applied) selection — committed only on "Aplicar".
+    var tempCategory by remember(selectedCategoryId) { mutableStateOf(selectedCategoryId ?: -1L) }
+    var tempSearch by remember(searchQuery) { mutableStateOf(searchQuery) }
+    var tempDateStart by remember(dateStart) { mutableStateOf(dateStart) }
+    var tempDateEnd by remember(dateEnd) { mutableStateOf(dateEnd) }
+    var tempMin by remember(minAmount) { mutableStateOf(minAmount ?: -1L) }
+    var tempMax by remember(maxAmount) { mutableStateOf(maxAmount ?: -1L) }
+
+    val hasActiveFilters = tempCategory != -1L ||
+        tempSearch.isNotBlank() ||
+        tempDateStart != null ||
+        tempDateEnd != null ||
+        tempMin != -1L ||
+        tempMax != -1L
+
+    // Live preview count, re-derived by the caller whenever a pending value changes.
+    val filteredCount = remember(tempCategory, tempSearch, tempDateStart, tempDateEnd, tempMin, tempMax) {
+        resultCount(
+            if (tempCategory == -1L) null else tempCategory,
+            tempSearch,
+            tempDateStart,
+            tempDateEnd,
+            if (tempMin == -1L) null else tempMin,
+            if (tempMax == -1L) null else tempMax,
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxHeight()
+            .padding(horizontal = Spacing.lg)
+            .padding(bottom = Spacing.lg),
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
+        // Header with title + live result count
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = Spacing.lg),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Header with handle and title
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Filtros Avanzados",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                
-                // Preview counter
-                if (hasActiveFilters) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = MaterialTheme.shapes.small
-                    ) {
+            Text(
+                text = "Filtros",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            if (hasActiveFilters) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Text(
+                        text = "$filteredCount resultados",
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+            }
+        }
+
+        // Scrollable so each tab sizes to its own label — no equal-width squeeze that would
+        // truncate longer words like "Categorías". Text-only keeps the row calm and legible.
+        PrimaryScrollableTabRow(
+            selectedTabIndex = selectedTab,
+            edgePadding = Spacing.none,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = {
                         Text(
-                            text = "$filteredCount resultados",
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            text = title,
+                            maxLines = 1,
+                            softWrap = false,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal,
                         )
-                    }
-                }
-            }
-            
-            // Tab navigation
-            PrimaryTabRow(
-                selectedTabIndex = selectedTab,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = when (index) {
-                                        0 -> Icons.Default.Category
-                                        1 -> Icons.Default.CalendarMonth
-                                        2 -> Icons.Default.MonetizationOn
-                                        else -> Icons.Default.Check
-                                    },
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(title)
-                            }
-                        }
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Content based on selected tab
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                when (selectedTab) {
-                    0 -> CategoryFilterContent(
-                        categories = state.categories,
-                        selectedCategoryId = if (tempCategoryFilter == -1L) null else tempCategoryFilter,
-                        onCategorySelected = { categoryId ->
-                            tempCategoryFilter = categoryId ?: -1L
-                        }
-                    )
-                    1 -> DateFilterContent(
-                        startDate = tempDateStart,
-                        endDate = tempDateEnd,
-                        onDateRangeChange = { start, end ->
-                            tempDateStart = start
-                            tempDateEnd = end
-                        }
-                    )
-                    2 -> AmountFilterContent(
-                        minAmount = if (tempMinAmount == -1L) null else tempMinAmount,
-                        maxAmount = if (tempMaxAmount == -1L) null else tempMaxAmount,
-                        numberFormat = numberFormat,
-                        onAmountRangeChange = { min, max ->
-                            tempMinAmount = min ?: -1L
-                            tempMaxAmount = max ?: -1L
-                        }
-                    )
-                    3 -> SearchFilterContent(
-                        searchQuery = tempSearchQuery,
-                        onSearchQueryChange = { tempSearchQuery = it }
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Action buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Clear all button
-                OutlinedButton(
-                    onClick = {
-                        tempCategoryFilter = -1L
-                        tempSearchQuery = ""
-                        tempDateStart = null
-                        tempDateEnd = null
-                        tempMinAmount = -1L
-                        tempMaxAmount = -1L
-                        onClearAllFilters()
                     },
-                    modifier = Modifier.weight(1f),
-                    enabled = hasActiveFilters
-                ) {
-                    Icon(
-                        Icons.Default.Clear,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Limpiar")
-                }
-                
-                // Apply button
-                Button(
-                    onClick = {
-                        // Apply all temp filters to actual state
-                        onCategoryFilterChange(if (tempCategoryFilter == -1L) null else tempCategoryFilter)
-                        onSearchQueryChange(tempSearchQuery)
-                        onDateFilterChange(tempDateStart, tempDateEnd)
-                        onAmountFilterChange(
-                            if (tempMinAmount == -1L) null else tempMinAmount,
-                            if (tempMaxAmount == -1L) null else tempMaxAmount
-                        )
-                        onApplyFilters()
-                        onDismiss()
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.lg))
+
+        // Scrollable body fills the remaining sheet height (no hardcoded height).
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            when (selectedTab) {
+                0 -> CategoryFilterContent(
+                    categories = categories,
+                    selectedCategoryId = if (tempCategory == -1L) null else tempCategory,
+                    onCategorySelected = { tempCategory = it ?: -1L },
+                )
+                1 -> DateFilterContent(
+                    startDate = tempDateStart,
+                    endDate = tempDateEnd,
+                    onDateRangeChange = { start, end ->
+                        tempDateStart = start
+                        tempDateEnd = end
                     },
-                    modifier = Modifier.weight(2f)
-                ) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                )
+                2 -> AmountFilterContent(
+                    minAmount = if (tempMin == -1L) null else tempMin,
+                    maxAmount = if (tempMax == -1L) null else tempMax,
+                    numberFormat = numberFormat,
+                    onAmountRangeChange = { min, max ->
+                        tempMin = min ?: -1L
+                        tempMax = max ?: -1L
+                    },
+                )
+                3 -> SearchFilterContent(
+                    searchQuery = tempSearch,
+                    onSearchQueryChange = { tempSearch = it },
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.lg))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            OutlinedButton(
+                onClick = {
+                    tempCategory = -1L
+                    tempSearch = ""
+                    tempDateStart = null
+                    tempDateEnd = null
+                    tempMin = -1L
+                    tempMax = -1L
+                    onClearAll()
+                },
+                modifier = Modifier.weight(1f),
+                enabled = hasActiveFilters,
+            ) {
+                Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(Sizes.iconSm))
+                Spacer(modifier = Modifier.width(Spacing.xs))
+                Text("Limpiar")
+            }
+
+            Button(
+                onClick = {
+                    onApply(
+                        if (tempCategory == -1L) null else tempCategory,
+                        tempSearch,
+                        tempDateStart,
+                        tempDateEnd,
+                        if (tempMin == -1L) null else tempMin,
+                        if (tempMax == -1L) null else tempMax,
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Aplicar Filtros")
-                }
+                    onDismiss()
+                },
+                modifier = Modifier.weight(2f),
+            ) {
+                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(Sizes.iconSm))
+                Spacer(modifier = Modifier.width(Spacing.sm))
+                Text("Aplicar filtros")
             }
         }
     }
@@ -244,45 +225,39 @@ fun FilterBottomSheet(
 private fun CategoryFilterContent(
     categories: List<Category>,
     selectedCategoryId: Long?,
-    onCategorySelected: (Long?) -> Unit
+    onCategorySelected: (Long?) -> Unit,
 ) {
     Column {
         Text(
             text = "Selecciona una categoría",
             style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 12.dp)
+            modifier = Modifier.padding(bottom = Spacing.md),
         )
-        
-        // "Todas" option
+
         FilterChip(
             selected = selectedCategoryId == null,
             onClick = { onCategorySelected(null) },
-            label = { Text("🏷️ Todas las categorías") },
+            label = { Text("Todas las categorías") },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 8.dp)
+                .padding(bottom = Spacing.sm),
         )
-        
-        // Category options in a grid-like layout
+
         categories.chunked(2).forEach { rowCategories ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(bottom = Spacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 rowCategories.forEach { category ->
                     FilterChip(
                         selected = selectedCategoryId == category.id,
                         onClick = { onCategorySelected(category.id) },
-                        label = {
-                            Text("${category.icon} ${category.name}")
-                        },
-                        modifier = Modifier.weight(1f)
+                        label = { Text("${category.icon} ${category.name}", maxLines = 1) },
+                        modifier = Modifier.weight(1f),
                     )
                 }
-                
-                // Fill remaining space if odd number
                 if (rowCategories.size == 1) {
                     Spacer(modifier = Modifier.weight(1f))
                 }
@@ -295,93 +270,56 @@ private fun CategoryFilterContent(
 private fun DateFilterContent(
     startDate: String?,
     endDate: String?,
-    onDateRangeChange: (String?, String?) -> Unit
+    onDateRangeChange: (String?, String?) -> Unit,
 ) {
+    val isoFormat = remember { DateTimeFormatter.ofPattern("yyyy-MM-dd") }
     Column {
         Text(
             text = "Rango de fechas",
             style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 12.dp)
+            modifier = Modifier.padding(bottom = Spacing.md),
         )
-        
-        // Quick date presets
+
         val quickFilters = listOf(
-            "Hoy" to { 
-                val today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            "Hoy" to {
+                val today = LocalDate.now().format(isoFormat)
                 onDateRangeChange(today, today)
             },
             "Esta semana" to {
                 val today = LocalDate.now()
                 val weekStart = today.minusDays(today.dayOfWeek.value - 1L)
-                onDateRangeChange(
-                    weekStart.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")),
-                    today.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-                )
+                onDateRangeChange(weekStart.format(isoFormat), today.format(isoFormat))
             },
             "Este mes" to {
                 val today = LocalDate.now()
-                val monthStart = today.withDayOfMonth(1)
-                onDateRangeChange(
-                    monthStart.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")),
-                    today.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-                )
+                onDateRangeChange(today.withDayOfMonth(1).format(isoFormat), today.format(isoFormat))
             },
             "Últimos 30 días" to {
                 val today = LocalDate.now()
-                val thirtyDaysAgo = today.minusDays(30)
-                onDateRangeChange(
-                    thirtyDaysAgo.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")),
-                    today.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-                )
-            }
+                onDateRangeChange(today.minusDays(30).format(isoFormat), today.format(isoFormat))
+            },
         )
-        
+
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(bottom = 16.dp)
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            modifier = Modifier.padding(bottom = Spacing.lg),
         ) {
             items(quickFilters) { (label, action) ->
-                FilterChip(
-                    selected = false,
-                    onClick = action,
-                    label = { Text(label) }
-                )
+                FilterChip(selected = false, onClick = action, label = { Text(label) })
             }
         }
-        
-        // Current selection display
+
         if (startDate != null || endDate != null) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp)
-                ) {
-                    Text(
-                        text = "Rango seleccionado:",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    Text(
-                        text = "${startDate ?: "..."} → ${endDate ?: "..."}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-            }
+            SelectionCard(
+                label = "Rango seleccionado",
+                value = "${startDate ?: "…"} → ${endDate ?: "…"}",
+            )
         }
-        
-        // Clear dates button
+
         OutlinedButton(
             onClick = { onDateRangeChange(null, null) },
             enabled = startDate != null || endDate != null,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Limpiar fechas")
         }
@@ -393,73 +331,43 @@ private fun AmountFilterContent(
     minAmount: Long?,
     maxAmount: Long?,
     numberFormat: NumberFormat,
-    onAmountRangeChange: (Long?, Long?) -> Unit
+    onAmountRangeChange: (Long?, Long?) -> Unit,
 ) {
     Column {
         Text(
             text = "Rango de montos",
             style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 12.dp)
+            modifier = Modifier.padding(bottom = Spacing.md),
         )
-        
-        // Quick amount presets
+
         val quickFilters = listOf(
-            "< $50K" to { onAmountRangeChange(null, 5000000L) },
-            "$50K - $200K" to { onAmountRangeChange(5000000L, 20000000L) },
-            "> $200K" to { onAmountRangeChange(20000000L, null) },
-            "> $500K" to { onAmountRangeChange(50000000L, null) }
+            "< \$50K" to { onAmountRangeChange(null, 5_000_000L) },
+            "\$50K – \$200K" to { onAmountRangeChange(5_000_000L, 20_000_000L) },
+            "> \$200K" to { onAmountRangeChange(20_000_000L, null) },
+            "> \$500K" to { onAmountRangeChange(50_000_000L, null) },
         )
-        
+
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(bottom = 16.dp)
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            modifier = Modifier.padding(bottom = Spacing.lg),
         ) {
             items(quickFilters) { (label, action) ->
-                FilterChip(
-                    selected = false,
-                    onClick = action,
-                    label = { Text(label) }
-                )
+                FilterChip(selected = false, onClick = action, label = { Text(label) })
             }
         }
-        
-        // Current selection display
+
         if (minAmount != null || maxAmount != null) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp)
-                ) {
-                    Text(
-                        text = "Rango seleccionado:",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                    Text(
-                        text = "${
-                            if (minAmount != null) numberFormat.format(minAmount / 100.0) else "Sin mínimo"
-                        } - ${
-                            if (maxAmount != null) numberFormat.format(maxAmount / 100.0) else "Sin máximo"
-                        }",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                }
-            }
+            SelectionCard(
+                label = "Rango seleccionado",
+                value = "${if (minAmount != null) numberFormat.format(minAmount / 100.0) else "Sin mínimo"} – " +
+                    (if (maxAmount != null) numberFormat.format(maxAmount / 100.0) else "Sin máximo"),
+            )
         }
-        
-        // Clear amounts button
+
         OutlinedButton(
             onClick = { onAmountRangeChange(null, null) },
             enabled = minAmount != null || maxAmount != null,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Limpiar montos")
         }
@@ -470,19 +378,19 @@ private fun AmountFilterContent(
 @Composable
 private fun SearchFilterContent(
     searchQuery: String,
-    onSearchQueryChange: (String) -> Unit
+    onSearchQueryChange: (String) -> Unit,
 ) {
     Column {
         Text(
             text = "Buscar en transacciones",
             style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 12.dp)
+            modifier = Modifier.padding(bottom = Spacing.md),
         )
-        
+
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchQueryChange,
-            label = { Text("Buscar por descripción...") },
+            label = { Text("Buscar por descripción…") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             trailingIcon = {
@@ -491,17 +399,43 @@ private fun SearchFilterContent(
                         Icon(Icons.Default.Clear, contentDescription = "Limpiar")
                     }
                 }
-            }
+            },
         )
-        
-        Spacer(modifier = Modifier.height(12.dp))
-        
+
+        Spacer(modifier = Modifier.height(Spacing.md))
+
         Text(
-            text = "💡 Puedes buscar por nombre del comercio, descripción o cualquier texto de la transacción.",
+            text = "Busca por nombre del comercio, descripción o cualquier texto de la transacción.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
         )
+    }
+}
+
+/** Tonal card that echoes the currently-selected range for date / amount tabs. */
+@Composable
+private fun SelectionCard(label: String, value: String) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = Spacing.md),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+    ) {
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
     }
 }

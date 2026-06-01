@@ -106,24 +106,22 @@ fun AppNavigation(
                 onTransactionClick = { transactionId ->
                     navController.navigate(Routes.transactionDetail(transactionId))
                 },
-                onManageCategoriesClick = {
-                    navController.navigate(Routes.CATEGORY_MANAGEMENT)
-                },
                 onAddTransactionClick = {
                     navController.navigate(Routes.ADD_TRANSACTION)
                 },
                 onAddVoiceClick = onVoiceEntry,
+                onAddIncomeClick = {
+                    navController.navigate(Routes.ADD_INCOME)
+                },
                 onViewHistoryClick = {
-                    navController.navigate(Routes.TRANSACTION_HISTORY)
-                },
-                onViewInsightsClick = {
-                    navController.navigate(Routes.FINANCIAL_DASHBOARD)
-                },
-                onViewIncomesClick = {
-                    navController.navigate(Routes.INCOME_MANAGEMENT)
-                },
-                onViewBalancesClick = {
-                    navController.navigate(Routes.OPENING_BALANCE_MANAGEMENT)
+                    // Select the "Movimientos" tab (single source of truth) instead of
+                    // pushing a second copy of the history screen on top of Home. This keeps
+                    // the back stack predictable: system-back from history returns to Home.
+                    navController.navigate(Routes.TRANSACTION_HISTORY) {
+                        popUpTo(Routes.HOME) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 },
                 onBankBalanceClick = {
                     navController.navigate(Routes.OPENING_BALANCE_MANAGEMENT)
@@ -136,27 +134,6 @@ fun AppNavigation(
                 },
                 onSearchQueryChange = { query ->
                     homeViewModel.updateSearchQuery(query)
-                },
-                onToggleFilters = {
-                    homeViewModel.toggleFilters()
-                },
-                onClearFilters = {
-                    homeViewModel.clearAllFilters()
-                },
-                onDateFilterChange = { startDate, endDate ->
-                    homeViewModel.setDateFilter(startDate, endDate)
-                },
-                onAmountFilterChange = { minAmount, maxAmount ->
-                    homeViewModel.setAmountFilter(minAmount, maxAmount)
-                },
-                onCategoryFilterChange = { categoryId ->
-                    homeViewModel.filterByCategory(categoryId)
-                },
-                onServiceIssuesResolved = {
-                    homeViewModel.markServiceIssuesResolved()
-                },
-                onServiceIssuesDetected = {
-                    homeViewModel.markServiceIssuesDetected()
                 }
             )
         }
@@ -189,7 +166,12 @@ fun AppNavigation(
 
         composable(Routes.TRANSACTION_HISTORY) {
             // Reached as a bottom-nav root → no back arrow; the nav bar is the way out.
-            TransactionHistoryScreen(onNavigateBack = null)
+            TransactionHistoryScreen(
+                onNavigateBack = null,
+                onTransactionClick = { transactionId ->
+                    navController.navigate(Routes.transactionDetail(transactionId))
+                }
+            )
         }
         
         composable(Routes.FINANCIAL_DASHBOARD) {

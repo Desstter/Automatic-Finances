@@ -1,8 +1,10 @@
 package com.example.automaticfinances.ui.transaction
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -18,7 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.automaticfinances.ui.CompactTransactionItem
-import com.example.automaticfinances.ui.components.common.ExpandableBanner
+import com.example.automaticfinances.ui.components.FilterBottomSheet
 import com.example.automaticfinances.ui.components.common.PremiumEmptyState
 import com.example.automaticfinances.ui.components.common.TransactionListSkeleton
 import com.example.automaticfinances.ui.theme.FinanceTypography
@@ -29,12 +31,14 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionHistoryScreen(
-    onNavigateBack: (() -> Unit)? = null
+    onNavigateBack: (() -> Unit)? = null,
+    onTransactionClick: (String) -> Unit = {}
 ) {
     val viewModel: TransactionHistoryViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val numberFormat = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    var showFilterSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -51,13 +55,21 @@ fun TransactionHistoryScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.toggleFilters() }) {
-                        Icon(
-                            Icons.Default.Tune,
-                            contentDescription = "Filtros",
-                            tint = if (state.showFilters) MaterialTheme.colorScheme.primary
-                                   else LocalContentColor.current
-                        )
+                    IconButton(onClick = { showFilterSheet = true }) {
+                        BadgedBox(
+                            badge = {
+                                if (state.hasActiveFilters) {
+                                    Badge(containerColor = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        ) {
+                            Icon(
+                                Icons.Default.Tune,
+                                contentDescription = "Filtros",
+                                tint = if (state.hasActiveFilters) MaterialTheme.colorScheme.primary
+                                       else LocalContentColor.current
+                            )
+                        }
                     }
                 },
                 scrollBehavior = scrollBehavior
@@ -72,26 +84,22 @@ fun TransactionHistoryScreen(
                 modifier = Modifier.padding(horizontal = Spacing.screen, vertical = Spacing.md)
             )
 
-            ExpandableBanner(visible = state.showFilters) {
-                FiltersCard(
-                    selectedSource = state.sourceFilter,
-                    selectedType = state.typeFilter,
-                    selectedCategory = state.categoryFilter,
-                    categories = state.categories,
-                    onSourceChange = viewModel::setSourceFilter,
-                    onTypeChange = viewModel::setTypeFilter,
-                    onCategoryChange = viewModel::setCategoryFilter,
-                    onClearFilters = viewModel::clearFilters,
-                    modifier = Modifier.padding(horizontal = Spacing.screen)
-                )
-            }
+            QuickFilterChips(
+                selectedSource = state.sourceFilter,
+                selectedType = state.typeFilter,
+                onSourceChange = viewModel::setSourceFilter,
+                onTypeChange = viewModel::setTypeFilter,
+                modifier = Modifier.padding(bottom = Spacing.sm)
+            )
 
             when {
                 state.isLoading -> TransactionListSkeleton(itemCount = 8, modifier = Modifier.padding(top = Spacing.sm))
                 state.filteredTransactions.isEmpty() -> PremiumEmptyState(
                     icon = Icons.AutoMirrored.Filled.ReceiptLong,
                     title = "Sin transacciones",
-                    description = "No se encontraron transacciones con los filtros seleccionados."
+                    description = "No se encontraron transacciones con los filtros seleccionados.",
+                    actionLabel = if (state.hasActiveFilters) "Limpiar filtros" else null,
+                    onAction = if (state.hasActiveFilters) viewModel::clearFilters else null
                 )
                 else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -101,12 +109,76 @@ fun TransactionHistoryScreen(
                         CompactTransactionItem(
                             transaction = transaction,
                             numberFormat = numberFormat,
-                            onClick = {}
+                            onClick = { onTransactionClick(transaction.id) }
                         )
                     }
                 }
             }
         }
+    }
+
+    if (showFilterSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showFilterSheet = false },
+            modifier = Modifier.fillMaxHeight(0.9f)
+        ) {
+            FilterBottomSheet(
+                categories = state.categories,
+                selectedCategoryId = state.categoryFilter,
+                dateStart = state.dateStart,
+                dateEnd = state.dateEnd,
+                minAmount = state.minAmount,
+                maxAmount = state.maxAmount,
+                searchQuery = state.searchQuery,
+                numberFormat = numberFormat,
+                resultCount = { categoryId, search, dateStart, dateEnd, min, max ->
+                    viewModel.countMatching(categoryId, search, dateStart, dateEnd, min, max)
+                },
+                onApply = { categoryId, search, dateStart, dateEnd, min, max ->
+                    viewModel.applyAdvancedFilters(categoryId, search, dateStart, dateEnd, min, max)
+                },
+                onClearAll = viewModel::clearFilters,
+                onDismiss = { showFilterSheet = false }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QuickFilterChips(
+    selectedSource: String?,
+    selectedType: String?,
+    onSourceChange: (String?) -> Unit,
+    onTypeChange: (String?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = Spacing.screen),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        FilterChip(selected = selectedSource == null && selectedType == null,
+            onClick = { onSourceChange(null); onTypeChange(null) }, label = { Text("Todos") })
+        FilterChip(selected = selectedSource == "manual",
+            onClick = { onSourceChange(if (selectedSource == "manual") null else "manual") },
+            label = { Text("Manuales") })
+        FilterChip(selected = selectedSource == "notif",
+            onClick = { onSourceChange(if (selectedSource == "notif") null else "notif") },
+            label = { Text("Automáticas") })
+        VerticalDivider(modifier = Modifier.height(24.dp))
+        FilterChip(selected = selectedType == "COMPRA",
+            onClick = { onTypeChange(if (selectedType == "COMPRA") null else "COMPRA") },
+            label = { Text("Compras") })
+        FilterChip(selected = selectedType == "TRANSFERENCIA",
+            onClick = { onTypeChange(if (selectedType == "TRANSFERENCIA") null else "TRANSFERENCIA") },
+            label = { Text("Transferencias") })
+        FilterChip(selected = selectedType == "MANUAL",
+            onClick = { onTypeChange(if (selectedType == "MANUAL") null else "MANUAL") },
+            label = { Text("Efectivo") })
     }
 }
 
@@ -143,56 +215,6 @@ fun StatsCard(
                 )
                 Text("Total", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-}
-
-@Composable
-fun FiltersCard(
-    selectedSource: String?,
-    selectedType: String?,
-    selectedCategory: Long?,
-    categories: List<com.example.automaticfinances.data.db.Category>,
-    onSourceChange: (String?) -> Unit,
-    onTypeChange: (String?) -> Unit,
-    onCategoryChange: (Long?) -> Unit,
-    onClearFilters: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer
-    ) {
-        Column(
-            modifier = Modifier.padding(Spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Filtros", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                TextButton(onClick = onClearFilters) { Text("Limpiar") }
-            }
-
-            Text("Origen", style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                FilterChip(selected = selectedSource == null, onClick = { onSourceChange(null) }, label = { Text("Todos") })
-                FilterChip(selected = selectedSource == "manual", onClick = { onSourceChange("manual") }, label = { Text("Manuales") })
-                FilterChip(selected = selectedSource?.startsWith("notif") == true, onClick = { onSourceChange("notif") }, label = { Text("Automáticas") })
-            }
-
-            Text("Tipo", style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                FilterChip(selected = selectedType == null, onClick = { onTypeChange(null) }, label = { Text("Todos") })
-                FilterChip(selected = selectedType == "COMPRA", onClick = { onTypeChange("COMPRA") }, label = { Text("Compras") })
-                FilterChip(selected = selectedType == "TRANSFERENCIA", onClick = { onTypeChange("TRANSFERENCIA") }, label = { Text("Transferencias") })
-                FilterChip(selected = selectedType == "MANUAL", onClick = { onTypeChange("MANUAL") }, label = { Text("Efectivo") })
             }
         }
     }

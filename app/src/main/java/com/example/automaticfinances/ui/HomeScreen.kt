@@ -1,6 +1,5 @@
 package com.example.automaticfinances.ui
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -10,15 +9,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -35,9 +33,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.automaticfinances.data.repo.TransactionWithCategory
 import com.example.automaticfinances.system.SystemConfigurationChecker
 import com.example.automaticfinances.ui.components.BalanceOverviewCard
-import com.example.automaticfinances.ui.components.FilterBottomSheet
-import com.example.automaticfinances.ui.components.FilterPreviewCard
-import com.example.automaticfinances.ui.components.FilterSummary
 import com.example.automaticfinances.ui.components.IntelligenceInsightsCard
 import com.example.automaticfinances.ui.components.SpeedDialAction
 import com.example.automaticfinances.ui.components.SpeedDialFab
@@ -57,64 +52,46 @@ import kotlinx.coroutines.flow.StateFlow
 import java.text.NumberFormat
 import java.util.*
 
+/** How many recent movements the dashboard shows before deferring to the full history. */
+private const val RECENT_LIMIT = 15
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     stateFlow: StateFlow<HomeState>,
     onOpenNotifAccess: () -> Unit,
     onTransactionClick: (String) -> Unit = {},
-    onManageCategoriesClick: () -> Unit = {},
     onAddTransactionClick: () -> Unit = {},
     onAddVoiceClick: () -> Unit = {},
+    onAddIncomeClick: () -> Unit = {},
     onViewHistoryClick: () -> Unit = {},
-    onViewInsightsClick: () -> Unit = {},
-    onViewIncomesClick: () -> Unit = {},
-    onViewBalancesClick: () -> Unit = {},
     onBankBalanceClick: () -> Unit = {},
     onCashBalanceClick: () -> Unit = {},
     onRefresh: () -> Unit = {},
-    onSearchQueryChange: (String) -> Unit = {},
-    onToggleFilters: () -> Unit = {},
-    onClearFilters: () -> Unit = {},
-    onDateFilterChange: (String?, String?) -> Unit = { _, _ -> },
-    onAmountFilterChange: (Long?, Long?) -> Unit = { _, _ -> },
-    onCategoryFilterChange: (Long?) -> Unit = {},
-    onServiceIssuesResolved: () -> Unit = {},
-    onServiceIssuesDetected: () -> Unit = {}
+    onSearchQueryChange: (String) -> Unit = {}
 ) {
     val state by stateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    var showFilterBottomSheet by remember { mutableStateOf(false) }
     var fabExpanded by remember { mutableStateOf(false) }
+    var isSearchActive by remember { mutableStateOf(false) }
 
     val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
 
-    // System health monitoring with auto-hide logic
+    // System health — the banner only surfaces when detection needs the user (off / starting).
     val systemHealth by SystemConfigurationChecker.rememberSystemHealth(context)
-    val shouldShowServiceStatus by remember(systemHealth, state.serviceIssuesLastFixedAt) {
-        derivedStateOf {
-            SystemConfigurationChecker.shouldShowServiceStatus(context, state.serviceIssuesLastFixedAt)
-        }
-    }
-
-    LaunchedEffect(systemHealth.needsUserAttention) {
-        if (systemHealth.needsUserAttention) {
-            onServiceIssuesDetected()
-        } else if (state.serviceIssuesLastFixedAt == 0L) {
-            onServiceIssuesResolved()
-        }
-    }
-
     val isServiceRunning = systemHealth.isServiceRunning
     val isListenerEnabled = systemHealth.isListenerEnabled
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    val activeFilters = hasActiveFilters(state)
 
-    // Group transactions by human date bucket, preserving descending order.
-    val groupedTransactions = remember(state.transactions) {
-        state.transactions.groupBy { formatTransactionDate(it.date) }
+    // While searching, Home behaves as a search surface (all matches). Otherwise it's a
+    // dashboard showing only the most recent movements, deferring the full list to Movimientos.
+    val displayedTransactions = remember(state.transactions, isSearchActive) {
+        if (isSearchActive) state.transactions else state.transactions.take(RECENT_LIMIT)
+    }
+    val groupedTransactions = remember(displayedTransactions) {
+        displayedTransactions.groupBy { formatTransactionDate(it.date) }
     }
 
     Scaffold(
@@ -124,9 +101,8 @@ fun HomeScreen(
                 title = "Automatic Finances",
                 searchQuery = state.searchQuery,
                 onSearchQueryChange = onSearchQueryChange,
-                hasActiveFilters = activeFilters,
-                onClearFilters = onClearFilters,
-                onOpenFilters = { showFilterBottomSheet = true },
+                isSearchActive = isSearchActive,
+                onSearchActiveChange = { isSearchActive = it },
                 scrollBehavior = scrollBehavior
             )
         },
@@ -141,7 +117,12 @@ fun HomeScreen(
                         onClick = onAddVoiceClick
                     ),
                     SpeedDialAction(
-                        label = "Manual",
+                        label = "Ingreso",
+                        icon = Icons.AutoMirrored.Filled.TrendingUp,
+                        onClick = onAddIncomeClick
+                    ),
+                    SpeedDialAction(
+                        label = "Gasto",
                         icon = Icons.Default.Edit,
                         onClick = onAddTransactionClick
                     )
@@ -159,69 +140,58 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(Spacing.md),
                 contentPadding = PaddingValues(bottom = 96.dp, top = Spacing.md)
             ) {
-                // Service status banner — only when issues detected / grace period
-                item(key = "service") {
-                    ExpandableBanner(visible = shouldShowServiceStatus) {
+                // The balance hero / status / intelligence cards are hidden while searching so
+                // the field and matching results take the full screen.
+                if (!isSearchActive) {
+                    item(key = "service") {
+                        ExpandableBanner(visible = systemHealth.needsUserAttention) {
+                            Box(modifier = Modifier.padding(horizontal = Spacing.screen)) {
+                                CompactServiceStatusCard(
+                                    isServiceRunning = isServiceRunning,
+                                    isListenerEnabled = isListenerEnabled,
+                                    onOpenNotifAccess = onOpenNotifAccess
+                                )
+                            }
+                        }
+                    }
+
+                    item(key = "balance") {
                         Box(modifier = Modifier.padding(horizontal = Spacing.screen)) {
-                            CompactServiceStatusCard(
-                                isServiceRunning = isServiceRunning,
-                                isListenerEnabled = isListenerEnabled,
-                                onOpenNotifAccess = onOpenNotifAccess
+                            BalanceOverviewCard(
+                                bankBalanceCents = state.bankBalanceCents,
+                                cashBalanceCents = state.cashBalanceCents,
+                                totalBalanceCents = state.totalBalanceCents,
+                                monthlyIncome = state.monthlyIncome,
+                                monthlyExpenses = state.monthlyExpenses,
+                                numberFormat = nf,
+                                onBankClick = onBankBalanceClick,
+                                onCashClick = onCashBalanceClick,
+                                onViewHistoryClick = onViewHistoryClick
                             )
+                        }
+                    }
+
+                    if (state.intelligenceActive) {
+                        item(key = "intelligence") {
+                            Box(modifier = Modifier.padding(horizontal = Spacing.screen)) {
+                                IntelligenceInsightsCard(
+                                    totalPreferences = state.totalPreferences,
+                                    overallAccuracy = state.overallAccuracy,
+                                    categoryStats = state.categoryAccuracyStats,
+                                    onViewSuggestions = {}
+                                )
+                            }
                         }
                     }
                 }
 
-                // Balance hero
-                item(key = "balance") {
-                    Box(modifier = Modifier.padding(horizontal = Spacing.screen)) {
-                        BalanceOverviewCard(
-                            bankBalanceCents = state.bankBalanceCents,
-                            cashBalanceCents = state.cashBalanceCents,
-                            totalBalanceCents = state.totalBalanceCents,
-                            monthlyIncome = state.monthlyIncome,
-                            monthlyExpenses = state.monthlyExpenses,
-                            numberFormat = nf,
-                            onBankClick = onBankBalanceClick,
-                            onCashClick = onCashBalanceClick,
-                            onViewHistoryClick = onViewHistoryClick,
-                            onViewBalancesClick = onViewBalancesClick
-                        )
-                    }
-                }
-
-                if (state.intelligenceActive) {
-                    item(key = "intelligence") {
-                        Box(modifier = Modifier.padding(horizontal = Spacing.screen)) {
-                            IntelligenceInsightsCard(
-                                totalPreferences = state.totalPreferences,
-                                overallAccuracy = state.overallAccuracy,
-                                categoryStats = state.categoryAccuracyStats,
-                                onViewSuggestions = {}
-                            )
-                        }
-                    }
-                }
-
-                if (activeFilters) {
-                    item(key = "filterPreview") {
-                        Box(modifier = Modifier.padding(horizontal = Spacing.screen)) {
-                            FilterPreviewCard(
-                                summary = buildFilterSummary(state, nf),
-                                onClearFilter = onClearFilters
-                            )
-                        }
-                    }
-                }
-
-                // Transactions section header
                 item(key = "txHeader") {
                     SectionHeader(
-                        title = if (activeFilters) "Resultados" else "Movimientos",
-                        subtitle = if (state.transactions.isNotEmpty())
-                            "${state.transactions.size} transacciones" else null,
-                        actionLabel = if (!activeFilters && state.transactions.isNotEmpty()) "Ver historial" else null,
-                        onActionClick = if (!activeFilters) onViewHistoryClick else null,
+                        title = if (isSearchActive) "Resultados" else "Movimientos recientes",
+                        subtitle = if (displayedTransactions.isNotEmpty())
+                            "${displayedTransactions.size} transacciones" else null,
+                        actionLabel = if (!isSearchActive && state.transactions.isNotEmpty()) "Ver historial" else null,
+                        onActionClick = if (!isSearchActive) onViewHistoryClick else null,
                         modifier = Modifier.padding(horizontal = Spacing.screen, vertical = Spacing.xs)
                     )
                 }
@@ -231,15 +201,15 @@ fun HomeScreen(
                         item(key = "skeleton") { TransactionListSkeleton(itemCount = 7) }
                     }
 
-                    state.transactions.isEmpty() -> {
+                    displayedTransactions.isEmpty() -> {
                         item(key = "empty") {
-                            if (activeFilters) {
+                            if (isSearchActive) {
                                 PremiumEmptyState(
                                     icon = Icons.Default.Search,
                                     title = "Sin resultados",
-                                    description = "No encontramos transacciones con los filtros aplicados. Prueba ajustarlos.",
-                                    actionLabel = "Limpiar filtros",
-                                    onAction = onClearFilters
+                                    description = "No encontramos transacciones para esa búsqueda. Prueba con otro término.",
+                                    actionLabel = "Limpiar búsqueda",
+                                    onAction = { onSearchQueryChange("") }
                                 )
                             } else {
                                 PremiumEmptyState(
@@ -263,7 +233,6 @@ fun HomeScreen(
                                     transaction = tx,
                                     numberFormat = nf,
                                     onClick = { onTransactionClick(tx.id) },
-                                    // Expressive springy reordering when items move/insert.
                                     modifier = Modifier.animateItem(
                                         placementSpec = MotionTokens.expressiveSpatialDefault()
                                     )
@@ -280,25 +249,6 @@ fun HomeScreen(
             onDismiss = { fabExpanded = false }
         )
       }
-    }
-
-    if (showFilterBottomSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showFilterBottomSheet = false },
-            modifier = Modifier.fillMaxHeight(0.9f)
-        ) {
-            FilterBottomSheet(
-                state = state,
-                numberFormat = nf,
-                onDateFilterChange = onDateFilterChange,
-                onAmountFilterChange = onAmountFilterChange,
-                onCategoryFilterChange = onCategoryFilterChange,
-                onSearchQueryChange = onSearchQueryChange,
-                onClearAllFilters = onClearFilters,
-                onApplyFilters = {},
-                onDismiss = { showFilterBottomSheet = false }
-            )
-        }
     }
 }
 
@@ -444,13 +394,10 @@ fun EnhancedTopAppBar(
     title: String,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
-    hasActiveFilters: Boolean,
-    onClearFilters: () -> Unit,
-    onOpenFilters: () -> Unit = {},
+    isSearchActive: Boolean,
+    onSearchActiveChange: (Boolean) -> Unit,
     scrollBehavior: TopAppBarScrollBehavior? = null
 ) {
-    var isSearchActive by remember { mutableStateOf(false) }
-
     if (isSearchActive) {
         TopAppBar(
             title = {
@@ -478,7 +425,7 @@ fun EnhancedTopAppBar(
             },
             navigationIcon = {
                 IconButton(onClick = {
-                    isSearchActive = false
+                    onSearchActiveChange(false)
                     onSearchQueryChange("")
                 }) {
                     Icon(Icons.Default.Clear, contentDescription = "Cancelar búsqueda")
@@ -496,25 +443,8 @@ fun EnhancedTopAppBar(
                 )
             },
             actions = {
-                IconButton(onClick = { isSearchActive = true }) {
+                IconButton(onClick = { onSearchActiveChange(true) }) {
                     Icon(Icons.Default.Search, contentDescription = "Buscar")
-                }
-
-                IconButton(onClick = onOpenFilters) {
-                    BadgedBox(
-                        badge = {
-                            if (hasActiveFilters) {
-                                Badge(containerColor = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    ) {
-                        Icon(
-                            Icons.Default.Tune,
-                            contentDescription = "Filtros",
-                            tint = if (hasActiveFilters) MaterialTheme.colorScheme.primary
-                                   else LocalContentColor.current
-                        )
-                    }
                 }
             },
             scrollBehavior = scrollBehavior
@@ -522,22 +452,21 @@ fun EnhancedTopAppBar(
     }
 }
 
+/**
+ * Service status card — only rendered while [com.example.automaticfinances.system.SystemHealthStatus.needsUserAttention]
+ * is true, so it never advertises the healthy "active" state (that lives in Ajustes). It covers the
+ * two attention states: detection off (critical) and service starting (warning).
+ */
 @Composable
 fun CompactServiceStatusCard(
     isServiceRunning: Boolean,
     isListenerEnabled: Boolean,
     onOpenNotifAccess: () -> Unit
 ) {
-    val tone = when {
-        isServiceRunning && isListenerEnabled -> StatusTone.Positive
-        isListenerEnabled && !isServiceRunning -> StatusTone.Warning
-        else -> StatusTone.Critical
-    }
-    val container = when (tone) {
-        StatusTone.Positive -> MaterialTheme.colorScheme.surfaceContainer
-        StatusTone.Warning -> FinanceTheme.colors.warningContainer
-        else -> MaterialTheme.colorScheme.errorContainer
-    }
+    val isStarting = isListenerEnabled && !isServiceRunning
+    val tone = if (isStarting) StatusTone.Warning else StatusTone.Critical
+    val container = if (isStarting) FinanceTheme.colors.warningContainer
+                    else MaterialTheme.colorScheme.errorContainer
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -553,21 +482,14 @@ fun CompactServiceStatusCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = when {
-                        isServiceRunning && isListenerEnabled -> "Detección activa"
-                        isListenerEnabled && !isServiceRunning -> "Iniciando servicio…"
-                        else -> "Configura la detección automática"
-                    },
+                    text = if (isStarting) "Iniciando servicio…" else "Configura la detección automática",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(Modifier.height(Spacing.xxs))
                 Text(
-                    text = when {
-                        isServiceRunning && isListenerEnabled -> "Monitoreando notificaciones bancarias"
-                        isListenerEnabled && !isServiceRunning -> "Conectando con el sistema"
-                        else -> "Otorga acceso a las notificaciones para registrar tus gastos automáticamente"
-                    },
+                    text = if (isStarting) "Conectando con el sistema"
+                           else "Otorga acceso a las notificaciones para registrar tus gastos automáticamente",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -575,51 +497,13 @@ fun CompactServiceStatusCard(
 
             Spacer(Modifier.width(Spacing.md))
 
-            if (!isListenerEnabled) {
+            if (isStarting) {
+                StatusPill(label = "…", tone = tone)
+            } else {
                 FilledTonalButton(onClick = onOpenNotifAccess) {
                     Text("Activar")
                 }
-            } else {
-                StatusPill(
-                    label = if (isServiceRunning) "Activo" else "…",
-                    tone = tone
-                )
             }
         }
     }
-}
-
-private fun buildFilterSummary(state: HomeState, nf: NumberFormat): FilterSummary {
-    val category = state.categories.find { it.id == state.selectedCategoryFilter }
-    return FilterSummary(
-        categoryName = category?.name,
-        categoryIcon = category?.icon,
-        dateRange = if (state.dateFilterStart != null || state.dateFilterEnd != null) {
-            "${state.dateFilterStart ?: "…"} - ${state.dateFilterEnd ?: "…"}"
-        } else null,
-        amountRange = if (state.minAmountFilter != null || state.maxAmountFilter != null) {
-            val min = state.minAmountFilter
-            val max = state.maxAmountFilter
-            "${if (min != null) nf.format(min / 100.0) else "Sin mínimo"} - ${if (max != null) nf.format(max / 100.0) else "Sin máximo"}"
-        } else null,
-        searchQuery = state.searchQuery.takeIf { it.isNotBlank() },
-        totalFilters = listOfNotNull(
-            state.selectedCategoryFilter?.toString(),
-            state.searchQuery.takeIf { it.isNotBlank() },
-            state.dateFilterStart,
-            state.dateFilterEnd,
-            state.minAmountFilter?.toString(),
-            state.maxAmountFilter?.toString()
-        ).size,
-        resultCount = state.transactions.size
-    )
-}
-
-private fun hasActiveFilters(state: HomeState): Boolean {
-    return state.selectedCategoryFilter != null ||
-        state.searchQuery.isNotBlank() ||
-        state.dateFilterStart != null ||
-        state.dateFilterEnd != null ||
-        state.minAmountFilter != null ||
-        state.maxAmountFilter != null
 }
