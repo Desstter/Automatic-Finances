@@ -138,8 +138,7 @@ fun CategoryManagementScreen(
             onIconChange = viewModel::updateNewCategoryIcon,
             onColorChange = viewModel::updateNewCategoryColor,
             onSave = viewModel::updateCategory,
-            onDismiss = viewModel::hideEditDialog,
-            isDefault = state.selectedCategory!!.isDefault
+            onDismiss = viewModel::hideEditDialog
         )
     }
     
@@ -248,20 +247,19 @@ fun CategoryItem(
                 }
             }
             
-            // Botones de acción
+            // Botones de acción — todas las categorías (incluidas las predefinidas)
+            // pueden editarse y eliminarse.
             Row {
                 IconButton(onClick = { onEdit(category) }) {
                     Icon(Icons.Default.Edit, contentDescription = "Editar")
                 }
-                
-                if (!categoryWithCount.isDefault) {
-                    IconButton(onClick = { onDelete(category) }) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Eliminar",
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
+
+                IconButton(onClick = { onDelete(category) }) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Eliminar",
+                        tint = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         }
@@ -280,8 +278,7 @@ fun CategoryAddEditDialog(
     onIconChange: (String) -> Unit,
     onColorChange: (String) -> Unit,
     onSave: () -> Unit,
-    onDismiss: () -> Unit,
-    isDefault: Boolean = false
+    onDismiss: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -338,94 +335,89 @@ fun CategoryAddEditDialog(
                     label = { Text("Nombre") },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    singleLine = true,
-                    enabled = !isDefault
+                    singleLine = true
                 )
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 // Selección de icono
-                if (!isDefault) {
-                    Text(
-                        text = "Icono",
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(6),
-                        modifier = Modifier.height(120.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        items(availableIcons) { availableIcon ->
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (availableIcon == icon) {
-                                            MaterialTheme.colorScheme.primaryContainer
-                                        } else {
-                                            MaterialTheme.colorScheme.surface
-                                        }
-                                    )
-                                    .clickable { onIconChange(availableIcon) },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = availableIcon,
-                                    style = MaterialTheme.typography.titleMedium
+                Text(
+                    text = "Icono",
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(6),
+                    modifier = Modifier.height(200.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(availableIcons) { availableIcon ->
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (availableIcon == icon) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                    }
                                 )
-                            }
+                                .clickable { onIconChange(availableIcon) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = availableIcon,
+                                style = MaterialTheme.typography.titleMedium
+                            )
                         }
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 // Selección de color
-                if (!isDefault) {
-                    Text(
-                        text = "Color",
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(availableColors) { availableColor ->
-                            val swatchColor = Color(android.graphics.Color.parseColor(availableColor))
-                            // Contrast for the check sits on an arbitrary DB color, so derive it
-                            // from luminance rather than a theme token.
-                            val onSwatch = if (swatchColor.luminance() > 0.5f) Color.Black else Color.White
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(swatchColor)
-                                    .clickable { onColorChange(availableColor) }
-                            ) {
-                                if (availableColor == color) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .clip(CircleShape)
-                                            .background(onSwatch.copy(alpha = 0.25f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = onSwatch,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
+                Text(
+                    text = "Color",
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(availableColors) { availableColor ->
+                        val swatchColor = Color(android.graphics.Color.parseColor(availableColor))
+                        // Contrast for the check sits on an arbitrary DB color, so derive it
+                        // from luminance rather than a theme token.
+                        val onSwatch = if (swatchColor.luminance() > 0.5f) Color.Black else Color.White
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(swatchColor)
+                                .clickable { onColorChange(availableColor) }
+                        ) {
+                            if (availableColor == color) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                        .background(onSwatch.copy(alpha = 0.25f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = onSwatch,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
                         }
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(24.dp))
                 
                 // Botones

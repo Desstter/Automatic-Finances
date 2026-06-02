@@ -41,40 +41,14 @@ interface AccountDao {
     @Query("SELECT balanceCents FROM accounts WHERE id = :accountId")
     suspend fun getAccountBalance(accountId: Long): Long?
     
+    // The stored balanceCents is a materialized cache of the derived balance
+    // (opening snapshot + movements). It is overwritten wholesale by a recompute, never
+    // mutated incrementally — see OpeningBalanceRepository.recalculateAccountBalance.
     @Query("UPDATE accounts SET balanceCents = :balanceCents WHERE id = :accountId")
     suspend fun updateAccountBalance(accountId: Long, balanceCents: Long)
-    
-    @Query("""
-        UPDATE accounts 
-        SET balanceCents = balanceCents + :amountCents 
-        WHERE id = :accountId
-    """)
-    suspend fun adjustAccountBalance(accountId: Long, amountCents: Long)
-    
+
     // ========== ANALYTICS QUERIES ==========
-    
-    @Query("""
-        SELECT 
-            SUM(CASE WHEN type = 'BANK' THEN balanceCents ELSE 0 END) as bankTotal,
-            SUM(CASE WHEN type = 'CASH' THEN balanceCents ELSE 0 END) as cashTotal,
-            SUM(balanceCents) as totalBalance,
-            COUNT(*) as accountCount,
-            COUNT(CASE WHEN isActive = 1 THEN 1 END) as activeCount
-        FROM accounts
-    """)
-    suspend fun getAccountSummary(): AccountSummaryRaw?
-    
-    @Query("""
-        SELECT 
-            SUM(CASE WHEN type = 'BANK' THEN balanceCents ELSE 0 END) as bankTotal,
-            SUM(CASE WHEN type = 'CASH' THEN balanceCents ELSE 0 END) as cashTotal,
-            SUM(balanceCents) as totalBalance,
-            COUNT(*) as accountCount,
-            COUNT(CASE WHEN isActive = 1 THEN 1 END) as activeCount
-        FROM accounts
-    """)
-    fun getAccountSummaryFlow(): Flow<AccountSummaryRaw?>
-    
+
     // Get account with transaction count for the current month
     @Query("""
         SELECT a.*, 
@@ -90,19 +64,6 @@ interface AccountDao {
         ORDER BY a.type ASC, a.name ASC
     """)
     suspend fun getAccountsWithMonthlyStats(): List<AccountWithStats>
-    
-    // ========== BALANCE HISTORY ==========
-    
-    @Query("""
-        SELECT :accountId as accountId,
-               a.balanceCents, 
-               strftime('%s', 'now') * 1000 as timestamp,
-               NULL as transactionId,
-               'INITIAL' as changeType
-        FROM accounts a
-        WHERE a.id = :accountId
-    """)
-    suspend fun getCurrentBalanceHistory(accountId: Long): BalanceHistory?
     
     // ========== ACCOUNT SETUP OPERATIONS ==========
     
@@ -175,24 +136,6 @@ interface AccountDao {
 }
 
 // Data classes for complex queries
-data class AccountSummaryRaw(
-    val bankTotal: Long,
-    val cashTotal: Long,
-    val totalBalance: Long,
-    val accountCount: Int,
-    val activeCount: Int
-) {
-    fun toAccountSummary(): AccountSummary {
-        return AccountSummary(
-            totalBalanceCents = totalBalance,
-            bankBalanceCents = bankTotal,
-            cashBalanceCents = cashTotal,
-            accountCount = accountCount,
-            activeAccountCount = activeCount
-        )
-    }
-}
-
 data class AccountWithStats(
     val id: Long,
     val name: String,

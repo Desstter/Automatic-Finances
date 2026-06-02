@@ -105,15 +105,16 @@ class OpeningBalanceRepository @Inject constructor(
         val openingBalance = openingBalanceDao.getActiveByAccount(accountId)
         
         val currentBalanceCents = if (openingBalance != null) {
-            // Calculate based on opening balance + transactions since effective date
-            val transactionsSince = getTransactionsSinceDate(accountId, openingBalance.effectiveDate)
-            val netTransactionAmount = transactionsSince.sumOf { 
-                if (it.isIncome) it.amountCents else -it.amountCents 
-            }
+            // Authority: opening snapshot + movements on/after its effective date. The net is
+            // summed in SQL (not by loading every row into memory) since this runs on the hot path
+            // — recalculateAccountBalance fires after every insert/delete/restore.
+            val netTransactionAmount = getNetAmountSinceDate(accountId, openingBalance.effectiveDate)
             openingBalance.balanceCents + netTransactionAmount
         } else {
-            // Use account's current balance (legacy behavior)
-            account.balanceCents
+            // No opening snapshot to anchor on: derive purely from the account's movements.
+            // (We do NOT read account.balanceCents here — it is itself a cache of this value,
+            // so reading it would be circular and could surface a stale figure.)
+            transactionDao.getNetAmountByAccount(accountId)
         }
         
         val transactionCount = if (openingBalance != null) {
@@ -181,21 +182,43 @@ class OpeningBalanceRepository @Inject constructor(
         )
     }
     
+    // ================ BALANCE CACHE MATERIALIZATION ================
+
+    /**
+     * Recomputes one account's cached `balanceCents` from the single source of truth
+     * (opening snapshot + movements) and writes it back. Called after every insert/delete/restore
+     * so the cache always equals the derived value and the two can never diverge (ARQ-1).
+     *
+     * Safe to run inside the surrounding DB transaction: it reads the just-written rows and a
+     * single UPDATE, so it commits or rolls back atomically with the transaction it caused.
+     */
+    suspend fun recalculateAccountBalance(accountId: Long) {
+        val current = calculateCurrentBalanceWithOpening(accountId).currentBalanceCents
+        accountDao.updateAccountBalance(accountId, current)
+    }
+
     // ================ SETUP AND VALIDATION ================
-    
+
     suspend fun initializeDefaultOpeningBalances() {
         Log.d(tag, "Initializing default opening balances")
-        
+
         val accounts = accountDao.getAllActiveAccounts()
         val today = LocalDate.now()
-        
+        val todayStr = today.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+
         for (account in accounts) {
             if (!hasOpeningBalance(account.id)) {
                 Log.d(tag, "Creating default opening balance for ${account.name}")
+                // Seed the snapshot as the balance at the START of today, i.e. the current cached
+                // balance minus anything already moved today. Otherwise today's movements would be
+                // double-counted: once baked into the seed and again as "movements since today".
+                val netToday = transactionDao.getByAccountFromDate(account.id, todayStr).sumOf {
+                    if (it.isIncome) it.amountCents else -it.amountCents
+                }
                 createOpeningBalance(
                     accountId = account.id,
                     effectiveDate = today,
-                    balanceCents = account.balanceCents, // Use current balance as opening
+                    balanceCents = account.balanceCents - netToday,
                     note = "Balance inicial automático"
                 )
             }
@@ -227,9 +250,9 @@ class OpeningBalanceRepository @Inject constructor(
     
     // ================ HELPER METHODS ================
     
-    private suspend fun getTransactionsSinceDate(accountId: Long, effectiveDate: String): List<Transaction> {
+    private suspend fun getNetAmountSinceDate(accountId: Long, effectiveDate: String): Long {
         val endDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-        return transactionDao.getByAccountAndDateRangeSync(accountId, effectiveDate, endDate)
+        return transactionDao.getNetAmountByAccountAndDateRange(accountId, effectiveDate, endDate)
     }
     
     private suspend fun getTransactionCountSinceDate(accountId: Long, effectiveDate: String): Int {

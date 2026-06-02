@@ -45,15 +45,15 @@ class CategoryRepository @Inject constructor(
     }
     
     suspend fun canDelete(categoryId: Long): Pair<Boolean, String> {
-        val category = dao.getById(categoryId) ?: return Pair(false, "Categoría no encontrada")
-        
-        if (category.isDefault) {
-            return Pair(false, "No se puede eliminar una categoría predefinida")
-        }
-        
+        dao.getById(categoryId) ?: return Pair(false, "Categoría no encontrada")
+
+        // Any category may be removed, including the predefined ones. If transactions are
+        // attached we soft-delete (deactivate) to preserve their history; otherwise the row
+        // is removed for good. Predefined categories are not re-seeded once the user has
+        // deleted some, so the user's intent is respected.
         val transactionCount = dao.countTransactionsInCategory(categoryId)
         return if (transactionCount > 0) {
-            Pair(true, "Esta categoría tiene $transactionCount transacciones asociadas. Se desactivará pero no se eliminará.")
+            Pair(true, "Esta categoría tiene $transactionCount transacciones asociadas. Se ocultará pero su historial se conservará.")
         } else {
             Pair(true, "Esta categoría se eliminará permanentemente.")
         }

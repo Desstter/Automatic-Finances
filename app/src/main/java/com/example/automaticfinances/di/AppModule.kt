@@ -136,9 +136,10 @@ object AppModule {
         accountRepo: AccountRepository,
         categoryRepo: CategoryRepository,
         merchantResolutionRepo: MerchantResolutionRepository,
+        openingBalanceRepo: OpeningBalanceRepository,
         transactionRunner: TransactionRunner
     ): AddTransactionUseCase =
-        AddTransactionUseCase(transactionRepo, accountRepo, categoryRepo, merchantResolutionRepo, transactionRunner)
+        AddTransactionUseCase(transactionRepo, accountRepo, categoryRepo, merchantResolutionRepo, openingBalanceRepo, transactionRunner)
 
     @Provides
     @Singleton

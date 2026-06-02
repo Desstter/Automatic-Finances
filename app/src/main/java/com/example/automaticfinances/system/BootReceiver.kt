@@ -12,19 +12,17 @@ class BootReceiver : BroadcastReceiver() {
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_MY_PACKAGE_REPLACED -> {
-                // Primary, restriction-proof path: ask the system to rebind the notification
-                // listener. When it reconnects, onListenerConnected starts the foreground service
-                // from a valid context. This works even on Android 12+ where starting a foreground
-                // service directly from a boot broadcast can be blocked.
+                // Ask the system to rebind the notification listener after a reboot/update. Once it
+                // reconnects, onListenerConnected marks detection live again. The listener needs no
+                // companion foreground service to keep receiving notifications.
                 runCatching {
                     NotificationListenerService.requestRebind(
                         ComponentName(context, SmsNotifListener::class.java)
                     )
                 }
-
-                // Secondary best-effort path: also try to start the service directly. Wrapped so a
-                // background-start restriction can never crash the boot receiver.
-                runCatching { ForegroundSmsService.startService(context) }
+                // Re-post the persistent voice quick-action notification: a reboot/update clears
+                // ongoing notifications, so it must be re-issued to stay available.
+                runCatching { VoiceQuickActionNotifier.show(context) }
             }
         }
     }

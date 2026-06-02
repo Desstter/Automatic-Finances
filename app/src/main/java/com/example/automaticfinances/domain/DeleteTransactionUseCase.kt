@@ -1,7 +1,7 @@
 package com.example.automaticfinances.domain
 
 import com.example.automaticfinances.data.db.Transaction
-import com.example.automaticfinances.data.repo.AccountRepository
+import com.example.automaticfinances.data.repo.OpeningBalanceRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import javax.inject.Inject
 
@@ -15,7 +15,7 @@ import javax.inject.Inject
  */
 class DeleteTransactionUseCase @Inject constructor(
     private val transactionRepo: TransactionRepository,
-    private val accountRepo: AccountRepository,
+    private val openingBalanceRepo: OpeningBalanceRepository,
     private val transactionRunner: TransactionRunner
 ) {
     /** @return true if the transaction existed and was deleted. */
@@ -23,7 +23,9 @@ class DeleteTransactionUseCase @Inject constructor(
         transactionRunner.runInTransaction {
             val deleted = transactionRepo.deleteTransaction(transaction.id)
             if (deleted) {
-                accountRepo.revertTransactionFromBalance(transaction)
+                // Recompute the affected account's cached balance from source (now without the
+                // deleted row), within the same transaction so delete + balance commit atomically.
+                transaction.accountId?.let { openingBalanceRepo.recalculateAccountBalance(it) }
             }
             deleted
         }

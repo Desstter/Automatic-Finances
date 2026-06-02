@@ -49,6 +49,13 @@ object BancolombiaParser {
         RX_FLAGS
     )
 
+    // Compra SMS nuevo formato Bancolombia (fecha antes de la tarjeta):
+    // "Compraste COP{amount} en {merchant}, el {date} a las {time}. Esta compra esta asociada a T.Cred *{last4}."
+    private val compraNuevoFormatoRegex = Regex(
+        """Bancolombia:\s*Compraste\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+)\s+en\s+(.+?),\s+el\s+(\d{2}[/-]\d{2}[/-]\d{4})\s+a\s+las\s+(\d{2}:\d{2}).*?T\.?\s*(?:Cred(?:ito)?|Cr[eé]dito|D[eé]bito)\s*[*Xx]{0,4}(\d{4})""",
+        RX_FLAGS
+    )
+
     // Transferencia SMS clásica
     private val transRegex = Regex(
         """Bancolombia:\s*Transferiste\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?desde\s+tu\s+cuenta.*?[*Xx]{0,4}(\d{4}).*?(?:hacia|a)\s+la\s+cuenta.*?[*Xx]{0,4}(\d+)\s+el\s+(\d{2}[/-]\d{2}[/-]\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
@@ -233,6 +240,28 @@ object BancolombiaParser {
             val merchant = norm(m.groupValues[2])
             val last4 = m.groupValues[3]
             val ts = toEpoch(m.groupValues[4], m.groupValues[5])
+            val id = stableId(ts, amount, "COMPRA", last4, merchant, text)
+
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "COMPRA",
+                description = merchant,
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = last4,
+                dstLast4 = null,
+                source = "notif:sms",
+                rawPreview = text.take(140)
+            )
+        }
+
+        // Compra SMS nuevo formato (fecha antes que la tarjeta)
+        compraNuevoFormatoRegex.find(text)?.let { m ->
+            val amount = toCents(m.groupValues[1])
+            val merchant = norm(m.groupValues[2])
+            val ts = toEpoch(m.groupValues[3], m.groupValues[4])
+            val last4 = m.groupValues[5]
             val id = stableId(ts, amount, "COMPRA", last4, merchant, text)
 
             return Transaction.fromTimestamp(

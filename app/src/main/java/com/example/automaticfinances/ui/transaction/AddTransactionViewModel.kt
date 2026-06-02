@@ -2,8 +2,11 @@ package com.example.automaticfinances.ui.transaction
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.automaticfinances.data.db.Account
+import com.example.automaticfinances.data.db.AccountType
 import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.db.Transaction
+import com.example.automaticfinances.data.repo.AccountRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.domain.AddTransactionUseCase
 import com.example.automaticfinances.utils.parseColombiaCents
@@ -28,16 +31,22 @@ data class AddTransactionState(
     val selectedDate: LocalDate = LocalDate.now(),
     val selectedTime: LocalTime = LocalTime.now(),
     val categories: List<Category> = emptyList(),
+    val accounts: List<Account> = emptyList(),
+    val selectedAccountId: Long? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val isSuccess: Boolean = false,
     val amountError: String? = null,
     val descriptionError: String? = null
-)
+) {
+    val selectedAccount: Account?
+        get() = accounts.find { it.id == selectedAccountId }
+}
 
 @HiltViewModel
 class AddTransactionViewModel @Inject constructor(
     private val categoryRepository: CategoryRepository,
+    private val accountRepository: AccountRepository,
     private val addTransactionUseCase: AddTransactionUseCase
 ) : ViewModel() {
 
@@ -46,14 +55,38 @@ class AddTransactionViewModel @Inject constructor(
 
     init {
         loadCategories()
+        loadAccounts()
     }
 
     private fun loadCategories() {
         viewModelScope.launch {
-            categoryRepository.getAllActive().collect { categories ->
+            // Manual expenses only apply to expense categories.
+            categoryRepository.getActiveByType(isIncome = false).collect { categories ->
                 _state.value = _state.value.copy(categories = categories)
             }
         }
+    }
+
+    private fun loadAccounts() {
+        viewModelScope.launch {
+            try {
+                val accounts = accountRepository.getAllActiveAccounts()
+                _state.value = _state.value.copy(
+                    accounts = accounts,
+                    // Default to the cash account to preserve the previous behaviour
+                    // (this screen used to record cash-only expenses).
+                    selectedAccountId = _state.value.selectedAccountId
+                        ?: accounts.firstOrNull { it.type == AccountType.CASH }?.id
+                        ?: accounts.firstOrNull()?.id
+                )
+            } catch (e: Exception) {
+                Log.e("AddTransactionViewModel", "Error loading accounts", e)
+            }
+        }
+    }
+
+    fun selectAccount(accountId: Long) {
+        _state.value = _state.value.copy(selectedAccountId = accountId)
     }
 
     fun updateAmount(amount: String) {
@@ -71,15 +104,17 @@ class AddTransactionViewModel @Inject constructor(
     }
 
     fun updateDescription(description: String) {
-        // Input sanitization: trimear y limitar longitud
-        val cleanDescription = description.trim().take(100)
-        
+        // Only cap the length here. Do NOT trim() on every keystroke: trimming as the user
+        // types swallows the trailing space, making it impossible to type multi-word
+        // descriptions. Leading/trailing whitespace is trimmed once, at save time.
+        val cleanDescription = description.take(100)
+
         // Real-time validation
         val error = validateDescription(cleanDescription)
-        
+
         _state.value = _state.value.copy(
             description = cleanDescription,
-            descriptionError = if (cleanDescription.isNotEmpty()) error else null
+            descriptionError = if (cleanDescription.isNotBlank()) error else null
         )
     }
 
@@ -98,19 +133,21 @@ class AddTransactionViewModel @Inject constructor(
     fun saveTransaction(): Boolean {
         val currentState = _state.value
         
-        // Comprehensive validation
+        // Comprehensive validation (description validated trimmed — leading/trailing
+        // spaces shouldn't count toward the min length nor be flagged as content).
         val amountError = validateAmount(currentState.amount, isFinal = true)
-        val descriptionError = validateDescription(currentState.description, isFinal = true)
+        val descriptionError = validateDescription(currentState.description.trim(), isFinal = true)
         val categoryError = validateCategory(currentState.selectedCategoryId)
+        val accountError = validateAccount(currentState.selectedAccountId)
         val dateError = validateDate(currentState.selectedDate)
-        
-        val hasErrors = listOf(amountError, descriptionError, categoryError, dateError).any { it != null }
+
+        val hasErrors = listOf(amountError, descriptionError, categoryError, accountError, dateError).any { it != null }
 
         if (hasErrors) {
             _state.value = _state.value.copy(
                 amountError = amountError,
                 descriptionError = descriptionError,
-                errorMessage = categoryError ?: dateError
+                errorMessage = categoryError ?: accountError ?: dateError
             )
             return false
         }
@@ -141,24 +178,36 @@ class AddTransactionViewModel @Inject constructor(
 
     private fun createTransaction(state: AddTransactionState): Transaction {
         val amountCents = state.amount.parseColombiaCents() ?: 0L
+        val description = state.description.trim()
         val dateTime = state.selectedDate.atTime(state.selectedTime)
         val timestamp = dateTime.atZone(ZoneId.of("America/Bogota")).toInstant().toEpochMilli()
-        
-        // Crear ID único basado en timestamp, monto y descripción
-        val id = DigestUtils.sha256Hex("${timestamp/60000}|$amountCents|MANUAL|${state.description}")
-        
+
+        // The account is part of the dedup hash so the same expense recorded against two
+        // different accounts (e.g. cash vs. bank) produces distinct rows.
+        val account = state.selectedAccount
+        val srcLast4 = if (account?.type == AccountType.BANK) "BANK" else "CASH"
+
+        // Crear ID único basado en timestamp, monto, cuenta y descripción
+        val id = DigestUtils.sha256Hex(
+            "${timestamp / 60000}|$amountCents|MANUAL|${state.selectedAccountId}|$description"
+        )
+
         return Transaction.fromTimestamp(
             id = id,
             ts = timestamp,
             type = "MANUAL",
-            description = state.description,
+            description = description,
             amountCents = amountCents,
             currency = "COP",
-            srcLast4 = "CASH",
+            srcLast4 = srcLast4,
             dstLast4 = null,
             source = "manual",
-            rawPreview = "Gasto manual: ${state.description}",
-            categoryId = state.selectedCategoryId
+            rawPreview = "Gasto manual: $description",
+            categoryId = state.selectedCategoryId,
+            // Pass the chosen account through explicitly so AddTransactionUseCase keeps it
+            // instead of auto-assigning by source. This is what lets a manual expense be
+            // tied to a bank account rather than always landing in cash.
+            accountId = state.selectedAccountId
         )
     }
 
@@ -221,6 +270,14 @@ class AddTransactionViewModel @Inject constructor(
         return when {
             categoryId == null -> "Selecciona una categoría"
             categoryId <= 0 -> "Categoría inválida"
+            else -> null
+        }
+    }
+
+    private fun validateAccount(accountId: Long?): String? {
+        return when {
+            accountId == null -> "Selecciona una cuenta"
+            accountId <= 0 -> "Cuenta inválida"
             else -> null
         }
     }

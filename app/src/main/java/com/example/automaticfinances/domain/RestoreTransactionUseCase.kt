@@ -1,7 +1,7 @@
 package com.example.automaticfinances.domain
 
 import com.example.automaticfinances.data.db.Transaction
-import com.example.automaticfinances.data.repo.AccountRepository
+import com.example.automaticfinances.data.repo.OpeningBalanceRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import javax.inject.Inject
 
@@ -18,7 +18,7 @@ import javax.inject.Inject
  */
 class RestoreTransactionUseCase @Inject constructor(
     private val transactionRepo: TransactionRepository,
-    private val accountRepo: AccountRepository,
+    private val openingBalanceRepo: OpeningBalanceRepository,
     private val transactionRunner: TransactionRunner
 ) {
     /** @return true if the transaction was re-inserted (false if it still existed). */
@@ -26,7 +26,9 @@ class RestoreTransactionUseCase @Inject constructor(
         transactionRunner.runInTransaction {
             val inserted = transactionRepo.insert(transaction)
             if (inserted) {
-                accountRepo.applyTransactionToBalance(transaction)
+                // Recompute the affected account's cached balance from source (now with the
+                // restored row). A double undo inserts nothing, so the balance is untouched.
+                transaction.accountId?.let { openingBalanceRepo.recalculateAccountBalance(it) }
             }
             inserted
         }

@@ -1,52 +1,39 @@
 package com.example.automaticfinances.ui.reports
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
-import androidx.compose.material.icons.automirrored.filled.TrendingDown
-import androidx.compose.material.icons.automirrored.filled.ShowChart
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.filled.Assessment
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Insights
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.Store
-import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material.icons.filled.WarningAmber
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.automaticfinances.ui.theme.FinanceTheme
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import java.text.NumberFormat
-import java.text.SimpleDateFormat
-import java.time.YearMonth
-import java.time.format.DateTimeFormatter
-import java.util.*
 
+/**
+ * Thin orchestrator for the Reports screen: owns the scaffold and decides, per slot, whether to
+ * show a skeleton, the real section, or an empty state. The sections themselves live in
+ * ReportsSections.kt / ReportsInsights.kt and the transient states in ReportsLoadingStates.kt so
+ * each renders only the slice of state it needs.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportsScreen(
@@ -54,13 +41,13 @@ fun ReportsScreen(
     modifier: Modifier = Modifier
 ) {
     val viewModel: ReportsViewModel = hiltViewModel()
-    
+
     val state by viewModel.state.collectAsStateWithLifecycle()
-    
+
     LaunchedEffect(Unit) {
         viewModel.loadReports()
     }
-    
+
     // Error handling with retry
     state.error?.let { error ->
         LaunchedEffect(error) {
@@ -69,7 +56,7 @@ fun ReportsScreen(
             viewModel.clearError()
         }
     }
-    
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -107,7 +94,7 @@ fun ReportsScreen(
                     onPeriodChanged = viewModel::selectPeriod
                 )
             }
-            
+
             // Error state with retry
             state.error?.let { error ->
                 item {
@@ -118,7 +105,7 @@ fun ReportsScreen(
                     )
                 }
             }
-            
+
             // Summary cards or empty state
             if (state.isLoading) {
                 item {
@@ -138,7 +125,7 @@ fun ReportsScreen(
                     )
                 }
             }
-            
+
             // Category breakdown
             if (state.isLoading) {
                 item {
@@ -151,7 +138,7 @@ fun ReportsScreen(
                     )
                 }
             }
-            
+
             // Monthly trends
             if (state.isLoading) {
                 item {
@@ -164,7 +151,7 @@ fun ReportsScreen(
                     )
                 }
             }
-            
+
             // Top transactions
             if (state.isLoading) {
                 item {
@@ -177,7 +164,7 @@ fun ReportsScreen(
                     )
                 }
             }
-            
+
             // Additional insights
             item {
                 InsightsSection(
@@ -186,7 +173,7 @@ fun ReportsScreen(
             }
         }
     }
-    
+
     // Loading overlay for initial load only
     if (state.isLoading && state.summary == null) {
         Box(
@@ -203,1058 +190,6 @@ fun ReportsScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TimePeriodSelector(
-    selectedPeriod: ReportPeriod,
-    onPeriodChanged: (ReportPeriod) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Text(
-                text = "Período de análisis",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-
-            com.example.automaticfinances.ui.components.common.FilterChipRow(
-                options = ReportPeriod.values().toList(),
-                selected = selectedPeriod,
-                onSelect = onPeriodChanged,
-                labelFor = { period ->
-                    when (period) {
-                        ReportPeriod.CURRENT_MONTH -> "Mes actual"
-                        ReportPeriod.LAST_MONTH -> "Mes pasado"
-                        ReportPeriod.LAST_3_MONTHS -> "3 meses"
-                        ReportPeriod.LAST_6_MONTHS -> "6 meses"
-                        ReportPeriod.CURRENT_YEAR -> "Año actual"
-                    }
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun ReportsSummarySection(
-    summary: ReportsSummary?,
-    selectedPeriod: ReportPeriod,
-    modifier: Modifier = Modifier
-) {
-    val nf = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO")) }
-    
-    summary?.let { 
-        Card(
-            modifier = modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-            )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "Resumen del período",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    SummaryItem(
-                        label = "Total gastado",
-                        value = nf.format(summary.totalSpentCents / 100.0),
-                        icon = Icons.AutoMirrored.Filled.TrendingDown,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    SummaryItem(
-                        label = "Total ingresos",
-                        value = nf.format(summary.totalIncomeCents / 100.0),
-                        icon = Icons.AutoMirrored.Filled.TrendingUp,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    SummaryItem(
-                        label = "Balance neto",
-                        value = nf.format(summary.netBalanceCents / 100.0),
-                        icon = if (summary.netBalanceCents >= 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                        color = if (summary.netBalanceCents >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    SummaryItem(
-                        label = "Promedio diario",
-                        value = nf.format(summary.dailyAverageCents / 100.0),
-                        icon = Icons.AutoMirrored.Filled.ShowChart,
-                        color = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    SummaryItem(
-                        label = "Gastos",
-                        value = "${summary.expenseCount}",
-                        icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    SummaryItem(
-                        label = "Ingresos",
-                        value = "${summary.incomeCount}",
-                        icon = Icons.Default.Payments,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    SummaryItem(
-                        label = "Total transacciones",
-                        value = "${summary.transactionCount}",
-                        icon = Icons.Default.SwapVert,
-                        color = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    SummaryItem(
-                        label = "Categorías activas",
-                        value = "${summary.categoriesUsed}",
-                        icon = Icons.Default.Category,
-                        color = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                
-                if (summary.percentageChange != null) {
-                    val isIncrease = summary.percentageChange > 0
-                    Surface(
-                        color = if (isIncrease) 
-                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                        else 
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (isIncrease) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = if (isIncrease) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "${if (isIncrease) "+" else ""}${summary.percentageChange.toInt()}% respecto al período anterior",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SummaryItem(
-    label: String,
-    value: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    color: Color,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = color,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = color
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun CategoryBreakdownSection(
-    breakdown: List<CategoryBreakdown>,
-    modifier: Modifier = Modifier
-) {
-    val nf = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO")) }
-    
-    Card(
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Text(
-                text = "Gastos por categoría",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            breakdown.take(5).forEach { item -> // Show top 5
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = item.categoryIcon,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = item.categoryName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "${item.transactionCount} transacciones",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = nf.format(item.amountCents / 100.0),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "${item.percentage.toInt()}%",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                
-                if (item != breakdown.last()) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MonthlyTrendsSection(
-    trends: List<MonthlyTrend>,
-    modifier: Modifier = Modifier
-) {
-    val nf = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO")) }
-    
-    Card(
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Text(
-                text = "Tendencia mensual",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            trends.takeLast(6).forEach { trend -> // Show last 6 months
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = trend.monthName,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = nf.format(trend.totalCents / 100.0),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        Spacer(modifier = Modifier.width(8.dp))
-                        
-                        trend.changePercentage?.let { change ->
-                            val isIncrease = change > 0
-                            Icon(
-                                imageVector = if (isIncrease) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = if (isIncrease) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TopTransactionsSection(
-    transactions: List<TopTransaction>,
-    modifier: Modifier = Modifier
-) {
-    val nf = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO")) }
-    val dateFormat = remember { SimpleDateFormat("dd/MM", Locale.forLanguageTag("es-CO")) }
-    
-    Card(
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Text(
-                text = "Transacciones más altas",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            transactions.take(5).forEach { transaction ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = transaction.description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = "${dateFormat.format(Date(transaction.timestamp))} • ${transaction.categoryName}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    
-                    Text(
-                        text = nf.format(transaction.amountCents / 100.0),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun InsightsSection(
-    insights: List<String>,
-    modifier: Modifier = Modifier
-) {
-    if (insights.isNotEmpty()) {
-        val categorizedInsights = remember(insights) { categorizeInsights(insights) }
-        var expandedSections by remember(categorizedInsights) { 
-            // Initialize with the first category expanded
-            val firstCategory = categorizedInsights.keys.firstOrNull()
-            mutableStateOf(if (firstCategory != null) setOf(firstCategory) else setOf<String>()) 
-        }
-        
-        Card(
-            modifier = modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Header with summary
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Insights,
-                            contentDescription = null,
-                            modifier = Modifier.size(22.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Análisis inteligente",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        shape = CircleShape
-                    ) {
-                        Text(
-                            text = "${insights.size}",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-                
-                // Categorized insight sections
-                categorizedInsights.forEach { (category, categoryInsights) ->
-                    if (categoryInsights.isNotEmpty()) {
-                        val isExpanded = category in expandedSections
-                        val (categoryIcon, categoryTitle, categoryColor) = getCategoryStyle(category)
-                        
-                        EnhancedInsightCategory(
-                            title = categoryTitle,
-                            icon = categoryIcon,
-                            color = categoryColor,
-                            insights = categoryInsights,
-                            isExpanded = isExpanded,
-                            onToggle = {
-                                expandedSections = if (isExpanded) {
-                                    expandedSections - category
-                                } else {
-                                    expandedSections + category
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EnhancedInsightCategory(
-    title: String,
-    icon: ImageVector,
-    color: Color,
-    insights: List<String>,
-    isExpanded: Boolean,
-    onToggle: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = color.copy(alpha = 0.1f)
-        ),
-        shape = RoundedCornerShape(12.dp),
-        onClick = onToggle
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            // Category header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = color,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = color
-                    )
-                    Surface(
-                        color = color.copy(alpha = 0.2f),
-                        shape = CircleShape
-                    ) {
-                        Text(
-                            text = "${insights.size}",
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = color
-                        )
-                    }
-                }
-                
-                Icon(
-                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (isExpanded) "Contraer" else "Expandir",
-                    tint = color,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            
-            // Expandable content
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(
-                    modifier = Modifier.padding(top = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    insights.forEach { insight ->
-                        InsightItem(
-                            insight = insight,
-                            color = color
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun InsightItem(
-    insight: String,
-    color: Color
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Surface(
-            color = color.copy(alpha = 0.2f),
-            shape = CircleShape,
-            modifier = Modifier.size(6.dp).align(Alignment.CenterVertically)
-        ) {}
-        
-        Text(
-            text = insight,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-private fun categorizeInsights(insights: List<String>): Map<String, List<String>> {
-    val categorized = mutableMapOf<String, MutableList<String>>()
-    
-    insights.forEach { insight ->
-        val category = when {
-            insight.contains("🏆") || insight.contains("📊") || insight.contains("🎯") -> "overview"
-            insight.contains("📅") || insight.contains("⏰") -> "patterns"
-            insight.contains("🏪") || insight.contains("💳") -> "merchants"
-            insight.contains("📈") || insight.contains("📉") || insight.contains("⬆️") || insight.contains("⬇️") -> "trends"
-            insight.contains("💸") || insight.contains("⚠️") -> "warnings"
-            insight.contains("🔮") -> "predictions"
-            else -> "general"
-        }
-        
-        categorized.getOrPut(category) { mutableListOf() }.add(insight)
-    }
-    
-    return categorized
-}
-
-@Composable
-private fun getCategoryStyle(category: String): Triple<ImageVector, String, Color> {
-    val scheme = MaterialTheme.colorScheme
-    val finance = FinanceTheme.colors
-    return when (category) {
-        "overview" -> Triple(Icons.Default.Assessment, "Resumen General", finance.info)
-        "patterns" -> Triple(Icons.Default.CalendarMonth, "Patrones de Gasto", scheme.secondary)
-        "merchants" -> Triple(Icons.Default.Store, "Comercios y Transacciones", scheme.tertiary)
-        "trends" -> Triple(Icons.AutoMirrored.Filled.TrendingUp, "Tendencias", scheme.primary)
-        "warnings" -> Triple(Icons.Default.WarningAmber, "Alertas", finance.warning)
-        "predictions" -> Triple(Icons.Default.AutoAwesome, "Predicciones", finance.info)
-        else -> Triple(Icons.Default.Lightbulb, "Otros Insights", scheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun ErrorCard(
-    error: String,
-    onRetry: () -> Unit,
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.WarningAmber,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Error",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
-
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Cerrar",
-                        tint = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
-            }
-            
-            Text(
-                text = error,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onErrorContainer
-            )
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                TextButton(onClick = onRetry) {
-                    Text(
-                        text = "Reintentar",
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyReportsCard(
-    onRetry: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
-    ) {
-        com.example.automaticfinances.ui.components.common.PremiumEmptyState(
-            icon = Icons.AutoMirrored.Filled.ShowChart,
-            title = "Sin datos en este período",
-            description = "No se encontraron transacciones para el período seleccionado.",
-            actionLabel = "Actualizar",
-            onAction = onRetry
-        )
-    }
-}
-
-@Composable
-private fun SummarySkeletonLoader(
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .height(20.dp)
-                    .fillMaxWidth(0.4f)
-                    .background(
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                        RoundedCornerShape(4.dp)
-                    )
-            )
-            
-            repeat(3) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    repeat(2) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .background(
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                        RoundedCornerShape(12.dp)
-                                    )
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .height(16.dp)
-                                    .fillMaxWidth(0.7f)
-                                    .background(
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                        RoundedCornerShape(4.dp)
-                                    )
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .height(14.dp)
-                                    .fillMaxWidth(0.5f)
-                                    .background(
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                        RoundedCornerShape(4.dp)
-                                    )
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CategorySkeletonLoader(
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .height(20.dp)
-                    .fillMaxWidth(0.5f)
-                    .background(
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                        RoundedCornerShape(4.dp)
-                    )
-            )
-            
-            repeat(5) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                    RoundedCornerShape(12.dp)
-                                )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Box(
-                                modifier = Modifier
-                                    .height(16.dp)
-                                    .width(80.dp)
-                                    .background(
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                        RoundedCornerShape(4.dp)
-                                    )
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Box(
-                                modifier = Modifier
-                                    .height(12.dp)
-                                    .width(60.dp)
-                                    .background(
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                        RoundedCornerShape(4.dp)
-                                    )
-                            )
-                        }
-                    }
-                    
-                    Column(horizontalAlignment = Alignment.End) {
-                        Box(
-                            modifier = Modifier
-                                .height(16.dp)
-                                .width(70.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                    RoundedCornerShape(4.dp)
-                                )
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Box(
-                            modifier = Modifier
-                                .height(12.dp)
-                                .width(30.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                    RoundedCornerShape(4.dp)
-                                )
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TrendsSkeletonLoader(
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .height(20.dp)
-                    .fillMaxWidth(0.4f)
-                    .background(
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                        RoundedCornerShape(4.dp)
-                    )
-            )
-            
-            repeat(6) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .height(16.dp)
-                            .width(80.dp)
-                            .background(
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                RoundedCornerShape(4.dp)
-                            )
-                    )
-                    
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .height(16.dp)
-                                .width(70.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                    RoundedCornerShape(4.dp)
-                                )
-                        )
-                        
-                        Spacer(modifier = Modifier.width(8.dp))
-                        
-                        Box(
-                            modifier = Modifier
-                                .size(16.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                    RoundedCornerShape(8.dp)
-                                )
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TransactionsSkeletonLoader(
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .height(20.dp)
-                    .fillMaxWidth(0.6f)
-                    .background(
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                        RoundedCornerShape(4.dp)
-                    )
-            )
-            
-            repeat(5) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Box(
-                            modifier = Modifier
-                                .height(16.dp)
-                                .fillMaxWidth(0.7f)
-                                .background(
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                    RoundedCornerShape(4.dp)
-                                )
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Box(
-                            modifier = Modifier
-                                .height(12.dp)
-                                .fillMaxWidth(0.5f)
-                                .background(
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                    RoundedCornerShape(4.dp)
-                                )
-                        )
-                    }
-                    
-                    Box(
-                        modifier = Modifier
-                            .height(16.dp)
-                            .width(70.dp)
-                            .background(
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                RoundedCornerShape(4.dp)
-                            )
-                    )
-                }
             }
         }
     }

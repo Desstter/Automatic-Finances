@@ -53,35 +53,3 @@ enum class AccountType {
     BANK,    // Cuenta bancaria - transacciones SMS automáticas
     CASH     // Efectivo - transacciones manuales
 }
-
-data class AccountSummary(
-    val totalBalanceCents: Long,
-    val bankBalanceCents: Long,
-    val cashBalanceCents: Long,
-    val accountCount: Int,
-    val activeAccountCount: Int,
-    val lastUpdated: Long = System.currentTimeMillis()
-) {
-    val bankPercentage: Float
-        get() = if (totalBalanceCents == 0L) 0f 
-                else (bankBalanceCents.toFloat() / totalBalanceCents.toFloat()) * 100f
-    
-    val cashPercentage: Float
-        get() = if (totalBalanceCents == 0L) 0f 
-                else (cashBalanceCents.toFloat() / totalBalanceCents.toFloat()) * 100f
-}
-
-data class BalanceHistory(
-    val accountId: Long,
-    val balanceCents: Long,
-    val timestamp: Long,
-    val transactionId: String?, // Transaction that caused this balance change
-    val changeType: BalanceChangeType
-)
-
-enum class BalanceChangeType {
-    INITIAL,      // Initial balance setup
-    TRANSACTION,  // Transaction added/modified
-    ADJUSTMENT,   // Manual balance adjustment
-    CORRECTION    // System correction
-}

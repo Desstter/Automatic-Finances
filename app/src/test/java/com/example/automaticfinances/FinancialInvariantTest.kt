@@ -5,6 +5,7 @@ import com.example.automaticfinances.data.db.Transaction
 import com.example.automaticfinances.data.repo.AccountRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.repo.MerchantResolutionRepository
+import com.example.automaticfinances.data.repo.OpeningBalanceRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.UserCategoryPreferenceRepository
 import com.example.automaticfinances.domain.AddTransactionUseCase
@@ -13,6 +14,7 @@ import com.example.automaticfinances.domain.RestoreTransactionUseCase
 import com.example.automaticfinances.fakes.FakeAccountDao
 import com.example.automaticfinances.fakes.FakeCategoryDao
 import com.example.automaticfinances.fakes.FakeMerchantResolutionDao
+import com.example.automaticfinances.fakes.FakeOpeningBalanceDao
 import com.example.automaticfinances.fakes.FakeTransactionDao
 import com.example.automaticfinances.fakes.FakeTransactionRunner
 import com.example.automaticfinances.fakes.FakeUserCategoryPreferenceDao
@@ -26,18 +28,26 @@ import org.junit.Test
 /**
  * End-to-end coverage of the financial integrity invariant:
  *   opening balance + applied movements == current balance
- * across add, delete (revert) and undo (re-apply), including idempotency guards.
+ * across add, delete and undo, including idempotency guards.
+ *
+ * Post-ARQ-1, `account.balanceCents` is a materialized cache of the derived value (opening
+ * snapshot + movements), recomputed wholesale after each operation. These tests seed an opening
+ * snapshot per account and assert the cache always equals the derived figure.
  */
 class FinancialInvariantTest {
 
     private val bankOpening = 100_000L
     private val cashOpening = 200_000L
+    // Effective date well before any test transaction, so all movements count toward the balance.
+    private val openingDate = "2020-01-01"
     private var bankId = 0L
     private var cashId = 0L
 
     private lateinit var accountDao: FakeAccountDao
     private lateinit var txDao: FakeTransactionDao
+    private lateinit var openingDao: FakeOpeningBalanceDao
     private lateinit var accountRepo: AccountRepository
+    private lateinit var openingRepo: OpeningBalanceRepository
     private lateinit var txRepo: TransactionRepository
     private lateinit var addUseCase: AddTransactionUseCase
     private lateinit var deleteUseCase: DeleteTransactionUseCase
@@ -49,8 +59,14 @@ class FinancialInvariantTest {
         bankId = accountDao.seed(Account.createBankAccount("Banco", bankOpening))
         cashId = accountDao.seed(Account.createCashAccount("Efectivo", cashOpening))
         txDao = FakeTransactionDao()
+        openingDao = FakeOpeningBalanceDao()
+        // The opening snapshot is the source of truth; the seeded account.balanceCents above is its
+        // initial cache (no movements yet, so cache == opening).
+        openingDao.seed(bankId, bankOpening, openingDate)
+        openingDao.seed(cashId, cashOpening, openingDate)
 
         accountRepo = AccountRepository(accountDao, txDao)
+        openingRepo = OpeningBalanceRepository(openingDao, accountDao, txDao)
         txRepo = TransactionRepository(txDao)
         val categoryRepo = CategoryRepository(
             FakeCategoryDao(),
@@ -58,9 +74,9 @@ class FinancialInvariantTest {
         )
         val merchantRepo = MerchantResolutionRepository(FakeMerchantResolutionDao(), FakeCategoryDao())
         val runner = FakeTransactionRunner(txDao, accountDao)
-        addUseCase = AddTransactionUseCase(txRepo, accountRepo, categoryRepo, merchantRepo, runner)
-        deleteUseCase = DeleteTransactionUseCase(txRepo, accountRepo, runner)
-        restoreUseCase = RestoreTransactionUseCase(txRepo, accountRepo, runner)
+        addUseCase = AddTransactionUseCase(txRepo, accountRepo, categoryRepo, merchantRepo, openingRepo, runner)
+        deleteUseCase = DeleteTransactionUseCase(txRepo, openingRepo, runner)
+        restoreUseCase = RestoreTransactionUseCase(txRepo, openingRepo, runner)
     }
 
     private fun cashBalance(): Long = runBlocking { accountRepo.getAccountBalance(cashId)!! }
@@ -167,5 +183,24 @@ class FinancialInvariantTest {
         assertEquals("Cash must be untouched", cashBefore, cashBalance())
         assertNull("No bank leg row may survive a rolled-back transaction", txRepo.getById("r2_BANK"))
         assertNull("No cash leg row may survive a rolled-back transaction", txRepo.getById("r2_CASH"))
+    }
+
+    @Test
+    fun cachedBalance_alwaysEqualsDerivedSource_acrossOperations() = runBlocking {
+        // The whole point of ARQ-1: the cached account.balanceCents can never drift from the
+        // derived authority (opening snapshot + movements), no matter the sequence of operations.
+        addUseCase(expense("a", 12_000L))                 // cash -12k
+        addUseCase(expense("b", 3_000L, "notif:sms"))     // bank -3k
+        val a = txRepo.getById("a")!!
+        deleteUseCase(a)                                  // cash back +12k
+        restoreUseCase(a)                                 // cash -12k again
+
+        for (id in listOf(bankId, cashId)) {
+            val cached = accountRepo.getAccountBalance(id)!!
+            val derived = openingRepo.calculateCurrentBalanceWithOpening(id).currentBalanceCents
+            assertEquals("Cache must equal the derived source for account $id", derived, cached)
+        }
+        assertEquals("Cash = opening - 12k", cashOpening - 12_000L, cashBalance())
+        assertEquals("Bank = opening - 3k", bankOpening - 3_000L, bankBalance())
     }
 }

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.automaticfinances.data.db.Category
+import com.example.automaticfinances.ui.components.AccountSelectorCard
 import com.example.automaticfinances.ui.theme.FinanceTheme
 import com.example.automaticfinances.ui.theme.FinanceTypography
 import java.text.NumberFormat
@@ -54,7 +55,7 @@ fun AddTransactionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Nuevo gasto en efectivo", style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
+                title = { Text("Nuevo gasto", style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
@@ -150,6 +151,19 @@ fun AddTransactionScreen(
                         readOnly = true,
                         modifier = Modifier.weight(1f),
                         leadingIcon = { Icon(Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                    )
+                }
+            }
+
+            // Selector de cuenta (permite registrar gastos en efectivo o asociados a un banco)
+            if (state.accounts.isNotEmpty()) {
+                item {
+                    AccountSelectorCard(
+                        accounts = state.accounts,
+                        selectedAccountId = state.selectedAccountId,
+                        onAccountSelected = viewModel::selectAccount,
+                        numberFormat = numberFormat,
+                        modifier = Modifier.padding(horizontal = 16.dp)
                     )
                 }
             }

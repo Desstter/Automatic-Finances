@@ -2,11 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Primary, OEM-proof capture path for SMS-based banks (Bancolombia): the SMS_RECEIVED
+         broadcast wakes the app even when idle/killed, so it does NOT depend on the notification
+         listener being bound. App is distributed as a direct APK (not Play Store), so Google's SMS
+         permission policy does not apply. -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
 
     <!-- Voice expense entry: STT (mic), Gemini NLP (network), result feedback notification -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -40,6 +43,12 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Long-press launcher shortcut for one-tap voice entry. Replaces the old
+                 persistent foreground-service notification that used to host this action. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
         
         <activity
@@ -60,15 +69,17 @@
             </intent-filter>
         </service>
 
-        <service
-            android:name=".system.ForegroundSmsService"
+        <!-- Direct SMS capture. android:permission=BROADCAST_SMS ensures only the OS can deliver
+             this broadcast (no app can spoof a bank SMS into our parser). -->
+        <receiver
+            android:name=".system.SmsReceiver"
             android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="SMS transaction monitoring" />
-        </service>
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".system.BootReceiver"

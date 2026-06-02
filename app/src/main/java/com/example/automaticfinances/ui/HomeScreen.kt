@@ -40,8 +40,6 @@ import com.example.automaticfinances.ui.components.SpeedDialScrim
 import com.example.automaticfinances.ui.components.common.ExpandableBanner
 import com.example.automaticfinances.ui.components.common.PremiumEmptyState
 import com.example.automaticfinances.ui.components.common.SectionHeader
-import com.example.automaticfinances.ui.components.common.StatusPill
-import com.example.automaticfinances.ui.components.common.StatusTone
 import com.example.automaticfinances.ui.components.common.TransactionListSkeleton
 import com.example.automaticfinances.ui.theme.FinanceTheme
 import com.example.automaticfinances.ui.theme.FinanceTypography
@@ -78,10 +76,8 @@ fun HomeScreen(
 
     val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
 
-    // System health — the banner only surfaces when detection needs the user (off / starting).
+    // System health — the banner only surfaces when detection needs the user (permission off).
     val systemHealth by SystemConfigurationChecker.rememberSystemHealth(context)
-    val isServiceRunning = systemHealth.isServiceRunning
-    val isListenerEnabled = systemHealth.isListenerEnabled
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
@@ -146,11 +142,7 @@ fun HomeScreen(
                     item(key = "service") {
                         ExpandableBanner(visible = systemHealth.needsUserAttention) {
                             Box(modifier = Modifier.padding(horizontal = Spacing.screen)) {
-                                CompactServiceStatusCard(
-                                    isServiceRunning = isServiceRunning,
-                                    isListenerEnabled = isListenerEnabled,
-                                    onOpenNotifAccess = onOpenNotifAccess
-                                )
+                                CompactServiceStatusCard(onOpenNotifAccess = onOpenNotifAccess)
                             }
                         }
                     }
@@ -454,24 +446,18 @@ fun EnhancedTopAppBar(
 
 /**
  * Service status card — only rendered while [com.example.automaticfinances.system.SystemHealthStatus.needsUserAttention]
- * is true, so it never advertises the healthy "active" state (that lives in Ajustes). It covers the
- * two attention states: detection off (critical) and service starting (warning).
+ * is true, i.e. the notification-listener permission is not yet granted. It never advertises the
+ * healthy "active" state (that lives in Ajustes). Detection goes live the moment the permission is
+ * granted, so there is no transient "connecting" state to show.
  */
 @Composable
 fun CompactServiceStatusCard(
-    isServiceRunning: Boolean,
-    isListenerEnabled: Boolean,
     onOpenNotifAccess: () -> Unit
 ) {
-    val isStarting = isListenerEnabled && !isServiceRunning
-    val tone = if (isStarting) StatusTone.Warning else StatusTone.Critical
-    val container = if (isStarting) FinanceTheme.colors.warningContainer
-                    else MaterialTheme.colorScheme.errorContainer
-
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        color = container
+        color = MaterialTheme.colorScheme.errorContainer
     ) {
         Row(
             modifier = Modifier
@@ -482,14 +468,13 @@ fun CompactServiceStatusCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (isStarting) "Iniciando servicio…" else "Configura la detección automática",
+                    text = "Configura la detección automática",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(Modifier.height(Spacing.xxs))
                 Text(
-                    text = if (isStarting) "Conectando con el sistema"
-                           else "Otorga acceso a las notificaciones para registrar tus gastos automáticamente",
+                    text = "Otorga acceso a las notificaciones para registrar tus gastos automáticamente",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -497,12 +482,8 @@ fun CompactServiceStatusCard(
 
             Spacer(Modifier.width(Spacing.md))
 
-            if (isStarting) {
-                StatusPill(label = "…", tone = tone)
-            } else {
-                FilledTonalButton(onClick = onOpenNotifAccess) {
-                    Text("Activar")
-                }
+            FilledTonalButton(onClick = onOpenNotifAccess) {
+                Text("Activar")
             }
         }
     }

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="voice_entry"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_mic"
+        android:shortcutShortLabel="@string/shortcut_voice_short"
+        android:shortcutLongLabel="@string/shortcut_voice_long"
+        android:shortcutDisabledMessage="@string/shortcut_voice_disabled">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example.automaticfinances"
+            android:targetClass="com.example.automaticfinances.ui.voice.VoiceEntryActivity" />
+    </shortcut>
+</shortcuts>

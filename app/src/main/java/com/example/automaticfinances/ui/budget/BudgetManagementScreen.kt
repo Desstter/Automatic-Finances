@@ -1,12 +1,19 @@
 package com.example.automaticfinances.ui.budget
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -14,6 +21,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -287,92 +296,173 @@ private fun BudgetManagementCard(
     modifier: Modifier = Modifier
 ) {
     val nf = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO")) }
-    
+    val isActive = budget.isActive
+
+    // Category accent color, parsed defensively (DB stores an arbitrary hex string).
+    val accent = remember(category?.color) {
+        runCatching { Color(android.graphics.Color.parseColor(category?.color ?: "#9E9E9E")) }
+            .getOrDefault(Color(0xFF9E9E9E))
+    }
+
+    var menuExpanded by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (budget.isActive) 
-                MaterialTheme.colorScheme.surface 
-            else 
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
-            // Header with category info
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = category?.icon ?: "•",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            text = category?.name ?: "Categoría",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        if (!budget.isActive) {
-                            Text(
-                                text = "Inactivo",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-                
-                Row {
-                    TextButton(onClick = onEdit) {
-                        Text("Editar")
-                    }
-                    TextButton(onClick = onToggleActive) {
-                        Text(if (budget.isActive) "Desactivar" else "Activar")
-                    }
-                    TextButton(
-                        onClick = onDelete,
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Text("Eliminar")
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            // Budget amount and status
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Leading category icon in a tinted circle. Dimmed when inactive.
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(accent.copy(alpha = if (isActive) 0.16f else 0.06f)),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Límite: ${nf.format(budget.limitAmountCents / 100.0)}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
+                    text = category?.icon ?: "•",
+                    style = MaterialTheme.typography.titleLarge
                 )
-                
-                if (budget.isActive) {
-                    AssistChip(
-                        onClick = { /* No action needed */ },
-                        label = { Text("Activo") },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            labelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+            }
+
+            // Name + limit
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = category?.name ?: "Categoría",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isActive) MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = nf.format(budget.limitAmountCents / 100.0),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // Compact status pill — replaces the standalone "Activo" chip.
+            StatusPill(isActive = isActive)
+
+            // All secondary actions collapse into one overflow menu, removing the
+            // crowded row of Editar / Desactivar / Eliminar buttons.
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Más opciones",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Editar") },
+                        onClick = {
+                            menuExpanded = false
+                            onEdit()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(if (isActive) "Desactivar" else "Activar") },
+                        onClick = {
+                            menuExpanded = false
+                            onToggleActive()
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (isActive) Icons.Default.Block else Icons.Default.CheckCircle,
+                                contentDescription = null
+                            )
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            showDeleteConfirm = true
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
                     )
                 }
             }
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Eliminar presupuesto") },
+            text = {
+                Text("¿Seguro que deseas eliminar el presupuesto de \"${category?.name ?: "esta categoría"}\"?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDelete()
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Eliminar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun StatusPill(
+    isActive: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val container = if (isActive) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surfaceContainerHighest
+    val content = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
+                  else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(container)
+            .padding(horizontal = Spacing.sm, vertical = Spacing.xxs)
+    ) {
+        Text(
+            text = if (isActive) "Activo" else "Inactivo",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Medium,
+            color = content
+        )
     }
 }
 

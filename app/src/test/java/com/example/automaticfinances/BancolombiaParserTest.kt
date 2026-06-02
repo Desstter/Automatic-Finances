@@ -213,12 +213,32 @@ class BancolombiaParserTest {
     @Test
     fun parse_specialCharactersInMerchant_handled(): Unit = runBlocking {
         val sms = "Bancolombia: Compraste $5000 en TIENDA-123_TEST! con tu T.Cred *1234, el 19/08/2024 a las 16:30"
-        
+
         val result = BancolombiaParser.tryParse(sms)
-        
+
         assertNotNull("Should handle special characters", result)
         result?.let { tx ->
             assertTrue("Should preserve merchant name", tx.description.contains("TIENDA-123_TEST!"))
+        }
+    }
+
+    @Test
+    fun parse_bancolombiaCompra_nuevoFormato_fechaAntesQueTarjeta(): Unit = runBlocking {
+        // New Bancolombia SMS format: date comes before card info
+        // "Compraste COP{amount} en {merchant}, el {date} a las {time}. Esta compra esta asociada a T.Cred *{last4}."
+        val sms = "Bancolombia: Compraste COP62,00 en Google CLOUD 4VT9CH, el 01/06/2026 a las 12:38. Esta compra esta asociada a T.Cred *9335. Si tienes dudas, encuentranos aqui: 01800931987. Siempre contigo."
+
+        val result = BancolombiaParser.tryParse(sms)
+
+        assertNotNull("Should parse new Bancolombia SMS format", result)
+        result?.let { tx ->
+            assertEquals("COMPRA", tx.type)
+            assertEquals(6200L, tx.amountCents) // COP 62,00 = 6200 centavos
+            assertEquals("Google CLOUD 4VT9CH", tx.description)
+            assertEquals("9335", tx.srcLast4)
+            assertEquals("COP", tx.currency)
+            assertFalse("Should not be income", tx.isIncome)
+            assertNull("categoryId must be null (resolved downstream)", tx.categoryId)
         }
     }
 }

@@ -2,18 +2,20 @@ package com.example.automaticfinances.fakes
 
 import com.example.automaticfinances.data.db.Account
 import com.example.automaticfinances.data.db.AccountDao
-import com.example.automaticfinances.data.db.AccountSummaryRaw
 import com.example.automaticfinances.data.db.AccountType
 import com.example.automaticfinances.data.db.AccountWithStats
-import com.example.automaticfinances.data.db.BalanceHistory
 import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.db.CategoryAccuracy
 import com.example.automaticfinances.data.db.CategoryDao
 import com.example.automaticfinances.data.db.CategorySuggestion
 import com.example.automaticfinances.data.db.CategoryWithCount
 import com.example.automaticfinances.data.db.DefaultCategories
+import com.example.automaticfinances.data.db.AccountWithOpeningBalanceRaw
 import com.example.automaticfinances.data.db.MerchantResolution
 import com.example.automaticfinances.data.db.MerchantResolutionDao
+import com.example.automaticfinances.data.db.OpeningBalance
+import com.example.automaticfinances.data.db.OpeningBalanceDao
+import com.example.automaticfinances.data.db.OpeningBalanceSummaryRaw
 import com.example.automaticfinances.data.db.Transaction
 import com.example.automaticfinances.data.db.TransactionDao
 import com.example.automaticfinances.data.db.UserCategoryPreference
@@ -124,10 +126,19 @@ class FakeTransactionDao : TransactionDao {
     override suspend fun getIncomeTotalByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Long = throw NotImplementedError()
     override suspend fun getIncomeCountByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Int = throw NotImplementedError()
     override suspend fun getExpenseCountByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Int = throw NotImplementedError()
-    override suspend fun getByAccountAndDateRangeSync(accountId: Long, startDate: String, endDate: String): List<Transaction> = throw NotImplementedError()
-    override suspend fun getTransactionCountByAccountAndDateRange(accountId: Long, startDate: String, endDate: String): Int = throw NotImplementedError()
-    override suspend fun getByAccountFromDate(accountId: Long, fromDate: String): List<Transaction> = throw NotImplementedError()
-    override suspend fun getTransactionCountByAccountFromDate(accountId: Long, fromDate: String): Int = throw NotImplementedError()
+    override suspend fun getByAccountAndDateRangeSync(accountId: Long, startDate: String, endDate: String): List<Transaction> =
+        rows.values.filter { it.accountId == accountId && it.date in startDate..endDate }.sortedBy { it.date }
+    override suspend fun getTransactionCountByAccountAndDateRange(accountId: Long, startDate: String, endDate: String): Int =
+        rows.values.count { it.accountId == accountId && it.date in startDate..endDate }
+    override suspend fun getByAccountFromDate(accountId: Long, fromDate: String): List<Transaction> =
+        rows.values.filter { it.accountId == accountId && it.date >= fromDate }.sortedBy { it.date }
+    override suspend fun getTransactionCountByAccountFromDate(accountId: Long, fromDate: String): Int =
+        rows.values.count { it.accountId == accountId && it.date >= fromDate }
+    override suspend fun getNetAmountByAccount(accountId: Long): Long =
+        rows.values.filter { it.accountId == accountId }.sumOf { if (it.isIncome) it.amountCents else -it.amountCents }
+    override suspend fun getNetAmountByAccountAndDateRange(accountId: Long, startDate: String, endDate: String): Long =
+        rows.values.filter { it.accountId == accountId && it.date in startDate..endDate }
+            .sumOf { if (it.isIncome) it.amountCents else -it.amountCents }
     override fun getAllTransactionsFlow(): Flow<List<Transaction>> = throw NotImplementedError()
     override suspend fun getTransactionsByAccountId(accountId: Long): List<Transaction> = throw NotImplementedError()
     override fun getTransactionsByAccountIdFlow(accountId: Long): Flow<List<Transaction>> = throw NotImplementedError()
@@ -160,24 +171,70 @@ class FakeAccountDao : AccountDao {
     override suspend fun updateAccountBalance(accountId: Long, balanceCents: Long) {
         store[accountId]?.let { store[accountId] = it.copy(balanceCents = balanceCents) }
     }
-    override suspend fun adjustAccountBalance(accountId: Long, amountCents: Long) {
-        store[accountId]?.let { store[accountId] = it.copy(balanceCents = it.balanceCents + amountCents) }
-    }
     override suspend fun getAccountCount(): Int = store.size
 
     override fun getAllActiveAccountsFlow(): Flow<List<Account>> = throw NotImplementedError()
     override fun getAccountByIdFlow(accountId: Long): Flow<Account?> = throw NotImplementedError()
     override suspend fun getAccountsByType(type: AccountType): List<Account> = throw NotImplementedError()
     override suspend fun deleteAccount(account: Account) = throw NotImplementedError()
-    override suspend fun getAccountSummary(): AccountSummaryRaw? = throw NotImplementedError()
-    override fun getAccountSummaryFlow(): Flow<AccountSummaryRaw?> = throw NotImplementedError()
     override suspend fun getAccountsWithMonthlyStats(): List<AccountWithStats> = throw NotImplementedError()
-    override suspend fun getCurrentBalanceHistory(accountId: Long): BalanceHistory? = throw NotImplementedError()
     override suspend fun calculateBankBalanceFromTransactions(): Long = throw NotImplementedError()
     override suspend fun calculateCashBalanceFromTransactions(): Long = throw NotImplementedError()
     override suspend fun deactivateAccount(accountId: Long) = throw NotImplementedError()
     override suspend fun activateAccount(accountId: Long) = throw NotImplementedError()
     override suspend fun getInactiveAccounts(): List<Account> = throw NotImplementedError()
+}
+
+/**
+ * In-memory opening-balance store keyed by account. Only the single active opening per account is
+ * modeled — enough for the financial-invariant tests, which seed one opening per account and rely
+ * on the derived-balance recompute reading it back via [getActiveByAccount].
+ */
+class FakeOpeningBalanceDao : OpeningBalanceDao {
+    private val active = LinkedHashMap<Long, OpeningBalance>()
+    private var nextId = 1L
+
+    /** Seeds the active opening balance for an account (test setup helper). */
+    fun seed(accountId: Long, balanceCents: Long, effectiveDate: String) {
+        active[accountId] = OpeningBalance(
+            id = nextId++, accountId = accountId, effectiveDate = effectiveDate,
+            balanceCents = balanceCents, note = "test", isActive = true,
+        )
+    }
+
+    override suspend fun getActiveByAccount(accountId: Long): OpeningBalance? = active[accountId]
+    override suspend fun insert(openingBalance: OpeningBalance): Long {
+        val id = if (openingBalance.id == 0L) nextId++ else openingBalance.id
+        active[openingBalance.accountId] = openingBalance.copy(id = id)
+        return id
+    }
+    override suspend fun deactivateByAccount(accountId: Long) { active.remove(accountId) }
+    override suspend fun hasActiveOpeningBalance(accountId: Long): Boolean = active.containsKey(accountId)
+    override suspend fun getActiveOpeningBalanceCount(): Int = active.size
+
+    override suspend fun update(openingBalance: OpeningBalance) = throw NotImplementedError()
+    override suspend fun delete(openingBalance: OpeningBalance) = throw NotImplementedError()
+    override suspend fun deleteById(id: Long) = throw NotImplementedError()
+    override suspend fun getById(id: Long): OpeningBalance? = throw NotImplementedError()
+    override fun getAll(): Flow<List<OpeningBalance>> = throw NotImplementedError()
+    override fun getAllActive(): Flow<List<OpeningBalance>> = throw NotImplementedError()
+    override suspend fun getAllActiveSync(): List<OpeningBalance> = active.values.toList()
+    override fun getByAccount(accountId: Long): Flow<List<OpeningBalance>> = throw NotImplementedError()
+    override fun getActiveByAccountFlow(accountId: Long): Flow<OpeningBalance?> = throw NotImplementedError()
+    override suspend fun getHistoryByAccount(accountId: Long): List<OpeningBalance> = throw NotImplementedError()
+    override suspend fun getByEffectiveDate(date: String): List<OpeningBalance> = throw NotImplementedError()
+    override suspend fun getActiveOnOrBefore(date: String): List<OpeningBalance> = throw NotImplementedError()
+    override suspend fun getActiveByAccountOnOrBefore(accountId: Long, date: String): OpeningBalance? = throw NotImplementedError()
+    override suspend fun getActiveByAccountType(accountType: AccountType): List<OpeningBalance> = throw NotImplementedError()
+    override suspend fun getActiveBankOpeningBalance(): OpeningBalance? = throw NotImplementedError()
+    override suspend fun getActiveCashOpeningBalance(): OpeningBalance? = throw NotImplementedError()
+    override suspend fun deactivateAll() = throw NotImplementedError()
+    override suspend fun getTotalActiveOpeningBalance(): Long = throw NotImplementedError()
+    override suspend fun getTotalActiveOpeningBalanceByType(accountType: AccountType): Long = throw NotImplementedError()
+    override suspend fun hasActiveOpeningBalanceForType(accountType: AccountType): Boolean = throw NotImplementedError()
+    override suspend fun getAccountsWithOpeningBalances(): List<AccountWithOpeningBalanceRaw> = throw NotImplementedError()
+    override suspend fun getAccountsWithActiveOpeningBalances(): List<AccountWithOpeningBalanceRaw> = throw NotImplementedError()
+    override suspend fun getOpeningBalanceSummaryRaw(): OpeningBalanceSummaryRaw? = throw NotImplementedError()
 }
 
 /**

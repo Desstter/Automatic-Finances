@@ -135,6 +135,10 @@ dependencies {
     
     // DataStore for theme preferences
     implementation("androidx.datastore:datastore-preferences:1.0.0")
+
+    // WorkManager: periodic heartbeat that re-binds the notification listener after aggressive
+    // OEMs (MIUI/HyperOS) silently unbind it while the app is idle.
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
     
     // Material Icons Extended for brightness icons
     implementation("androidx.compose.material:material-icons-extended:1.7.5")

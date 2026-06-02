@@ -44,11 +44,28 @@ class CategoryManagementViewModel @Inject constructor(
         "#795548", "#9E9E9E", "#607D8B"
     )
     
-    // Lista de iconos predefinidos
+    // Paleta de iconos. Se usan emojis (renderizados por la fuente del sistema, sin
+    // assets ni imports que mantener) y se agrupan por tema para que el selector sea
+    // fácil de explorar. Ampliada de 24 a 70+ opciones.
     val availableIcons = listOf(
-        "🍽️", "🏠", "🏥", "🍔", "⛽", "🚗", "🎬", "👕",
-        "🔧", "📦", "💊", "🛒", "🎓", "🏃", "📱", "💻",
-        "✈️", "🏖️", "🎵", "📚", "🎮", "💰", "🎨", "🛍️"
+        // Comida y bebida
+        "🍽️", "🍔", "🍕", "🍣", "🥗", "🍎", "🛒", "☕", "🍺", "🍷",
+        // Hogar y servicios
+        "🏠", "🏢", "🛋️", "🔧", "🧹", "💡", "💧", "🔥", "🌐", "📞",
+        // Transporte
+        "🚗", "⛽", "🚕", "🚌", "🚇", "🚲", "✈️", "🛵", "🅿️", "🛣️",
+        // Salud y cuidado personal
+        "🏥", "💊", "🩺", "🦷", "💇", "💅", "🧴", "🏋️", "🏃", "🧘",
+        // Compras y ropa
+        "👕", "👗", "👟", "👜", "🛍️", "💄", "⌚", "💍", "🧥", "🎁",
+        // Ocio y educación
+        "🎬", "🎮", "🎵", "📚", "🎨", "🎟️", "🎤", "🏖️", "🎓", "🐶",
+        // Tecnología
+        "📱", "💻", "🖥️", "🎧", "📷", "🖨️", "🔌", "🕹️",
+        // Dinero e ingresos
+        "💰", "💵", "💳", "🏦", "📈", "📉", "💸", "🪙", "🤝", "🎯",
+        // Otros / genéricos
+        "📦", "📋", "⭐", "❤️", "🔔", "🌍", "🐾", "👶", "🎉", "🧾"
     )
     
     init {

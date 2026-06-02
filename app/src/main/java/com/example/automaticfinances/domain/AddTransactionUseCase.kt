@@ -5,6 +5,7 @@ import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.AccountRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.repo.MerchantResolutionRepository
+import com.example.automaticfinances.data.repo.OpeningBalanceRepository
 import javax.inject.Inject
 
 class AddTransactionUseCase @Inject constructor(
@@ -12,6 +13,7 @@ class AddTransactionUseCase @Inject constructor(
     private val accountRepo: AccountRepository,
     private val categoryRepo: CategoryRepository,
     private val merchantResolutionRepo: MerchantResolutionRepository,
+    private val openingBalanceRepo: OpeningBalanceRepository,
     private val transactionRunner: TransactionRunner
 ) {
     suspend operator fun invoke(tx: Transaction) {
@@ -20,7 +22,7 @@ class AddTransactionUseCase @Inject constructor(
         // manual entry where the user picked a category) are always preserved.
         val enriched = enrich(tx)
 
-        // The insert and its balance adjustment must commit together. Wrapping them in a single
+        // The insert and the balance recompute must commit together. Wrapping them in a single
         // transaction guarantees the financial invariant survives a crash/failure mid-operation:
         // we never end up with a persisted row whose balance effect was lost, nor (for a RETIRO)
         // a bank leg applied without its matching cash leg.
@@ -30,11 +32,11 @@ class AddTransactionUseCase @Inject constructor(
                 handleWithdrawalTransfer(enriched)
             } else {
                 // Normal transaction processing.
-                // Only adjust the balance if the row was actually inserted; a re-delivered
-                // notification with the same id is ignored and must NOT touch the balance again.
+                // Only recompute the balance if the row was actually inserted; a re-delivered
+                // notification with the same id is ignored and must NOT change the balance.
                 val inserted = transactionRepo.insert(enriched)
                 if (inserted) {
-                    accountRepo.applyTransactionToBalance(enriched)
+                    enriched.accountId?.let { openingBalanceRepo.recalculateAccountBalance(it) }
                 }
             }
         }
@@ -96,7 +98,7 @@ class AddTransactionUseCase @Inject constructor(
         if (bankAccount == null || cashAccount == null) {
             // Fallback: treat as normal expense if accounts don't exist
             if (transactionRepo.insert(withdrawal)) {
-                accountRepo.applyTransactionToBalance(withdrawal)
+                withdrawal.accountId?.let { openingBalanceRepo.recalculateAccountBalance(it) }
             }
             return
         }
@@ -126,12 +128,12 @@ class AddTransactionUseCase @Inject constructor(
             isIncome = true
         )
         
-        // Insert both transactions and only apply each balance change if its row was new.
-        if (transactionRepo.insert(bankWithdrawal)) {
-            accountRepo.applyTransactionToBalance(bankWithdrawal)
-        }
-        if (transactionRepo.insert(cashDeposit)) {
-            accountRepo.applyTransactionToBalance(cashDeposit)
-        }
+        // Insert both legs, then recompute each affected account's cached balance from source.
+        // The recompute reflects whatever legs were actually inserted (re-deliveries are ignored),
+        // so it stays idempotent without per-row deltas.
+        val bankInserted = transactionRepo.insert(bankWithdrawal)
+        val cashInserted = transactionRepo.insert(cashDeposit)
+        if (bankInserted) openingBalanceRepo.recalculateAccountBalance(bankAccount.id)
+        if (cashInserted) openingBalanceRepo.recalculateAccountBalance(cashAccount.id)
     }
 }

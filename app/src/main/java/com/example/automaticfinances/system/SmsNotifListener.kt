@@ -43,19 +43,44 @@ class SmsNotifListener : NotificationListenerService() {
         if (!scope.isActive) {
             scope = newScope()
         }
-        // Ensure foreground service is running when listener connects
-        ForegroundSmsService.startService(this)
+        // The system keeps this NotificationListenerService bound on its own — no companion
+        // foreground service is needed to receive onNotificationPosted. The UI reads the listener
+        // permission directly as its source of truth (see SystemConfigurationChecker), so there is
+        // no in-memory "running" flag to set here. Re-assert the persistent voice notification: a
+        // connect is a reliable signal that the app's components are live again (e.g. after the
+        // process was killed and rebound).
+        runCatching { VoiceQuickActionNotifier.show(this) }
+
+        // Catch-up: aggressive OEMs (notably MIUI/HyperOS) silently UNBIND this listener while the
+        // app is idle, so bank SMS that arrive during that window never trigger onNotificationPosted
+        // and are lost. When we (re)bind, the offending notifications are usually still sitting in
+        // the shade, so we replay the currently-active ones through the same path. Dedup is by the
+        // parser's stable id (folds in sbn.postTime), so replaying an already-saved notification is a
+        // harmless no-op — never a duplicate or a double balance hit.
+        reprocessActiveNotifications()
+    }
+
+    private fun reprocessActiveNotifications() {
+        val active = runCatching { activeNotifications }.getOrNull() ?: return
+        for (sbn in active) {
+            runCatching { handleNotification(sbn) }
+        }
     }
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
-        // Try to restart the service if disconnected
+        // Ask the system to rebind us; onListenerConnected will revive the scope.
         scope.cancel()
         requestRebind(android.content.ComponentName(this, SmsNotifListener::class.java))
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        val n = sbn?.notification ?: return
+        sbn ?: return
+        handleNotification(sbn)
+    }
+
+    private fun handleNotification(sbn: StatusBarNotification) {
+        val n = sbn.notification ?: return
         val packageName = sbn.packageName
         val extras = n.extras
         val text = (extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: "") +

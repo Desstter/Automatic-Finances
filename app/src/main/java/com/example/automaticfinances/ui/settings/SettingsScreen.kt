@@ -12,33 +12,47 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Brightness3
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.BrightnessHigh
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.automaticfinances.data.preferences.ThemeMode
 import com.example.automaticfinances.ui.components.common.SectionCard
@@ -60,16 +74,44 @@ fun SettingsScreen(
     onNavigateToCategories: () -> Unit,
     onNavigateToIncomes: () -> Unit,
     onNavigateToBalances: () -> Unit,
+    backupViewModel: BackupViewModel = hiltViewModel(),
 ) {
     val themeMode by themeViewModel.themeMode.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val context = androidx.compose.ui.platform.LocalContext.current
     val systemHealth by com.example.automaticfinances.system.SystemConfigurationChecker
         .rememberSystemHealth(context)
-    val detectionActive = systemHealth.isServiceRunning && systemHealth.isListenerEnabled
+    val detectionActive = systemHealth.isListenerEnabled
+
+    val backupState by backupViewModel.state.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showRestoreConfirm by remember { mutableStateOf(false) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri -> uri?.let(backupViewModel::export) }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> uri?.let(backupViewModel::import) }
+
+    LaunchedEffect(backupState) {
+        when (val s = backupState) {
+            is BackupUiState.ExportDone -> {
+                snackbarHostState.showSnackbar("Copia de seguridad creada")
+                backupViewModel.dismiss()
+            }
+            is BackupUiState.Error -> {
+                snackbarHostState.showSnackbar(s.message)
+                backupViewModel.dismiss()
+            }
+            else -> Unit
+        }
+    }
 
     androidx.compose.material3.Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -153,7 +195,71 @@ fun SettingsScreen(
                     )
                 }
             }
+
+            item {
+                SectionHeader(title = "Copia de seguridad")
+                SectionCard(contentPadding = Spacing.none) {
+                    SettingRow(
+                        icon = Icons.Default.Backup,
+                        title = "Crear copia de seguridad",
+                        subtitle = "Guarda todos tus datos en un archivo",
+                        onClick = { exportLauncher.launch(backupViewModel.suggestedFileName()) },
+                    )
+                    SettingDivider()
+                    SettingRow(
+                        icon = Icons.Default.Restore,
+                        title = "Restaurar copia",
+                        subtitle = "Reemplaza tus datos con los de un archivo",
+                        onClick = { showRestoreConfirm = true },
+                    )
+                }
+            }
         }
+    }
+
+    if (showRestoreConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRestoreConfirm = false },
+            icon = { Icon(Icons.Default.Restore, contentDescription = null) },
+            title = { Text("Restaurar copia de seguridad") },
+            text = {
+                Text(
+                    "Esto reemplazará todos los datos actuales de la app con los del archivo " +
+                        "que elijas. Esta acción no se puede deshacer.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRestoreConfirm = false
+                    importLauncher.launch(arrayOf("*/*"))
+                }) { Text("Elegir archivo") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestoreConfirm = false }) { Text("Cancelar") }
+            },
+        )
+    }
+
+    if (backupState is BackupUiState.Working) {
+        AlertDialog(
+            onDismissRequest = {},
+            confirmButton = {},
+            icon = { CircularProgressIndicator(modifier = Modifier.size(Sizes.iconMd)) },
+            title = { Text("Procesando…") },
+            text = { Text("Por favor espera un momento.") },
+        )
+    }
+
+    if (backupState is BackupUiState.RestoreDone) {
+        AlertDialog(
+            onDismissRequest = {},
+            icon = { Icon(Icons.Default.Restore, contentDescription = null) },
+            title = { Text("Restauración completa") },
+            text = { Text("La aplicación se reiniciará para aplicar los datos restaurados.") },
+            confirmButton = {
+                TextButton(onClick = { backupViewModel.restartApp() }) { Text("Reiniciar ahora") }
+            },
+        )
     }
 }
 

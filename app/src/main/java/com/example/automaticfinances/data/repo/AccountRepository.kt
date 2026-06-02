@@ -2,7 +2,6 @@ package com.example.automaticfinances.data.repo
 
 import com.example.automaticfinances.data.db.*
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class AccountRepository @Inject constructor(
@@ -39,87 +38,12 @@ class AccountRepository @Inject constructor(
     suspend fun updateAccountBalance(accountId: Long, newBalanceCents: Long) {
         accountDao.updateAccountBalance(accountId, newBalanceCents)
     }
-    
-    suspend fun adjustAccountBalance(accountId: Long, amountCents: Long) {
-        accountDao.adjustAccountBalance(accountId, amountCents)
-    }
-    
-    /**
-     * Updates account balance when a transaction is added
-     * For expenses: balance decreases (negative amount)
-     * For income: balance increases (positive amount)
-     *
-     * @return true if a balance was adjusted; false if the transaction had no account
-     * (an orphaned transaction that does not contribute to any balance). Callers can use the
-     * result to detect/report this anomaly instead of it failing silently.
-     */
-    suspend fun applyTransactionToBalance(transaction: Transaction): Boolean {
-        val accountId = transaction.accountId ?: return false
-        val adjustmentAmount = if (transaction.isIncome) {
-            transaction.amountCents // Income increases balance
-        } else {
-            -transaction.amountCents // Expense decreases balance
-        }
-        adjustAccountBalance(accountId, adjustmentAmount)
-        return true
-    }
 
-    /**
-     * Reverts account balance when a transaction is deleted.
-     *
-     * @return true if a balance was reverted; false if the transaction had no account.
-     */
-    suspend fun revertTransactionFromBalance(transaction: Transaction): Boolean {
-        val accountId = transaction.accountId ?: return false
-        val adjustmentAmount = if (transaction.isIncome) {
-            -transaction.amountCents // Revert income
-        } else {
-            transaction.amountCents // Revert expense
-        }
-        adjustAccountBalance(accountId, adjustmentAmount)
-        return true
-    }
-    
-    // ========== ANALYTICS & INSIGHTS ==========
-    
-    suspend fun getAccountSummary(): AccountSummary? {
-        return accountDao.getAccountSummary()?.toAccountSummary()
-    }
-    
-    fun getAccountSummaryFlow(): Flow<AccountSummary?> {
-        return accountDao.getAccountSummaryFlow().map { it?.toAccountSummary() }
-    }
-    
-    suspend fun getTotalBalance(): Long {
-        return getAccountSummary()?.totalBalanceCents ?: 0L
-    }
-    
-    suspend fun getBankBalance(): Long {
-        return getBankAccount()?.balanceCents ?: 0L
-    }
-    
-    suspend fun getCashBalance(): Long {
-        return getCashAccount()?.balanceCents ?: 0L
-    }
-    
-    fun getTotalBalanceFlow(): Flow<Long> {
-        return getAccountSummaryFlow().map { summary ->
-            summary?.totalBalanceCents ?: 0L
-        }
-    }
-    
-    fun getBankBalanceFlow(): Flow<Long> {
-        return getAccountSummaryFlow().map { summary ->
-            summary?.bankBalanceCents ?: 0L
-        }
-    }
-    
-    fun getCashBalanceFlow(): Flow<Long> {
-        return getAccountSummaryFlow().map { summary ->
-            summary?.cashBalanceCents ?: 0L
-        }
-    }
-    
+    // NOTE: balances are no longer mutated incrementally per transaction. The single source of
+    // truth is the derived value (opening snapshot + movements); `account.balanceCents` is a
+    // materialized cache recomputed wholesale via OpeningBalanceRepository.recalculateAccountBalance
+    // after each insert/delete/restore. This removes the two-bookkeeping divergence risk (ARQ-1).
+
     // ========== ACCOUNT ASSIGNMENT LOGIC ==========
     
     /**

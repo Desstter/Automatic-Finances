@@ -212,10 +212,33 @@ interface TransactionDao {
     suspend fun getByAccountFromDate(accountId: Long, fromDate: String): List<Transaction>
     
     @Query("""
-        SELECT COUNT(*) FROM transactions 
+        SELECT COUNT(*) FROM transactions
         WHERE accountId = :accountId AND date >= :fromDate
     """)
     suspend fun getTransactionCountByAccountFromDate(accountId: Long, fromDate: String): Int
+
+    /**
+     * Signed net of every transaction on an account (income +, expense −), in cents. Used to
+     * derive an account's current balance when it has no opening-balance snapshot to anchor on.
+     */
+    @Query("""
+        SELECT COALESCE(SUM(CASE WHEN isIncome = 1 THEN amountCents ELSE -amountCents END), 0)
+        FROM transactions
+        WHERE accountId = :accountId
+    """)
+    suspend fun getNetAmountByAccount(accountId: Long): Long
+
+    /**
+     * Signed net of an account's movements within a date range (income +, expense −), in cents,
+     * computed in SQL. Used to derive the current balance from an opening snapshot
+     * (opening.balanceCents + this) without loading every row into memory.
+     */
+    @Query("""
+        SELECT COALESCE(SUM(CASE WHEN isIncome = 1 THEN amountCents ELSE -amountCents END), 0)
+        FROM transactions
+        WHERE accountId = :accountId AND date BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getNetAmountByAccountAndDateRange(accountId: Long, startDate: String, endDate: String): Long
     
     // ================ DELETION METHODS ================
     
