@@ -1,13 +1,12 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Full-backup rules for devices older than API 31 (fullBackupContent).
+
+    allowBackup="false" already disables backup on all API levels, so these rules are belt-and-
+    suspenders: even if backup were ever re-enabled, the unencrypted bank database is excluded.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="database" path="autobook.db" />
+    <exclude domain="database" path="autobook.db-wal" />
+    <exclude domain="database" path="autobook.db-shm" />
 </full-backup-content>

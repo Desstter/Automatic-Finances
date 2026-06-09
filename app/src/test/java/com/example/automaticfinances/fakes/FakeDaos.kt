@@ -7,15 +7,20 @@ import com.example.automaticfinances.data.db.AccountWithStats
 import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.db.CategoryAccuracy
 import com.example.automaticfinances.data.db.CategoryDao
+import com.example.automaticfinances.data.db.CategoryRule
+import com.example.automaticfinances.data.db.CategoryRuleDao
 import com.example.automaticfinances.data.db.CategorySuggestion
 import com.example.automaticfinances.data.db.CategoryWithCount
 import com.example.automaticfinances.data.db.DefaultCategories
+import com.example.automaticfinances.data.db.DefaultCategoryRules
 import com.example.automaticfinances.data.db.AccountWithOpeningBalanceRaw
 import com.example.automaticfinances.data.db.MerchantResolution
 import com.example.automaticfinances.data.db.MerchantResolutionDao
 import com.example.automaticfinances.data.db.OpeningBalance
 import com.example.automaticfinances.data.db.OpeningBalanceDao
 import com.example.automaticfinances.data.db.OpeningBalanceSummaryRaw
+import com.example.automaticfinances.data.db.PendingTransaction
+import com.example.automaticfinances.data.db.PendingTransactionDao
 import com.example.automaticfinances.data.db.Transaction
 import com.example.automaticfinances.data.db.TransactionDao
 import com.example.automaticfinances.data.db.UserCategoryPreference
@@ -55,6 +60,33 @@ class FakeCategoryDao(
     override suspend fun countTransactionsInCategory(categoryId: Long): Int = throw NotImplementedError()
     override fun getCategoriesWithTransactionCount(): Flow<List<CategoryWithCount>> = throw NotImplementedError()
     override fun getCategoriesWithTransactionCountByType(isIncome: Boolean): Flow<List<CategoryWithCount>> = throw NotImplementedError()
+    override suspend fun getCategoriesWithCountByTypeSync(isIncome: Boolean): List<CategoryWithCount> =
+        store.filter { it.isActive && it.isIncome == isIncome }.map {
+            CategoryWithCount(it.id, it.name, it.color, it.icon, it.isDefault, it.isActive, it.isIncome, 0)
+        }
+}
+
+/** Seeds [DefaultCategoryRules] so the table-driven keyword categorization resolves like production. */
+class FakeCategoryRuleDao(
+    seed: List<CategoryRule> = DefaultCategoryRules.list,
+) : CategoryRuleDao {
+    private val store: MutableList<CategoryRule> =
+        seed.mapIndexed { index, r -> r.copy(id = (index + 1).toLong()) }.toMutableList()
+    private var nextId: Long = (store.size + 1).toLong()
+
+    override suspend fun getByType(isIncome: Boolean): List<CategoryRule> = store.filter { it.isIncome == isIncome }
+    override suspend fun count(): Int = store.size
+    override suspend fun insert(rule: CategoryRule): Long {
+        if (store.any { it.keyword == rule.keyword && it.isIncome == rule.isIncome }) return -1L
+        val id = nextId++
+        store.add(rule.copy(id = id))
+        return id
+    }
+    override suspend fun insertAll(rules: List<CategoryRule>) { rules.forEach { insert(it) } }
+    override suspend fun deleteById(id: Long) { store.removeAll { it.id == id } }
+
+    override fun getAll(): Flow<List<CategoryRule>> = throw NotImplementedError()
+    override suspend fun update(rule: CategoryRule) = throw NotImplementedError()
 }
 
 /** No learned preferences -> falls through to keyword rules. */
@@ -95,12 +127,17 @@ class FakeTransactionDao : TransactionDao {
 
     override suspend fun getById(id: String): Transaction? = rows[id]
 
+    override suspend fun getByTransferGroupId(transferGroupId: String): List<Transaction> =
+        rows.values.filter { it.transferGroupId == transferGroupId }
+
     override suspend fun deleteById(transactionId: String): Int =
         if (rows.remove(transactionId) != null) 1 else 0
 
     override fun all(): Flow<List<Transaction>> = throw NotImplementedError()
     override fun getByCategoryId(categoryId: Long): Flow<List<Transaction>> = throw NotImplementedError()
     override fun getByDateRange(startDate: String, endDate: String): Flow<List<Transaction>> = throw NotImplementedError()
+    override suspend fun getByDateRangeSync(startDate: String, endDate: String): List<Transaction> =
+        rows.values.filter { it.date in startDate..endDate }.sortedWith(compareBy({ it.date }, { it.time }))
     override fun getByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Flow<List<Transaction>> = throw NotImplementedError()
     override fun getTransactionsWithCategories(): Flow<List<TransactionWithCategory>> = throw NotImplementedError()
     override suspend fun getTotalByCategory(categoryId: Long): Long = throw NotImplementedError()
@@ -142,6 +179,25 @@ class FakeTransactionDao : TransactionDao {
     override fun getAllTransactionsFlow(): Flow<List<Transaction>> = throw NotImplementedError()
     override suspend fun getTransactionsByAccountId(accountId: Long): List<Transaction> = throw NotImplementedError()
     override fun getTransactionsByAccountIdFlow(accountId: Long): Flow<List<Transaction>> = throw NotImplementedError()
+}
+
+/** In-memory pending_transactions table with idempotent insertIgnore semantics (rowId or -1). */
+class FakePendingTransactionDao : PendingTransactionDao {
+    val rows = LinkedHashMap<String, PendingTransaction>()
+    private var nextRowId = 1L
+
+    override suspend fun insertIgnore(item: PendingTransaction): Long {
+        if (rows.containsKey(item.id)) return -1L
+        rows[item.id] = item
+        return nextRowId++
+    }
+
+    override suspend fun getById(id: String): PendingTransaction? = rows[id]
+    override suspend fun deleteById(id: String) { rows.remove(id) }
+    override suspend fun clear() { rows.clear() }
+
+    override fun getAllFlow(): Flow<List<PendingTransaction>> = throw NotImplementedError()
+    override fun countFlow(): Flow<Int> = throw NotImplementedError()
 }
 
 /** In-memory accounts table supporting balance adjustments. */

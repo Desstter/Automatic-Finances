@@ -15,10 +15,28 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.automaticfinances.data.repo.PendingTransactionRepository
 import com.example.automaticfinances.navigation.Routes
 import com.example.automaticfinances.ui.theme.MotionTokens
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import javax.inject.Inject
+
+@HiltViewModel
+internal class PendingCountViewModel @Inject constructor(
+    pendingRepo: PendingTransactionRepository,
+) : ViewModel() {
+    val count: StateFlow<Int> = pendingRepo.observeCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+}
 
 data class BottomNavItem(
     val route: String,
@@ -54,6 +72,9 @@ fun BottomNavigationWrapper(
         )
     )
 
+    val pendingVm: PendingCountViewModel = hiltViewModel()
+    val pendingCount by pendingVm.count.collectAsStateWithLifecycle()
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
@@ -83,10 +104,16 @@ fun BottomNavigationWrapper(
                     
                     NavigationBarItem(
                         icon = {
-                            Icon(
-                                imageVector = item.icon,
-                                contentDescription = item.label
-                            )
+                            val showBadge = item.route == Routes.HOME && pendingCount > 0
+                            if (showBadge) {
+                                BadgedBox(badge = {
+                                    Badge { Text(if (pendingCount > 9) "9+" else "$pendingCount") }
+                                }) {
+                                    Icon(imageVector = item.icon, contentDescription = item.label)
+                                }
+                            } else {
+                                Icon(imageVector = item.icon, contentDescription = item.label)
+                            }
                         },
                         label = {
                             Text(

@@ -6,6 +6,7 @@ import com.example.automaticfinances.data.db.AccountDao
 import com.example.automaticfinances.data.db.AppDatabase
 import com.example.automaticfinances.data.db.BudgetDao
 import com.example.automaticfinances.data.db.CategoryDao
+import com.example.automaticfinances.data.db.CategoryRuleDao
 import com.example.automaticfinances.data.db.FinancialGoalDao
 import com.example.automaticfinances.data.db.MIGRATION_1_2
 import com.example.automaticfinances.data.db.MIGRATION_2_3
@@ -17,21 +18,36 @@ import com.example.automaticfinances.data.db.MIGRATION_7_8
 import com.example.automaticfinances.data.db.MIGRATION_8_9
 import com.example.automaticfinances.data.db.MIGRATION_9_10
 import com.example.automaticfinances.data.db.MIGRATION_10_11
+import com.example.automaticfinances.data.db.MIGRATION_11_12
+import com.example.automaticfinances.data.db.MIGRATION_12_13
+import com.example.automaticfinances.data.db.MIGRATION_13_14
+import com.example.automaticfinances.data.db.MIGRATION_14_15
+import com.example.automaticfinances.data.db.MIGRATION_15_16
 import com.example.automaticfinances.data.db.MerchantResolutionDao
 import com.example.automaticfinances.data.db.OpeningBalanceDao
+import com.example.automaticfinances.data.db.PendingTransactionDao
 import com.example.automaticfinances.data.db.RoomTransactionRunner
 import com.example.automaticfinances.data.db.TransactionDao
+import com.example.automaticfinances.data.db.UnparsedSmsDao
 import com.example.automaticfinances.data.db.UserCategoryPreferenceDao
+import com.example.automaticfinances.data.preferences.InsightsPreferences
 import com.example.automaticfinances.data.preferences.ThemeRepository
 import com.example.automaticfinances.data.repo.AccountRepository
 import com.example.automaticfinances.data.repo.AnalyticsRepository
 import com.example.automaticfinances.data.repo.BudgetRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
+import com.example.automaticfinances.data.repo.InsightsRepository
 import com.example.automaticfinances.data.repo.MerchantResolutionRepository
 import com.example.automaticfinances.data.repo.OpeningBalanceRepository
+import com.example.automaticfinances.data.repo.PendingTransactionRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
+import com.example.automaticfinances.data.repo.UnparsedSmsRepository
 import com.example.automaticfinances.data.repo.UserCategoryPreferenceRepository
 import com.example.automaticfinances.domain.AddTransactionUseCase
+import com.example.automaticfinances.domain.CaptureFeedbackNotifier
+import com.example.automaticfinances.domain.CaptureTransactionUseCase
+import com.example.automaticfinances.system.AndroidCaptureFeedbackNotifier
+import com.example.automaticfinances.domain.ConfirmPendingTransactionUseCase
 import com.example.automaticfinances.domain.TransactionRunner
 import dagger.Module
 import dagger.Provides
@@ -55,7 +71,8 @@ object AppModule {
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
             MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
             MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
-            MIGRATION_10_11
+            MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13,
+            MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16
         ).build()
     }
 
@@ -84,14 +101,27 @@ object AppModule {
     fun provideMerchantResolutionDao(db: AppDatabase): MerchantResolutionDao = db.merchantResolutionDao()
 
     @Provides
+    fun provideUnparsedSmsDao(db: AppDatabase): UnparsedSmsDao = db.unparsedSmsDao()
+
+    @Provides
+    fun providePendingTransactionDao(db: AppDatabase): PendingTransactionDao = db.pendingTransactionDao()
+
+    @Provides
+    fun provideCategoryRuleDao(db: AppDatabase): CategoryRuleDao = db.categoryRuleDao()
+
+    @Provides
     @Singleton
     fun provideUserCategoryPreferenceRepository(dao: UserCategoryPreferenceDao): UserCategoryPreferenceRepository =
         UserCategoryPreferenceRepository(dao)
 
     @Provides
     @Singleton
-    fun provideCategoryRepository(dao: CategoryDao, prefRepo: UserCategoryPreferenceRepository): CategoryRepository =
-        CategoryRepository(dao, prefRepo)
+    fun provideCategoryRepository(
+        dao: CategoryDao,
+        ruleDao: CategoryRuleDao,
+        prefRepo: UserCategoryPreferenceRepository,
+    ): CategoryRepository =
+        CategoryRepository(dao, ruleDao, prefRepo)
 
     @Provides
     @Singleton
@@ -148,6 +178,50 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideInsightsPreferences(@ApplicationContext context: Context): InsightsPreferences =
+        InsightsPreferences(context)
+
+    @Provides
+    @Singleton
+    fun provideInsightsRepository(transactionDao: TransactionDao, categoryDao: CategoryDao): InsightsRepository =
+        InsightsRepository(transactionDao, categoryDao)
+
+    @Provides
+    @Singleton
     fun provideMerchantResolutionRepository(dao: MerchantResolutionDao, categoryDao: CategoryDao): MerchantResolutionRepository =
         MerchantResolutionRepository(dao, categoryDao)
+
+    @Provides
+    @Singleton
+    fun provideUnparsedSmsRepository(dao: UnparsedSmsDao): UnparsedSmsRepository =
+        UnparsedSmsRepository(dao)
+
+    @Provides
+    @Singleton
+    fun providePendingTransactionRepository(dao: PendingTransactionDao): PendingTransactionRepository =
+        PendingTransactionRepository(dao)
+
+    @Provides
+    @Singleton
+    fun provideCaptureTransactionUseCase(
+        addTransaction: AddTransactionUseCase,
+        pendingRepo: PendingTransactionRepository,
+        transactionRepo: TransactionRepository,
+        categoryRepo: CategoryRepository,
+        feedbackNotifier: CaptureFeedbackNotifier
+    ): CaptureTransactionUseCase =
+        CaptureTransactionUseCase(addTransaction, pendingRepo, transactionRepo, categoryRepo, feedbackNotifier)
+
+    @Provides
+    @Singleton
+    fun provideCaptureFeedbackNotifier(@ApplicationContext context: Context): CaptureFeedbackNotifier =
+        AndroidCaptureFeedbackNotifier(context)
+
+    @Provides
+    @Singleton
+    fun provideConfirmPendingTransactionUseCase(
+        addTransaction: AddTransactionUseCase,
+        pendingRepo: PendingTransactionRepository
+    ): ConfirmPendingTransactionUseCase =
+        ConfirmPendingTransactionUseCase(addTransaction, pendingRepo)
 }

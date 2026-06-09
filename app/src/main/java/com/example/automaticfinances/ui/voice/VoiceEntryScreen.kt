@@ -106,6 +106,11 @@ fun VoiceEntryScreen(
         AnimatedContent(
             targetState = state,
             transitionSpec = { fadeIn() togetherWith fadeOut() },
+            // Key the transition on the *screen kind*, not the whole state object. While listening,
+            // RmsChanged/PartialResult emit a fresh Listening copy many times per second; keying on
+            // `state` would restart the fade on every emission and make the sheet flicker forever.
+            // We only want to cross-fade when the user actually moves to a different screen.
+            contentKey = { it::class },
             label = "voiceState",
         ) { current ->
             Column(

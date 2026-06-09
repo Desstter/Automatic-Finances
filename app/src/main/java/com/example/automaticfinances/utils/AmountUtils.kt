@@ -1,5 +1,19 @@
 package com.example.automaticfinances.utils
 
+import java.text.NumberFormat
+import java.util.Locale
+
+/**
+ * Formats a cent amount (COP) as a short peso string for display, e.g. 1234500 -> "$1.234.500".
+ * Cents are dropped — Colombian pesos are effectively whole-number in everyday use.
+ */
+fun Long.centsToCopString(): String {
+    val nf = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO")).apply {
+        maximumFractionDigits = 0
+    }
+    return nf.format(this / 100.0)
+}
+
 /**
  * Parses a Colombian peso string to cents.
  * Supports formats: "39.500,00", "39,500.00", "50.000", "50,000"

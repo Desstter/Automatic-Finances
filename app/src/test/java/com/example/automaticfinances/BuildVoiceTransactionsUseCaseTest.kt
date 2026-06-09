@@ -6,6 +6,7 @@ import com.example.automaticfinances.data.voice.ParsedTransaction
 import com.example.automaticfinances.data.voice.VoiceTransactionDraft
 import com.example.automaticfinances.domain.BuildVoiceTransactionsUseCase
 import com.example.automaticfinances.fakes.FakeCategoryDao
+import com.example.automaticfinances.fakes.FakeCategoryRuleDao
 import com.example.automaticfinances.fakes.FakeUserCategoryPreferenceDao
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -23,6 +24,7 @@ class BuildVoiceTransactionsUseCaseTest {
     fun setup() {
         categoryRepository = CategoryRepository(
             dao = FakeCategoryDao(),
+            ruleDao = FakeCategoryRuleDao(),
             preferenceRepo = UserCategoryPreferenceRepository(FakeUserCategoryPreferenceDao()),
         )
         useCase = BuildVoiceTransactionsUseCase(categoryRepository)

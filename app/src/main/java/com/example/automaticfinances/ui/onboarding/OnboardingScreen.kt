@@ -24,8 +24,10 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -134,6 +136,10 @@ fun OnboardingScreen(
     onRequestSmsAccess: () -> Unit,
     onRequestBatteryExemption: () -> Unit,
     onFinish: () -> Unit,
+    oemAutostartRelevant: Boolean = false,
+    oemAutostartAcknowledged: Boolean = false,
+    onOpenOemAutostart: () -> Unit = {},
+    onAcknowledgeOemAutostart: () -> Unit = {},
 ) {
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -211,6 +217,15 @@ fun OnboardingScreen(
                     actionLabel = "Permitir",
                     onAction = onRequestBatteryExemption,
                 )
+
+                if (oemAutostartRelevant) {
+                    Spacer(Modifier.height(Spacing.md))
+                    OemAutostartStepCard(
+                        acknowledged = oemAutostartAcknowledged,
+                        onOpen = onOpenOemAutostart,
+                        onAcknowledge = onAcknowledgeOemAutostart,
+                    )
+                }
 
                 if (state.postNotificationsRequired) {
                     Spacer(Modifier.height(Spacing.md))
@@ -322,6 +337,82 @@ private fun PermissionStepCard(
         } else {
             FilledTonalButton(onClick = onAction, modifier = Modifier.fillMaxWidth()) {
                 Text(actionLabel)
+            }
+        }
+    }
+}
+
+/**
+ * Auto-start step. Unlike the runtime-permission cards, the OS exposes no way to read whether the
+ * vendor toggle is on, so this card cannot light up "Activo" automatically. Instead it offers two
+ * actions: open the OEM screen, then a manual "Ya lo activé" confirmation that persists so the step
+ * stops nagging. Shown only on OEMs known to gate background auto-start.
+ */
+@Composable
+private fun OemAutostartStepCard(
+    acknowledged: Boolean,
+    onOpen: () -> Unit,
+    onAcknowledge: () -> Unit,
+) {
+    SectionCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                modifier = Modifier.size(Sizes.avatarMd),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Filled.RestartAlt,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.size(Sizes.iconLg),
+                    )
+                }
+            }
+            Spacer(Modifier.size(Spacing.md))
+            Text(
+                text = "Inicio automático",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            StatusPill(
+                label = if (acknowledged) "Activo" else "Pendiente",
+                tone = if (acknowledged) StatusTone.Positive else StatusTone.Warning,
+            )
+        }
+        Spacer(Modifier.height(Spacing.sm))
+        Text(
+            text = "Tu marca de teléfono (Xiaomi, Huawei, Oppo, Vivo…) bloquea que la app arranque sola " +
+                "tras cerrarse. Activa \"AutomaticFinances\" en la lista de inicio automático para que " +
+                "siga registrando aunque no la abras.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Spacing.md))
+        if (acknowledged) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.CheckCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(Sizes.iconMd),
+                )
+                Spacer(Modifier.size(Spacing.sm))
+                Text(
+                    text = "Marcado como activo",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        } else {
+            FilledTonalButton(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
+                Text("Abrir inicio automático")
+            }
+            TextButton(onClick = onAcknowledge, modifier = Modifier.fillMaxWidth()) {
+                Text("Ya lo activé")
             }
         }
     }

@@ -1,19 +1,22 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Backup/transfer policy for Android 12+ (API 31+).
+
+    allowBackup="false" in the manifest already disables cloud Auto Backup and `adb backup`.
+    Device-to-device transfer, however, is NOT gated by allowBackup, so the bank database is
+    explicitly excluded here as well. The Room DB ships three on-disk files (.db, .db-wal,
+    .db-shm); all three are excluded so no fragment of the financial history can leave the device
+    via OS-managed transfer. Use the in-app encrypted-by-the-user export instead (BackupViewModel).
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="database" path="autobook.db" />
+        <exclude domain="database" path="autobook.db-wal" />
+        <exclude domain="database" path="autobook.db-shm" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="database" path="autobook.db" />
+        <exclude domain="database" path="autobook.db-wal" />
+        <exclude domain="database" path="autobook.db-shm" />
     </device-transfer>
-    -->
 </data-extraction-rules>

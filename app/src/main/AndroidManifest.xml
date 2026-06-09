@@ -4,6 +4,11 @@
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- specialUse type for the always-on process anchor (CaptureKeepAliveService): unlike dataSync
+         it has no daily runtime cap on Android 15+, which an indefinite capture anchor requires. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- Primary, OEM-proof capture path for SMS-based banks (Bancolombia): the SMS_RECEIVED
          broadcast wakes the app even when idle/killed, so it does NOT depend on the notification
@@ -16,16 +21,34 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Needed on Android 11+ to detect/bind the on-device speech recognition service -->
+    <!-- Needed on Android 11+ to detect/bind the on-device speech recognition service, and to make
+         the OEM auto-start manager activities visible so OemAutostart can deep-link the user to them
+         (Android 11+ package visibility hides them otherwise). -->
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- OEM security/auto-start managers (Xiaomi, Huawei, Oppo/Realme, Vivo/iQOO, OnePlus, Samsung) -->
+        <package android:name="com.miui.securitycenter" />
+        <package android:name="com.huawei.systemmanager" />
+        <package android:name="com.coloros.safecenter" />
+        <package android:name="com.oppo.safe" />
+        <package android:name="com.coloros.oppoguardelf" />
+        <package android:name="com.vivo.permissionmanager" />
+        <package android:name="com.iqoo.secure" />
+        <package android:name="com.oneplus.security" />
+        <package android:name="com.samsung.android.lool" />
     </queries>
 
+    <!-- allowBackup=false: autobook.db is an unencrypted SQLite file with the full financial
+         history. With backup enabled, Android Auto Backup uploads it to the user's Google Drive
+         and `adb backup` can extract it without root. The app already offers its own explicit,
+         user-controlled export/restore (see BackupViewModel), so OS-managed backup is pure
+         leakage with no upside. The data_extraction_rules below additionally exclude the DB from
+         device-to-device transfer (which is NOT governed by allowBackup on Android 12+). -->
     <application
         android:name=".App"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -69,6 +92,19 @@
             </intent-filter>
         </service>
 
+        <!-- Process-anchor foreground service. Keeps the app process at foreground priority 24/7 so
+             aggressive OEMs (HyperOS/MIUI) don't kill it, which keeps the notification listener bound
+             and the SMS broadcast path running in a warm process. specialUse on Android 14+ (no daily
+             cap), with dataSync also declared for the pre-14 runtime fallback. -->
+        <service
+            android:name=".system.CaptureKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse|dataSync">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Continuous on-device capture of bank transaction notifications and SMS for personal finance tracking" />
+        </service>
+
         <!-- Direct SMS capture. android:permission=BROADCAST_SMS ensures only the OS can deliver
              this broadcast (no app can spoof a bank SMS into our parser). -->
         <receiver
@@ -80,6 +116,13 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
+
+        <!-- Handles taps on the category chips of the capture-feedback notification (PROD-2).
+             Not exported: reached only via explicit PendingIntents from CategoryChipsNotifier. -->
+        <receiver
+            android:name=".system.CategoryFeedbackReceiver"
+            android:enabled="true"
+            android:exported="false" />
 
         <receiver
             android:name=".system.BootReceiver"

@@ -4,8 +4,8 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [Transaction::class, Category::class, UserCategoryPreference::class, Budget::class, FinancialGoal::class, Account::class, OpeningBalance::class, MerchantResolution::class],
-    version = 11,
+    entities = [Transaction::class, Category::class, UserCategoryPreference::class, Budget::class, FinancialGoal::class, Account::class, OpeningBalance::class, MerchantResolution::class, UnparsedSms::class, PendingTransaction::class, CategoryRule::class],
+    version = 16,
     // Schemas are exported to app/schemas (see room.schemaLocation in build.gradle.kts) so future
     // migrations can be validated with Room's MigrationTestHelper.
     exportSchema = true
@@ -19,6 +19,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
     abstract fun openingBalanceDao(): OpeningBalanceDao
     abstract fun merchantResolutionDao(): MerchantResolutionDao
+    abstract fun unparsedSmsDao(): UnparsedSmsDao
+    abstract fun pendingTransactionDao(): PendingTransactionDao
+    abstract fun categoryRuleDao(): CategoryRuleDao
 
     companion object {
         const val DATABASE_NAME = "autobook.db"

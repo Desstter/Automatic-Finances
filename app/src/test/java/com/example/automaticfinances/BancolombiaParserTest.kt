@@ -67,6 +67,21 @@ class BancolombiaParserTest {
     }
 
     @Test
+    fun parse_nequiRetiroEnCajero_success(): Unit = runBlocking {
+        // Push de Nequi: el listener ensambla cuerpo + título. El texto NO contiene "Nequi"
+        // (eso es solo el nombre de la app), así que esto valida el detector genérico de retiro.
+        val push = "Sacaste $200000  Retiro en Cajero"
+
+        val result = BancolombiaParser.tryParse(push)
+
+        assertNotNull("Should parse a cardless ATM withdrawal push", result)
+        result?.let { tx ->
+            assertEquals("RETIRO", tx.type)
+            assertEquals(20_000_000L, tx.amountCents) // $200,000 = 20,000,000 centavos
+        }
+    }
+
+    @Test
     fun parse_bancolombiaIngreso_nomina_success(): Unit = runBlocking {
         val sms = "Bancolombia: Recibiste un pago de Nómina de EMPRESA XYZ por $2.500.000 en tu cuenta de Ahorros el 30/08/2024 a las 08:00"
         
@@ -219,6 +234,56 @@ class BancolombiaParserTest {
         assertNotNull("Should handle special characters", result)
         result?.let { tx ->
             assertTrue("Should preserve merchant name", tx.description.contains("TIENDA-123_TEST!"))
+        }
+    }
+
+    @Test
+    fun parse_bancolombiaPagaste_treatedAsCompra(): Unit = runBlocking {
+        // Bancolombia also uses "Pagaste" (not just "Compraste") for card debits — must parse the
+        // same way, otherwise these payments were silently dropped.
+        val sms = "Bancolombia: Pagaste $40.000 en EXITO con tu T.Deb *1234 el 19/08/2024 a las 10:00"
+
+        val result = BancolombiaParser.tryParse(sms)
+
+        assertNotNull("Should parse Bancolombia 'Pagaste' as a purchase", result)
+        result?.let { tx ->
+            assertEquals("COMPRA", tx.type)
+            assertEquals(4000000L, tx.amountCents)
+            assertEquals("EXITO", tx.description)
+            assertEquals("1234", tx.srcLast4)
+            assertFalse(tx.isIncome)
+        }
+    }
+
+    @Test
+    fun parse_nuPago_treatedAsCompra(): Unit = runBlocking {
+        val sms = "Nu: Pagaste $30.000 en STARBUCKS"
+
+        val result = BancolombiaParser.tryParse(sms)
+
+        assertNotNull("Should parse a Nu payment", result)
+        result?.let { tx ->
+            assertEquals("COMPRA", tx.type)
+            assertEquals(3000000L, tx.amountCents)
+            assertEquals("STARBUCKS", tx.description)
+            assertEquals("notif:nu", tx.source)
+            assertFalse(tx.isIncome)
+        }
+    }
+
+    @Test
+    fun parse_nuRecibiste_treatedAsIngreso(): Unit = runBlocking {
+        val sms = "Nu: Recibiste $80.000 de MARIA LOPEZ"
+
+        val result = BancolombiaParser.tryParse(sms)
+
+        assertNotNull("Should parse a Nu received transfer", result)
+        result?.let { tx ->
+            assertEquals("INGRESO", tx.type)
+            assertEquals(8000000L, tx.amountCents)
+            assertTrue("Should be income", tx.isIncome)
+            assertEquals("Recibido de MARIA LOPEZ", tx.description)
+            assertEquals("notif:nu", tx.source)
         }
     }
 

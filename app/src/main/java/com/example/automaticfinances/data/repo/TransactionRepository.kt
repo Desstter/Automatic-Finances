@@ -29,6 +29,9 @@ class TransactionRepository @Inject constructor(
         dao.getByCategoryAndDateRange(categoryId, startDate, endDate)
     
     suspend fun getById(id: String): Transaction? = dao.getById(id)
+
+    /** Both legs of an internal transfer, by their shared group id. */
+    suspend fun getByTransferGroupId(groupId: String): List<Transaction> = dao.getByTransferGroupId(groupId)
     
     fun getTransactionsWithCategories(): Flow<List<TransactionWithCategory>> = dao.getTransactionsWithCategories()
     
@@ -133,6 +136,8 @@ data class TransactionWithCategory(
     val categoryId: Long?,
     val notes: String,
     val isIncome: Boolean,
+    val isTransfer: Boolean,
+    val transferGroupId: String?,
     val rawPreview: String,
     val categoryName: String?,
     val categoryIcon: String?,

@@ -16,6 +16,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Backup
@@ -23,11 +24,15 @@ import androidx.compose.material.icons.filled.Brightness3
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.BrightnessHigh
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.RuleFolder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Switch
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +65,7 @@ import com.example.automaticfinances.ui.components.common.SectionHeader
 import com.example.automaticfinances.ui.theme.Sizes
 import com.example.automaticfinances.ui.theme.Spacing
 import com.example.automaticfinances.ui.theme.ThemeViewModel
+import kotlinx.coroutines.launch
 
 /**
  * Settings hub — the single home for everything that used to be scattered across the
@@ -72,9 +78,14 @@ fun SettingsScreen(
     themeViewModel: ThemeViewModel,
     onOpenNotifAccess: () -> Unit,
     onNavigateToCategories: () -> Unit,
+    onNavigateToCategoryRules: () -> Unit,
     onNavigateToIncomes: () -> Unit,
     onNavigateToBalances: () -> Unit,
+    onNavigateToUnparsed: () -> Unit,
+    onNavigateToReview: () -> Unit,
     backupViewModel: BackupViewModel = hiltViewModel(),
+    reviewViewModel: com.example.automaticfinances.ui.review.ReviewViewModel = hiltViewModel(),
+    insightsViewModel: InsightsSettingsViewModel = hiltViewModel(),
 ) {
     val themeMode by themeViewModel.themeMode.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -82,9 +93,13 @@ fun SettingsScreen(
     val systemHealth by com.example.automaticfinances.system.SystemConfigurationChecker
         .rememberSystemHealth(context)
     val detectionActive = systemHealth.isListenerEnabled
+    val smsCaptureActive = systemHealth.isSmsCaptureEnabled
 
     val backupState by backupViewModel.state.collectAsStateWithLifecycle()
+    val reviewCount by reviewViewModel.count.collectAsStateWithLifecycle()
+    val digestEnabled by insightsViewModel.digestEnabled.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var showRestoreConfirm by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -178,6 +193,13 @@ fun SettingsScreen(
                         subtitle = "Organiza y clasifica tus transacciones",
                         onClick = onNavigateToCategories,
                     )
+                    SettingDivider()
+                    SettingRow(
+                        icon = Icons.Default.RuleFolder,
+                        title = "Reglas de categoría",
+                        subtitle = "Palabras clave que clasifican tus movimientos automáticamente",
+                        onClick = onNavigateToCategoryRules,
+                    )
                 }
             }
 
@@ -193,6 +215,57 @@ fun SettingsScreen(
                             "Inactiva · toca para otorgar el permiso",
                         onClick = onOpenNotifAccess,
                     )
+                    SettingDivider()
+                    SettingRow(
+                        icon = Icons.AutoMirrored.Filled.Message,
+                        title = "Lectura de SMS del banco",
+                        subtitle = if (smsCaptureActive)
+                            "Activa · la vía más confiable para bancos que envían SMS"
+                        else
+                            "Inactiva · sin este permiso se pierden las compras por SMS. Toca para activarlo",
+                        onClick = { com.example.automaticfinances.system.ServiceManager.openAppDetailsSettings(context) },
+                    )
+                    SettingDivider()
+                    SettingRow(
+                        icon = Icons.Default.RuleFolder,
+                        title = if (reviewCount > 0) "Por revisar ($reviewCount)" else "Por revisar",
+                        subtitle = "Confirma o descarta capturas de baja confianza",
+                        onClick = onNavigateToReview,
+                    )
+                    SettingDivider()
+                    SettingRow(
+                        icon = Icons.AutoMirrored.Filled.Message,
+                        title = "Mensajes no reconocidos",
+                        subtitle = "Revisa los SMS bancarios que no se pudieron registrar",
+                        onClick = onNavigateToUnparsed,
+                    )
+                }
+            }
+
+            item {
+                SectionHeader(title = "Resumen e insights")
+                SectionCard(contentPadding = Spacing.none) {
+                    SettingSwitchRow(
+                        icon = Icons.Default.Insights,
+                        title = "Resumen semanal",
+                        subtitle = "Proyección de fin de mes, suscripciones y alertas de cargos",
+                        checked = digestEnabled,
+                        onCheckedChange = insightsViewModel::setDigestEnabled,
+                    )
+                    if (digestEnabled) {
+                        SettingDivider()
+                        SettingRow(
+                            icon = Icons.Default.NotificationsActive,
+                            title = "Ver resumen ahora",
+                            subtitle = "Genera y envía el resumen como notificación",
+                            onClick = {
+                                insightsViewModel.runDigestNow()
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Generando tu resumen…")
+                                }
+                            },
+                        )
+                    }
                 }
             }
 
@@ -350,6 +423,39 @@ private fun SettingRow(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+@Composable
+private fun SettingSwitchRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(Spacing.card),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SettingIconBadge(icon)
+        Spacer(Modifier.size(Spacing.md))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.size(Spacing.sm))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

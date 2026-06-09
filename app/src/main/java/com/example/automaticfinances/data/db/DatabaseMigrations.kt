@@ -488,6 +488,131 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
     }
 }
 
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Additive only: a passive diagnostic log of bank messages the parser missed (OBS-1).
+        // No existing table is touched, so the financial data is untouched by this migration.
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS unparsed_sms (
+                id TEXT PRIMARY KEY NOT NULL,
+                text TEXT NOT NULL,
+                source TEXT NOT NULL,
+                receivedAt INTEGER NOT NULL
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_unparsed_sms_receivedAt ON unparsed_sms(receivedAt)")
+    }
+}
+
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Additive only: the "Por revisar" queue (PROD-1). Low-confidence captures land here and
+        // stay OUT of `transactions` (and therefore out of the balance) until the user confirms.
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS pending_transactions (
+                id TEXT PRIMARY KEY NOT NULL,
+                ts INTEGER NOT NULL,
+                type TEXT NOT NULL,
+                description TEXT NOT NULL,
+                amountCents INTEGER NOT NULL,
+                currency TEXT NOT NULL,
+                srcLast4 TEXT,
+                dstLast4 TEXT,
+                source TEXT NOT NULL,
+                isIncome INTEGER NOT NULL,
+                rawPreview TEXT NOT NULL,
+                capturedAt INTEGER NOT NULL
+            )
+        """)
+    }
+}
+
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // FIN-4: one-shot retro-fix of the opening-balance bias. Data-only, no schema change.
+        //
+        // Auto-seeded opening balances (note = 'Balance inicial automático', created by
+        // MIGRATION_7_8 and by early versions of initializeDefaultOpeningBalances) stored the
+        // balance at the END of their effectiveDate — they already baked in that day's movements.
+        // calculateCurrentBalanceWithOpening() then re-adds every movement from effectiveDate
+        // forward, INCLUSIVE of effectiveDate, so the movements on that one day are counted twice
+        // forever, inflating the derived balance.
+        //
+        // initializeDefaultOpeningBalances now seeds the START-of-day balance (the forward-fix), so
+        // new installs are already correct and never run this migration. Here we correct rows
+        // already on disk: reseat each active auto-seeded opening balance to the start of its own
+        // effectiveDate by subtracting that day's net for its own account. User-configured opening
+        // balances (a different note) are deliberately left untouched.
+        db.execSQL(
+            """
+            UPDATE opening_balances
+            SET balanceCents = balanceCents - COALESCE((
+                SELECT SUM(CASE WHEN t.isIncome = 1 THEN t.amountCents ELSE -t.amountCents END)
+                FROM transactions t
+                WHERE t.accountId = opening_balances.accountId
+                  AND t.date = opening_balances.effectiveDate
+            ), 0)
+            WHERE note = 'Balance inicial automático'
+              AND isActive = 1
+            """
+        )
+    }
+}
+
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // MANT-2: move the hardcoded keyword→category rules into an editable table. Additive only;
+        // no existing table is touched, so financial data is untouched. The CREATE TABLE intentionally
+        // carries no DEFAULT clauses (the entity declares none — Kotlin constructor defaults are not
+        // SQL defaults) so Room's schema-identity check matches the generated schema exactly.
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS category_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                keyword TEXT NOT NULL,
+                categoryName TEXT NOT NULL,
+                isIncome INTEGER NOT NULL,
+                isDefault INTEGER NOT NULL,
+                createdAt INTEGER NOT NULL
+            )
+            """
+        )
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_category_rules_keyword_isIncome ON category_rules(keyword, isIncome)"
+        )
+
+        // Seed the same canonical defaults a fresh install gets, so upgraders keep working
+        // categorization. INSERT OR IGNORE respects the unique index if this somehow runs twice.
+        val now = System.currentTimeMillis()
+        for (rule in DefaultCategoryRules.list) {
+            db.execSQL(
+                "INSERT OR IGNORE INTO category_rules (keyword, categoryName, isIncome, isDefault, createdAt) VALUES (?, ?, ?, ?, ?)",
+                arrayOf<Any?>(
+                    rule.keyword,
+                    rule.categoryName,
+                    if (rule.isIncome) 1 else 0,
+                    if (rule.isDefault) 1 else 0,
+                    now,
+                ),
+            )
+        }
+    }
+}
+
+val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Additive only: internal transfers between accounts (Banco <-> Efectivo). Both legs of a
+        // transfer are marked isTransfer = 1 and share a transferGroupId. A transfer is not a real
+        // income/expense, so it is excluded from income/expense totals (see TransactionDao) while
+        // still moving each account's balance. No existing row is rewritten, so financial data is
+        // untouched. The CREATE-less ALTERs carry SQL DEFAULTs only where the entity has a non-null
+        // default (isTransfer); transferGroupId is nullable with no default, matching the entity.
+        db.execSQL("ALTER TABLE transactions ADD COLUMN isTransfer INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE transactions ADD COLUMN transferGroupId TEXT")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_transferGroupId ON transactions(transferGroupId)")
+    }
+}
+
 val MIGRATION_9_10 = object : Migration(9, 10) {
     override fun migrate(db: SupportSQLiteDatabase) {
         // Remove budget alert fields and simplify budget management

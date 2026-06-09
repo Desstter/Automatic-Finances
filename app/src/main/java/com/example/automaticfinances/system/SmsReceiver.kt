@@ -6,7 +6,8 @@ import android.content.Intent
 import android.provider.Telephony
 import android.util.Log
 import com.example.automaticfinances.data.parse.BancolombiaParser
-import com.example.automaticfinances.domain.AddTransactionUseCase
+import com.example.automaticfinances.data.repo.UnparsedSmsRepository
+import com.example.automaticfinances.domain.CaptureTransactionUseCase
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,7 +32,8 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class SmsReceiver : BroadcastReceiver() {
 
-    @Inject lateinit var addTx: AddTransactionUseCase
+    @Inject lateinit var captureTx: CaptureTransactionUseCase
+    @Inject lateinit var unparsedRepo: UnparsedSmsRepository
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
@@ -48,8 +50,10 @@ class SmsReceiver : BroadcastReceiver() {
         if (body.isBlank()) return
 
         // Cheap content gate before touching the regex engine: never run the parser (or log) on
-        // ordinary personal SMS. Mirrors the listener's BANK_KEYWORDS gate.
-        if (BANK_KEYWORDS.none { body.contains(it, ignoreCase = true) }) return
+        // ordinary personal SMS. Single source of truth shared with the unparsed log and the
+        // notification listener, so the capture gate can never disagree with what we'd keep as a
+        // miss — a bank SMS that looks like a transaction is either parsed or recorded, never lost.
+        if (!UnparsedSmsRepository.looksLikeTransaction(body)) return
 
         // Use the message timestamp so the stable id matches the listener path for the same SMS.
         val ts = messages.first().timestampMillis
@@ -58,10 +62,21 @@ class SmsReceiver : BroadcastReceiver() {
         val pending = goAsync()
         scope.launch {
             try {
-                val tx = BancolombiaParser.tryParse(body, ts) ?: return@launch
-                addTx(tx)
+                val tx = BancolombiaParser.tryParse(body, ts)
+                if (tx == null) {
+                    // A bank SMS that carries an amount but didn't parse is exactly the signal we
+                    // want to keep: it tells us which formats the parser is missing. Stored on-device
+                    // only (see UnparsedSmsRepository), never reported anywhere.
+                    if (UnparsedSmsRepository.looksLikeTransaction(body)) {
+                        unparsedRepo.record(body, source = "sms", receivedAt = ts)
+                    }
+                    return@launch
+                }
+                // Routes high-confidence captures straight to the balance; low-confidence
+                // (generic-fallback) ones go to the "Por revisar" queue instead.
+                captureTx(tx)
                 // Type only — amount/merchant are sensitive and must not reach logcat.
-                Log.d(TAG, "Saved ${tx.type} transaction from direct SMS")
+                Log.d(TAG, "Captured ${tx.type} transaction from direct SMS")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to process direct SMS", e)
             } finally {
@@ -75,11 +90,5 @@ class SmsReceiver : BroadcastReceiver() {
 
         // Survives individual receiver instances (each onReceive gets a fresh BroadcastReceiver).
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
-        private val BANK_KEYWORDS = listOf(
-            "bancolombia", "compraste", "transferiste", "transferencia",
-            "nequi", "pagaste", "daviplata", "retiraste", "recibiste",
-            "consignación", "consignacion", "retiro", "compra",
-        )
     }
 }

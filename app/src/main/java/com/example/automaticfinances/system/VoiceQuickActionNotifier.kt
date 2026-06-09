@@ -27,7 +27,7 @@ object VoiceQuickActionNotifier {
 
     private const val TAG = "VoiceQuickAction"
     const val CHANNEL_ID = "voice_quick_action"
-    private const val NOTIFICATION_ID = 1001
+    const val NOTIFICATION_ID = 1001
     private const val REQUEST_VOICE_ENTRY = 2001
 
     /** Creates the low-importance channel on demand. Safe to call repeatedly. */
@@ -62,8 +62,23 @@ object VoiceQuickActionNotifier {
             return
         }
 
-        // Tapping the notification (or its explicit action) opens the translucent voice-entry
-        // overlay. NEW_TASK + CLEAR_TOP so it floats over whatever is on screen and reuses the
+        try {
+            manager.notify(NOTIFICATION_ID, buildNotification(context))
+        } catch (e: SecurityException) {
+            // POST_NOTIFICATIONS revoked between the check above and this call — ignore quietly.
+            Log.w(TAG, "Notify denied for voice quick action", e)
+        }
+    }
+
+    /**
+     * Builds the persistent voice-entry notification. Shared with [CaptureKeepAliveService] so the
+     * process-anchor foreground service and the standalone quick action are the *same* ongoing
+     * notification (fixed id [NOTIFICATION_ID]) — never two competing entries for the same purpose.
+     * Tapping it (or its explicit action) opens the translucent voice-entry overlay.
+     */
+    fun buildNotification(context: Context): android.app.Notification {
+        ensureChannel(context)
+        // NEW_TASK + CLEAR_TOP so the overlay floats over whatever is on screen and reuses the
         // single-top instance if already open.
         val voiceIntent = Intent(context, VoiceEntryActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -74,7 +89,7 @@ object VoiceQuickActionNotifier {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        return NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("Registrar un gasto por voz")
             .setContentText("Toca para hablar y registrarlo al instante")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
@@ -87,13 +102,6 @@ object VoiceQuickActionNotifier {
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
-
-        try {
-            manager.notify(NOTIFICATION_ID, notification)
-        } catch (e: SecurityException) {
-            // POST_NOTIFICATIONS revoked between the check above and this call — ignore quietly.
-            Log.w(TAG, "Notify denied for voice quick action", e)
-        }
     }
 
     fun hide(context: Context) {

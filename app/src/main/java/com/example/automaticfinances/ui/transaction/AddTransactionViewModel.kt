@@ -1,5 +1,6 @@
 package com.example.automaticfinances.ui.transaction
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.db.Account
@@ -8,7 +9,9 @@ import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.db.Transaction
 import com.example.automaticfinances.data.repo.AccountRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
+import com.example.automaticfinances.data.repo.UnparsedSmsRepository
 import com.example.automaticfinances.domain.AddTransactionUseCase
+import com.example.automaticfinances.navigation.Routes
 import com.example.automaticfinances.utils.parseColombiaCents
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,10 +50,22 @@ data class AddTransactionState(
 class AddTransactionViewModel @Inject constructor(
     private val categoryRepository: CategoryRepository,
     private val accountRepository: AccountRepository,
-    private val addTransactionUseCase: AddTransactionUseCase
+    private val addTransactionUseCase: AddTransactionUseCase,
+    private val unparsedSmsRepository: UnparsedSmsRepository,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(AddTransactionState())
+    // Set when this screen was opened to rescue a message from "Mensajes no reconocidos": on a
+    // successful save we delete that message so it can't be registered twice.
+    private val rescuedUnparsedId: String? =
+        savedStateHandle.get<String>(Routes.ARG_UNPARSED_ID)?.takeIf { it.isNotBlank() }
+
+    private val _state = MutableStateFlow(
+        AddTransactionState(
+            amount = savedStateHandle.get<String>(Routes.ARG_PREFILL_AMOUNT).orEmpty(),
+            description = savedStateHandle.get<String>(Routes.ARG_PREFILL_DESC).orEmpty(),
+        )
+    )
     val state: StateFlow<AddTransactionState> = _state.asStateFlow()
 
     init {
@@ -160,6 +175,8 @@ class AddTransactionViewModel @Inject constructor(
                 Log.d("AddTransactionViewModel", "Saving transaction: $transaction")
                 addTransactionUseCase(transaction)
                 Log.d("AddTransactionViewModel", "Transaction saved successfully")
+                // Rescued from "Mensajes no reconocidos": remove it now that it's a real row.
+                rescuedUnparsedId?.let { runCatching { unparsedSmsRepository.delete(it) } }
                 _state.value = _state.value.copy(
                     isLoading = false,
                     isSuccess = true

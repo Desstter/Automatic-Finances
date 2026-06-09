@@ -13,6 +13,7 @@ import com.example.automaticfinances.domain.DeleteTransactionUseCase
 import com.example.automaticfinances.domain.RestoreTransactionUseCase
 import com.example.automaticfinances.fakes.FakeAccountDao
 import com.example.automaticfinances.fakes.FakeCategoryDao
+import com.example.automaticfinances.fakes.FakeCategoryRuleDao
 import com.example.automaticfinances.fakes.FakeMerchantResolutionDao
 import com.example.automaticfinances.fakes.FakeOpeningBalanceDao
 import com.example.automaticfinances.fakes.FakeTransactionDao
@@ -70,6 +71,7 @@ class FinancialInvariantTest {
         txRepo = TransactionRepository(txDao)
         val categoryRepo = CategoryRepository(
             FakeCategoryDao(),
+            FakeCategoryRuleDao(),
             UserCategoryPreferenceRepository(FakeUserCategoryPreferenceDao())
         )
         val merchantRepo = MerchantResolutionRepository(FakeMerchantResolutionDao(), FakeCategoryDao())
@@ -156,6 +158,27 @@ class FinancialInvariantTest {
         assertEquals("Bank decreases by withdrawal", bankOpening - 50_000L, bankBalance())
         assertEquals("Cash increases by withdrawal", cashOpening + 50_000L, cashBalance())
         assertEquals("Total balance is conserved across the transfer", totalBefore, bankBalance() + cashBalance())
+    }
+
+    @Test
+    fun atmWithdrawal_legsAreTransferFlaggedAndGrouped_soTheyAreNeitherIncomeNorExpense() = runBlocking {
+        val retiro = Transaction.fromTimestamp(
+            id = "r3", ts = 1_700_000_000_000L, type = "RETIRO", description = "Retiro cajero",
+            amountCents = 50_000L, currency = "COP", srcLast4 = null, dstLast4 = null,
+            source = "notif:retiro", rawPreview = "Sacaste $50000 Retiro en Cajero", isIncome = false
+        )
+
+        addUseCase(retiro)
+
+        val legs = txDao.rows.values.filter { it.transferGroupId == "r3" }
+        assertEquals("A withdrawal produces exactly two legs", 2, legs.size)
+        // Both legs flagged isTransfer -> every income/expense/category/chart DAO query (all filter
+        // isTransfer = 0) ignores them: a withdrawal is a relocation of money, not a real gasto/ingreso.
+        assertTrue("Both legs must be transfer-flagged", legs.all { it.isTransfer })
+        assertTrue("Both legs share the withdrawal's group id", legs.all { it.transferGroupId == "r3" })
+        assertTrue("One outgoing (bank) leg drives the balance down", legs.any { !it.isIncome })
+        assertTrue("One incoming (cash) leg drives the balance up", legs.any { it.isIncome })
+        assertTrue("Transfer legs carry no category", legs.all { it.categoryId == null })
     }
 
     @Test

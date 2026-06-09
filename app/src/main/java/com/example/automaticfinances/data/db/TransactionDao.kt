@@ -33,6 +33,14 @@ interface TransactionDao {
     
     @Query("SELECT * FROM transactions WHERE date BETWEEN :startDate AND :endDate ORDER BY date DESC, time DESC")
     fun getByDateRange(startDate: String, endDate: String): Flow<List<Transaction>>
+
+    /**
+     * One-shot snapshot of every transaction in a date range, oldest first. Used by the insights
+     * engine ([com.example.automaticfinances.data.repo.InsightsRepository]) which scans a few months
+     * of history off the main thread and slices it in memory — a single query beats N flow reads.
+     */
+    @Query("SELECT * FROM transactions WHERE date BETWEEN :startDate AND :endDate ORDER BY date ASC, time ASC")
+    suspend fun getByDateRangeSync(startDate: String, endDate: String): List<Transaction>
     
     @Query("""
         SELECT * FROM transactions 
@@ -50,24 +58,24 @@ interface TransactionDao {
     """)
     fun getTransactionsWithCategories(): Flow<List<TransactionWithCategory>>
     
-    @Query("SELECT COALESCE(SUM(amountCents), 0) FROM transactions WHERE categoryId = :categoryId")
+    @Query("SELECT COALESCE(SUM(amountCents), 0) FROM transactions WHERE categoryId = :categoryId AND isTransfer = 0")
     suspend fun getTotalByCategory(categoryId: Long): Long
-    
+
     @Query("""
-        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
-        WHERE categoryId = :categoryId AND date BETWEEN :startDate AND :endDate
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions
+        WHERE categoryId = :categoryId AND isTransfer = 0 AND date BETWEEN :startDate AND :endDate
     """)
     suspend fun getTotalByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Long
-    
+
     @Query("""
-        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
-        WHERE date LIKE printf('%04d-%02d%%', :year, :month)
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions
+        WHERE isTransfer = 0 AND date LIKE printf('%04d-%02d%%', :year, :month)
     """)
     suspend fun getMonthlyTotal(year: Int, month: Int): Long
 
     @Query("""
         SELECT COALESCE(SUM(amountCents),0) FROM transactions
-        WHERE ts BETWEEN :from AND :to AND (type = :type OR :type = 'ALL')
+        WHERE ts BETWEEN :from AND :to AND isTransfer = 0 AND (type = :type OR :type = 'ALL')
     """)
     fun sumByType(from: Long, to: Long, type: String): Flow<Long>
     
@@ -84,108 +92,108 @@ interface TransactionDao {
     suspend fun updateCategory(transactionId: String, categoryId: Long)
     
     @Query("""
-        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
-        WHERE categoryId IS NULL AND date BETWEEN :startDate AND :endDate
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions
+        WHERE categoryId IS NULL AND isTransfer = 0 AND date BETWEEN :startDate AND :endDate
     """)
     suspend fun getUncategorizedTotalForDateRange(startDate: String, endDate: String): Long?
-    
+
     @Query("""
-        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
-        WHERE isIncome = 0 AND categoryId IS NULL AND date BETWEEN :startDate AND :endDate
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions
+        WHERE isIncome = 0 AND isTransfer = 0 AND categoryId IS NULL AND date BETWEEN :startDate AND :endDate
     """)
     suspend fun getUncategorizedExpenseTotalForDateRange(startDate: String, endDate: String): Long?
-    
+
     @Query("""
-        SELECT COUNT(*) FROM transactions 
-        WHERE date BETWEEN :startDate AND :endDate
+        SELECT COUNT(*) FROM transactions
+        WHERE isTransfer = 0 AND date BETWEEN :startDate AND :endDate
     """)
     suspend fun getTransactionCountForDateRange(startDate: String, endDate: String): Int
     
     // ======= INCOME/EXPENSE SPECIFIC QUERIES =======
     
-    @Query("SELECT * FROM transactions WHERE isIncome = 1 ORDER BY date DESC, time DESC")
+    @Query("SELECT * FROM transactions WHERE isIncome = 1 AND isTransfer = 0 ORDER BY date DESC, time DESC")
     fun getIncomes(): Flow<List<Transaction>>
-    
-    @Query("SELECT * FROM transactions WHERE isIncome = 0 ORDER BY date DESC, time DESC")
+
+    @Query("SELECT * FROM transactions WHERE isIncome = 0 AND isTransfer = 0 ORDER BY date DESC, time DESC")
     fun getExpenses(): Flow<List<Transaction>>
-    
+
     @RewriteQueriesToDropUnusedColumns
     @Query("""
         SELECT t.*, c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
         FROM transactions t
         LEFT JOIN categories c ON t.categoryId = c.id
-        WHERE t.isIncome = 1
+        WHERE t.isIncome = 1 AND t.isTransfer = 0
         ORDER BY t.date DESC, t.time DESC
     """)
     fun getIncomesWithCategories(): Flow<List<TransactionWithCategory>>
-    
+
     @RewriteQueriesToDropUnusedColumns
     @Query("""
         SELECT t.*, c.name as categoryName, c.icon as categoryIcon, c.color as categoryColor
         FROM transactions t
         LEFT JOIN categories c ON t.categoryId = c.id
-        WHERE t.isIncome = 0
+        WHERE t.isIncome = 0 AND t.isTransfer = 0
         ORDER BY t.date DESC, t.time DESC
     """)
     fun getExpensesWithCategories(): Flow<List<TransactionWithCategory>>
     
     @Query("""
-        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
-        WHERE isIncome = 1 AND date LIKE printf('%04d-%02d%%', :year, :month)
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions
+        WHERE isIncome = 1 AND isTransfer = 0 AND date LIKE printf('%04d-%02d%%', :year, :month)
     """)
     suspend fun getMonthlyIncomeTotal(year: Int, month: Int): Long
-    
+
     @Query("""
-        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
-        WHERE isIncome = 0 AND date LIKE printf('%04d-%02d%%', :year, :month)
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions
+        WHERE isIncome = 0 AND isTransfer = 0 AND date LIKE printf('%04d-%02d%%', :year, :month)
     """)
     suspend fun getMonthlyExpenseTotal(year: Int, month: Int): Long
-    
+
     @Query("""
-        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
-        WHERE isIncome = 1 AND date BETWEEN :startDate AND :endDate
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions
+        WHERE isIncome = 1 AND isTransfer = 0 AND date BETWEEN :startDate AND :endDate
     """)
     suspend fun getIncomeTotalForDateRange(startDate: String, endDate: String): Long
-    
+
     @Query("""
-        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
-        WHERE isIncome = 0 AND date BETWEEN :startDate AND :endDate
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions
+        WHERE isIncome = 0 AND isTransfer = 0 AND date BETWEEN :startDate AND :endDate
     """)
     suspend fun getExpenseTotalForDateRange(startDate: String, endDate: String): Long
-    
+
     @Query("""
-        SELECT COUNT(*) FROM transactions 
-        WHERE isIncome = 1 AND date BETWEEN :startDate AND :endDate
+        SELECT COUNT(*) FROM transactions
+        WHERE isIncome = 1 AND isTransfer = 0 AND date BETWEEN :startDate AND :endDate
     """)
     suspend fun getIncomeCountForDateRange(startDate: String, endDate: String): Int
-    
+
     @Query("""
-        SELECT COUNT(*) FROM transactions 
-        WHERE isIncome = 0 AND date BETWEEN :startDate AND :endDate
+        SELECT COUNT(*) FROM transactions
+        WHERE isIncome = 0 AND isTransfer = 0 AND date BETWEEN :startDate AND :endDate
     """)
     suspend fun getExpenseCountForDateRange(startDate: String, endDate: String): Int
-    
+
     @Query("""
-        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
-        WHERE isIncome = 0 AND categoryId = :categoryId AND date BETWEEN :startDate AND :endDate
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions
+        WHERE isIncome = 0 AND isTransfer = 0 AND categoryId = :categoryId AND date BETWEEN :startDate AND :endDate
     """)
     suspend fun getExpenseTotalByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Long
-    
+
     @Query("""
-        SELECT COALESCE(SUM(amountCents), 0) FROM transactions 
-        WHERE isIncome = 1 AND categoryId = :categoryId AND date BETWEEN :startDate AND :endDate
+        SELECT COALESCE(SUM(amountCents), 0) FROM transactions
+        WHERE isIncome = 1 AND isTransfer = 0 AND categoryId = :categoryId AND date BETWEEN :startDate AND :endDate
     """)
     suspend fun getIncomeTotalByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Long
-    
+
     @Query("""
-        SELECT COUNT(*) FROM transactions 
-        WHERE isIncome = 1 AND categoryId = :categoryId AND date BETWEEN :startDate AND :endDate
+        SELECT COUNT(*) FROM transactions
+        WHERE isIncome = 1 AND isTransfer = 0 AND categoryId = :categoryId AND date BETWEEN :startDate AND :endDate
     """)
     suspend fun getIncomeCountByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Int
-    
+
     @Query("""
-        SELECT COUNT(*) FROM transactions 
-        WHERE isIncome = 0 AND categoryId = :categoryId AND date BETWEEN :startDate AND :endDate
+        SELECT COUNT(*) FROM transactions
+        WHERE isIncome = 0 AND isTransfer = 0 AND categoryId = :categoryId AND date BETWEEN :startDate AND :endDate
     """)
     suspend fun getExpenseCountByCategoryAndDateRange(categoryId: Long, startDate: String, endDate: String): Int
     
@@ -240,8 +248,18 @@ interface TransactionDao {
     """)
     suspend fun getNetAmountByAccountAndDateRange(accountId: Long, startDate: String, endDate: String): Long
     
+    // ================ TRANSFER SUPPORT ================
+
+    /**
+     * Both legs of an internal transfer, identified by their shared [transferGroupId]. Used to
+     * edit/delete/restore a transfer as a pair so the two account balances stay consistent
+     * (CLAUDE.md invariant #4: handling one leg must handle the other).
+     */
+    @Query("SELECT * FROM transactions WHERE transferGroupId = :transferGroupId")
+    suspend fun getByTransferGroupId(transferGroupId: String): List<Transaction>
+
     // ================ DELETION METHODS ================
-    
+
     @Query("DELETE FROM transactions WHERE id = :transactionId")
     suspend fun deleteById(transactionId: String): Int
     

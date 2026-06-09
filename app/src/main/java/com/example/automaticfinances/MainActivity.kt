@@ -24,6 +24,7 @@ import com.example.automaticfinances.ui.onboarding.rememberNotificationPermissio
 import com.example.automaticfinances.ui.theme.FinanceTheme
 import com.example.automaticfinances.ui.theme.ThemeViewModel
 import com.example.automaticfinances.ui.voice.VoiceEntryActivity
+import com.example.automaticfinances.system.OemAutostart
 import com.example.automaticfinances.system.ServiceManager
 import com.example.automaticfinances.system.VoiceQuickActionNotifier
 import dagger.hilt.android.AndroidEntryPoint
@@ -71,6 +72,9 @@ class MainActivity : ComponentActivity() {
 
                 if (!onboardingDone) {
                     val permissions = rememberNotificationPermissionsState()
+                    var autostartAck by remember {
+                        mutableStateOf(onboardingPreferences.autostartAcknowledged)
+                    }
                     OnboardingScreen(
                         state = permissions,
                         onGrantNotificationAccess = {
@@ -84,6 +88,13 @@ class MainActivity : ComponentActivity() {
                         onFinish = {
                             onboardingPreferences.isCompleted = true
                             onboardingDone = true
+                        },
+                        oemAutostartRelevant = OemAutostart.isRelevant(),
+                        oemAutostartAcknowledged = autostartAck,
+                        onOpenOemAutostart = { OemAutostart.open(this) },
+                        onAcknowledgeOemAutostart = {
+                            onboardingPreferences.autostartAcknowledged = true
+                            autostartAck = true
                         },
                     )
                 } else {

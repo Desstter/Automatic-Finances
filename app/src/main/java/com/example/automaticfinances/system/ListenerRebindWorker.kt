@@ -21,6 +21,10 @@ class ListenerRebindWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
+        // Re-anchor the process first: if HyperOS killed the app since the last heartbeat, this brings
+        // it back to foreground priority (and re-binds the listener as a side effect). Starting an FGS
+        // here is permitted because the app is battery-optimization-exempt.
+        runCatching { CaptureKeepAliveService.start(applicationContext) }
         ServiceManager.requestListenerRebind(applicationContext)
         runCatching { VoiceQuickActionNotifier.show(applicationContext) }
         return Result.success()

@@ -3,6 +3,7 @@ package com.example.automaticfinances
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.repo.UserCategoryPreferenceRepository
 import com.example.automaticfinances.fakes.FakeCategoryDao
+import com.example.automaticfinances.fakes.FakeCategoryRuleDao
 import com.example.automaticfinances.fakes.FakeUserCategoryPreferenceDao
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -22,6 +23,7 @@ class CategoryRepositoryTest {
     fun setup() {
         categoryRepository = CategoryRepository(
             dao = FakeCategoryDao(),
+            ruleDao = FakeCategoryRuleDao(),
             preferenceRepo = UserCategoryPreferenceRepository(FakeUserCategoryPreferenceDao())
         )
     }
@@ -139,6 +141,44 @@ class CategoryRepositoryTest {
             assertNotNull("Should return category for income: $description", categoryId)
             assertTrue("Income category ID should be positive for $description", (categoryId ?: 0L) > 0)
         }
+    }
+
+    @Test
+    fun incomeTransaction_routesToIncomeCategory_notExpense() = runBlocking {
+        // MANT-2 / latent bug: income types like "INGRESO_NOMINA" used to be routed through the
+        // expense resolver because the check was `type == "INGRESO"`. Now any INGRESO* type resolves
+        // against the income rules and must land on an income category.
+        val id = categoryRepository.getDefaultCategoryId("INGRESO_NOMINA", "Pago de nomina ACME")
+        assertNotNull("Income should resolve to a category", id)
+        val category = categoryRepository.getById(id!!)
+        assertNotNull(category)
+        assertTrue("Income transaction must map to an income category", category!!.isIncome)
+        assertEquals("Salario", category.name)
+    }
+
+    @Test
+    fun expenseKeyword_resolvesViaRuleTable() = runBlocking {
+        val id = categoryRepository.getDefaultCategoryId("COMPRA", "RAPPI*MCDONALDS")
+        assertNotNull(id)
+        val category = categoryRepository.getById(id!!)!!
+        assertFalse("Expense must map to an expense category", category.isIncome)
+        assertEquals("Comida por fuera", category.name)
+    }
+
+    @Test
+    fun longestKeywordWins_uberEatsIsFood_notTransport() = runBlocking {
+        val id = categoryRepository.getDefaultCategoryId("COMPRA", "UBER EATS BOGOTA")!!
+        val category = categoryRepository.getById(id)!!
+        assertEquals("Comida por fuera", category.name)
+    }
+
+    @Test
+    fun suggestCategoriesForCapture_putsAssignedFirst() = runBlocking {
+        val assigned = categoryRepository.getDefaultCategoryId("COMPRA", "RAPPI")!!
+        val chips = categoryRepository.suggestCategoriesForCapture(assigned, isIncome = false)
+        assertTrue("Should offer at least one chip", chips.isNotEmpty())
+        assertEquals("Assigned category must be the first chip", assigned, chips.first().id)
+        assertTrue("All chips must be expense categories", chips.all { !it.isIncome })
     }
 
     @Test

@@ -69,6 +69,20 @@ interface CategoryDao {
         ORDER BY c.isDefault DESC, c.name ASC
     """)
     fun getCategoriesWithTransactionCountByType(isIncome: Boolean): Flow<List<CategoryWithCount>>
+
+    /**
+     * One-shot, most-used-first list of categories of one type. Used to rank the category chips in
+     * the capture-feedback notification (PROD-2). Ties fall back to the default ordering.
+     */
+    @Query("""
+        SELECT c.*, COUNT(t.id) as transactionCount
+        FROM categories c
+        LEFT JOIN transactions t ON c.id = t.categoryId
+        WHERE c.isActive = 1 AND c.isIncome = :isIncome
+        GROUP BY c.id
+        ORDER BY transactionCount DESC, c.isDefault DESC, c.name ASC
+    """)
+    suspend fun getCategoriesWithCountByTypeSync(isIncome: Boolean): List<CategoryWithCount>
 }
 
 data class CategoryWithCount(

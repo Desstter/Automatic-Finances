@@ -9,10 +9,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.automirrored.filled.ArrowRightAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,6 +24,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.example.automaticfinances.data.db.Account
+import com.example.automaticfinances.data.db.AccountType
 import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.ui.theme.FinanceTheme
 import com.example.automaticfinances.ui.theme.FinanceTypography
@@ -38,6 +43,9 @@ internal fun TransactionDetailContent(
     onDescriptionChange: (String) -> Unit,
     onNotesChange: (String) -> Unit,
     onCategorySelected: (Long?) -> Unit,
+    onAccountSelected: (Long) -> Unit,
+    onOriginSelected: (Long) -> Unit,
+    onDestSelected: (Long) -> Unit,
     categoryFor: (Long) -> Category?,
     modifier: Modifier = Modifier
 ) {
@@ -99,6 +107,9 @@ internal fun TransactionDetailContent(
                 onDescriptionChange = onDescriptionChange,
                 onNotesChange = onNotesChange,
                 onCategorySelected = onCategorySelected,
+                onAccountSelected = onAccountSelected,
+                onOriginSelected = onOriginSelected,
+                onDestSelected = onDestSelected,
                 categoryFor = categoryFor
             )
         }
@@ -171,6 +182,9 @@ private fun TransactionDetailCards(
     onDescriptionChange: (String) -> Unit,
     onNotesChange: (String) -> Unit,
     onCategorySelected: (Long?) -> Unit,
+    onAccountSelected: (Long) -> Unit,
+    onOriginSelected: (Long) -> Unit,
+    onDestSelected: (Long) -> Unit,
     categoryFor: (Long) -> Category?
 ) {
     val transaction = state.transaction!!
@@ -248,7 +262,18 @@ private fun TransactionDetailCards(
         }
     }
 
-    // Descripción (editable)
+    // Cuenta (editable) — para una transferencia se editan origen y destino; para una transacción
+    // normal, la única cuenta a la que pertenece el movimiento.
+    AccountCard(
+        state = state,
+        numberFormat = numberFormat,
+        onAccountSelected = onAccountSelected,
+        onOriginSelected = onOriginSelected,
+        onDestSelected = onDestSelected
+    )
+
+    // Descripción. Para transferencias se deriva automáticamente de las cuentas, así que se muestra
+    // de solo lectura para no contradecir el origen/destino seleccionados.
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -262,7 +287,7 @@ private fun TransactionDetailCards(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (state.isEditMode) {
+            if (state.isEditMode && !state.isTransfer) {
                 OutlinedTextField(
                     value = state.description,
                     onValueChange = onDescriptionChange,
@@ -279,43 +304,45 @@ private fun TransactionDetailCards(
         }
     }
 
-    // Categoría (editable)
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
+    // Categoría (editable) — una transferencia no tiene categoría (no es ingreso ni gasto).
+    if (!state.isTransfer) {
+        Card(
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text(
-                text = "Categoría",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (state.isEditMode) {
-                CategorySelector(
-                    categories = state.categories,
-                    selectedCategoryId = state.selectedCategoryId,
-                    onCategorySelected = onCategorySelected
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Categoría",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
-            } else {
-                val category = state.selectedCategoryId?.let { categoryFor(it) }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = category?.icon ?: "•",
-                        style = MaterialTheme.typography.bodyLarge
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (state.isEditMode) {
+                    CategorySelector(
+                        categories = state.categories,
+                        selectedCategoryId = state.selectedCategoryId,
+                        onCategorySelected = onCategorySelected
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = category?.name ?: "Sin categoría",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = category?.color?.let {
-                            Color(android.graphics.Color.parseColor(it))
-                        } ?: MaterialTheme.colorScheme.onSurface
-                    )
+                } else {
+                    val category = state.selectedCategoryId?.let { categoryFor(it) }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = category?.icon ?: "•",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = category?.name ?: "Sin categoría",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = category?.color?.let {
+                                Color(android.graphics.Color.parseColor(it))
+                            } ?: MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
         }
@@ -359,6 +386,98 @@ private fun TransactionDetailCards(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AccountCard(
+    state: TransactionDetailState,
+    numberFormat: NumberFormat,
+    onAccountSelected: (Long) -> Unit,
+    onOriginSelected: (Long) -> Unit,
+    onDestSelected: (Long) -> Unit
+) {
+    val accounts = state.accounts
+    fun nameOf(id: Long?): String = accounts.find { it.id == id }?.name ?: "—"
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = if (state.isTransfer) "Cuentas" else "Cuenta",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (state.isTransfer) {
+                if (state.isEditMode) {
+                    Text("Desde", style = MaterialTheme.typography.labelLarge)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    AccountChipsRow(accounts, state.originAccountId, onOriginSelected)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Hacia", style = MaterialTheme.typography.labelLarge)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    AccountChipsRow(accounts, state.destAccountId, onDestSelected)
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = nameOf(state.originAccountId), style = MaterialTheme.typography.bodyLarge)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowRightAlt,
+                            contentDescription = "hacia",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = nameOf(state.destAccountId), style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            } else {
+                if (state.isEditMode) {
+                    AccountChipsRow(accounts, state.selectedAccountId, onAccountSelected)
+                } else {
+                    val account = accounts.find { it.id == state.selectedAccountId }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (account?.type == AccountType.BANK) Icons.Default.AccountBalance else Icons.Default.Payments,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = account?.name ?: "Sin cuenta",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AccountChipsRow(
+    accounts: List<Account>,
+    selectedId: Long?,
+    onSelected: (Long) -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        accounts.forEach { account ->
+            FilterChip(
+                selected = account.id == selectedId,
+                onClick = { onSelected(account.id) },
+                label = { Text(account.name) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = if (account.type == AccountType.BANK) Icons.Default.AccountBalance else Icons.Default.Payments,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            )
         }
     }
 }

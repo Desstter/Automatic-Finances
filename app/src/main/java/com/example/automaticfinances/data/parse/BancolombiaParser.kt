@@ -43,16 +43,17 @@ object BancolombiaParser {
     // REGEX — Compras / Transferencias (Bancolombia)
     // -------------------------------------------
 
-    // Compra SMS clásica Bancolombia
+    // Compra SMS clásica Bancolombia. El verbo cubre "Compraste" y "Pagaste" (Bancolombia usa ambos
+    // para débitos por compra/pago con tarjeta; mismo formato de tarjeta + fecha).
     private val compraRegex = Regex(
-        """Bancolombia:\s*Compraste\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\ben\s+(.+?)\s+con\s+tu\s+(?:T\.?\s*(?:Cred(?:ito)?|Cr[eé]dito)|T\.?\s*(?:D[eé]bito)|Tarjeta\s+(?:Cr[eé]dito|D[eé]bito))\s*[*Xx]{0,4}(\d{4}),?\s+el\s+(\d{2}[/-]\d{2}[/-]\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
+        """Bancolombia:\s*(?:Compraste|Pagaste)\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\ben\s+(.+?)\s+con\s+tu\s+(?:T\.?\s*(?:Cred(?:ito)?|Cr[eé]dito)|T\.?\s*(?:D[eé]bito)|Tarjeta\s+(?:Cr[eé]dito|D[eé]bito))\s*[*Xx]{0,4}(\d{4}),?\s+el\s+(\d{2}[/-]\d{2}[/-]\d{4})\s+a\s+las\s+(\d{2}:\d{2})""",
         RX_FLAGS
     )
 
     // Compra SMS nuevo formato Bancolombia (fecha antes de la tarjeta):
     // "Compraste COP{amount} en {merchant}, el {date} a las {time}. Esta compra esta asociada a T.Cred *{last4}."
     private val compraNuevoFormatoRegex = Regex(
-        """Bancolombia:\s*Compraste\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+)\s+en\s+(.+?),\s+el\s+(\d{2}[/-]\d{2}[/-]\d{4})\s+a\s+las\s+(\d{2}:\d{2}).*?T\.?\s*(?:Cred(?:ito)?|Cr[eé]dito|D[eé]bito)\s*[*Xx]{0,4}(\d{4})""",
+        """Bancolombia:\s*(?:Compraste|Pagaste)\s*(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+)\s+en\s+(.+?),\s+el\s+(\d{2}[/-]\d{2}[/-]\d{4})\s+a\s+las\s+(\d{2}:\d{2}).*?T\.?\s*(?:Cred(?:ito)?|Cr[eé]dito|D[eé]bito)\s*[*Xx]{0,4}(\d{4})""",
         RX_FLAGS
     )
 
@@ -144,6 +145,48 @@ object BancolombiaParser {
     )
 
     // -------------------------------------------
+    // REGEX — Nu (Nubank Colombia)
+    // -------------------------------------------
+    // Nu identifica su app por paquete (com.nu.production), pero el texto del push/SMS suele
+    // mencionar "Nu"/"Nubank". Gate por palabra completa para no chocar con "nunca", "minuto", etc.
+    private val nuWordRegex = Regex("""\bNu\b""", setOf(RegexOption.IGNORE_CASE))
+
+    // Egreso Nu: "Compraste/Pagaste/Pago/Realizaste una compra de $X en COMERCIO".
+    // NOTA: formato aproximado a falta del texto exacto del usuario; afínalo con un mensaje real.
+    // La red de seguridad (Mensajes no reconocidos accionables) cubre cualquier formato que no calce.
+    private val nuEgresoRegex = Regex(
+        """\b(?:Compraste|Pagaste|Pago|Realizaste\s+(?:una\s+)?compra\s+de)\s+(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+).*?\ben\s+$MERCHANT_TAIL""",
+        RX_FLAGS
+    )
+
+    // Ingreso Nu: "Recibiste/Te enviaron/Te transfirieron $X (de REMITENTE)". El remitente es opcional.
+    private val nuIngresoRegex = Regex(
+        """\b(?:Recibiste|Te\s+enviaron|Te\s+transfirieron)\s+(?:un[a]?\s+(?:pago|transferencia)\s+de\s+)?(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+)(?:.*?\bde\s+$MERCHANT_TAIL)?""",
+        RX_FLAGS
+    )
+
+    // Nu "Pago aprobado": el monto está en la primera frase y el comercio en la segunda.
+    // Formato real: "Pago aprobado por $23.319,91\nPageste en COMERCIO con tu cuenta de ahorros."
+    private val nuPagoAprobadoRegex = Regex(
+        """Pago\s+aprobado\s+por\s+(?:\${'$'})?([\d\.,]+).*?Pagaste\s+en\s+(.+?)\s+con\s+tu\b""",
+        RX_FLAGS
+    )
+
+    // -------------------------------------------
+    // REGEX — Retiro de efectivo en cajero (genérico, multi-emisor)
+    // -------------------------------------------
+    // Push de retiro sin tarjeta ni fecha, p.ej. Nequi: título "Retiro en Cajero" + cuerpo
+    // "Sacaste $200000". El texto ensamblado por el listener NO contiene la palabra "Nequi"
+    // (eso es solo el nombre de la app), por eso este detector es genérico y se basa en los
+    // verbos "Sacaste"/"Retiro en cajero"/"Retiraste". Produce type = "RETIRO" para que
+    // AddTransactionUseCase lo registre como movimiento interno Banco -> Efectivo (doble pierna,
+    // isTransfer), sin contar como gasto ni ingreso.
+    private val retiroEfectivoRegex = Regex(
+        """(?:Sacaste|Retiro\s+en\s+(?:el\s+)?cajero|Retiraste)\b.*?(?:COP|\${'$'}COP|\${'$'})?\s*([\d\.,]+)""",
+        RX_FLAGS
+    )
+
+    // -------------------------------------------
     // REGEX — Fallback genérico (lee todos los mensajes)
     // -------------------------------------------
     private val genericCompraRegex = Regex(
@@ -171,6 +214,8 @@ object BancolombiaParser {
                 ?: tryParseIngresosBancolombia(text, now)
                 ?: tryParseIngresosNequi(text, now)
                 ?: tryParseIngresosDaviPlata(text, now)
+                ?: tryParseNu(text, now)
+                ?: tryParseRetiroEfectivo(text, now)
                 ?: tryParseFallbackGenerico(text, now)
         } catch (e: Exception) {
             android.util.Log.e("BancolombiaParser", "Error parsing text", e)
@@ -186,6 +231,7 @@ object BancolombiaParser {
         if (
             !text.contains("Bancolombia", ignoreCase = true) &&
             !text.contains("Compra", ignoreCase = true) &&
+            !text.contains("Pagaste", ignoreCase = true) &&
             !text.contains("Transferencia", ignoreCase = true) &&
             !text.contains("Retiraste", ignoreCase = true)
         ) return null
@@ -571,6 +617,112 @@ object BancolombiaParser {
                 source = "notif:daviPlata",
                 rawPreview = text.take(140),
                 isIncome = true
+            )
+        }
+
+        return null
+    }
+
+    private fun tryParseNu(text: String, now: Long): Transaction? {
+        if (!text.contains("nubank", ignoreCase = true) && !nuWordRegex.containsMatchIn(text)) return null
+
+        // Ingreso primero: los verbos no se solapan con los de egreso, así que el orden es seguro.
+        nuIngresoRegex.find(text)?.let { m ->
+            val amount = toCents(m.groupValues[1])
+            val sender = m.groupValues.getOrNull(2)?.takeIf { it.isNotBlank() }?.let { norm(it) }
+            val ts = now
+            val id = stableId(ts, amount, "INGRESO_NU", "NU", sender, text)
+
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "INGRESO",
+                description = sender?.let { "Recibido de $it" } ?: "Transferencia recibida",
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = "NU",
+                dstLast4 = null,
+                source = "notif:nu",
+                rawPreview = text.take(140),
+                isIncome = true
+            )
+        }
+
+        // "Pago aprobado por $X ... Pagaste en COMERCIO con tu cuenta" (formato push Nu)
+        nuPagoAprobadoRegex.find(text)?.let { m ->
+            val amount = toCents(m.groupValues[1])
+            val merchant = norm(m.groupValues[2])
+            val ts = now
+            val id = stableId(ts, amount, "COMPRA", "NU", merchant, text)
+
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "COMPRA",
+                description = merchant,
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = "NU",
+                dstLast4 = null,
+                source = "notif:nu",
+                rawPreview = text.take(140)
+            )
+        }
+
+        nuEgresoRegex.find(text)?.let { m ->
+            val amount = toCents(m.groupValues[1])
+            val merchant = norm(m.groupValues[2])
+            val ts = now
+            val id = stableId(ts, amount, "COMPRA", "NU", merchant, text)
+
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "COMPRA",
+                description = merchant,
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = "NU",
+                dstLast4 = null,
+                source = "notif:nu",
+                rawPreview = text.take(140)
+            )
+        }
+
+        return null
+    }
+
+    /**
+     * Retiro de efectivo en cajero sin tarjeta ni fecha (p.ej. push de Nequi "Retiro en Cajero /
+     * Sacaste $200000"). Se ejecuta DESPUÉS de los parsers por emisor: los retiros Bancolombia con
+     * formato completo (tarjeta + fecha) ya los captura `retiroCajeroRegex`; esto es la red para
+     * los pushes que solo traen verbo + monto. Emite type = "RETIRO" para que
+     * [com.example.automaticfinances.domain.AddTransactionUseCase] lo trate como movimiento interno
+     * Banco -> Efectivo (doble pierna marcada isTransfer), excluido de gastos/ingresos/charts.
+     */
+    private fun tryParseRetiroEfectivo(text: String, now: Long): Transaction? {
+        val hasRetiroMarker = text.contains("Sacaste", ignoreCase = true) ||
+            text.contains("Retiro en", ignoreCase = true) ||
+            text.contains("Retiraste", ignoreCase = true)
+        if (!hasRetiroMarker) return null
+
+        retiroEfectivoRegex.find(text)?.let { m ->
+            val amount = toCents(m.groupValues[1])
+            if (amount <= 0) return null
+            val ts = now
+            val id = stableId(ts, amount, "RETIRO", null, "Cajero", text)
+
+            return Transaction.fromTimestamp(
+                id = id,
+                ts = ts,
+                type = "RETIRO",
+                description = "Retiro cajero",
+                amountCents = amount,
+                currency = "COP",
+                srcLast4 = null,
+                dstLast4 = null,
+                source = "notif:retiro",
+                rawPreview = text.take(140)
             )
         }
 

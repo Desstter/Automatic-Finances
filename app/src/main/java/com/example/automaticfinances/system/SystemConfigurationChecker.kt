@@ -1,8 +1,11 @@
 package com.example.automaticfinances.system
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
+import androidx.core.content.ContextCompat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -29,13 +32,24 @@ object SystemConfigurationChecker {
     fun getSystemHealth(context: Context): SystemHealthStatus {
         val isListenerEnabled = ServiceManager.isNotificationListenerEnabled(context)
         val isBatteryOptimized = isBatteryOptimizationEnabled(context)
+        val isSmsCaptureEnabled = isSmsCaptureEnabled(context)
 
         return SystemHealthStatus(
             isListenerEnabled = isListenerEnabled,
             isBatteryOptimized = isBatteryOptimized,
+            isSmsCaptureEnabled = isSmsCaptureEnabled,
             needsUserAttention = !isListenerEnabled,
         )
     }
+
+    /**
+     * Whether the app can read bank SMS directly (RECEIVE_SMS granted). This is the ONLY capture path
+     * for SMS-only banks (e.g. Bancolombia) — when it's denied there is no notification-listener
+     * fallback for them, so a denied state must be surfaced, not silently tolerated.
+     */
+    fun isSmsCaptureEnabled(context: Context): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) ==
+            PackageManager.PERMISSION_GRANTED
 
     /**
      * Check if battery optimization is enabled for this app.
@@ -92,5 +106,6 @@ object SystemConfigurationChecker {
 data class SystemHealthStatus(
     val isListenerEnabled: Boolean,
     val isBatteryOptimized: Boolean,
+    val isSmsCaptureEnabled: Boolean,
     val needsUserAttention: Boolean,
 )

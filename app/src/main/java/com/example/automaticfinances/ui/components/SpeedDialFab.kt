@@ -33,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import com.example.automaticfinances.ui.theme.MotionTokens
 import com.example.automaticfinances.ui.theme.Spacing
@@ -61,6 +63,8 @@ fun SpeedDialFab(
     actions: List<SpeedDialAction>,
     modifier: Modifier = Modifier,
 ) {
+    val haptic = LocalHapticFeedback.current
+
     // Main icon rotates 0° -> 45° so the "+" reads as a close affordance when open.
     val rotation by animateFloatAsState(
         targetValue = if (expanded) 45f else 0f,
@@ -124,7 +128,10 @@ fun SpeedDialFab(
         }
 
         FloatingActionButton(
-            onClick = { onExpandedChange(!expanded) },
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onExpandedChange(!expanded)
+            },
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
         ) {

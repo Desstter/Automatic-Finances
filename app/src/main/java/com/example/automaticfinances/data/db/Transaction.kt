@@ -30,7 +30,8 @@ import java.time.format.DateTimeFormatter
         Index(value = ["date"]),
         Index(value = ["isIncome"]),
         Index(value = ["date", "isIncome"]),
-        Index(value = ["accountId", "date"])
+        Index(value = ["accountId", "date"]),
+        Index(value = ["transferGroupId"])
     ]
 )
 data class Transaction(
@@ -49,7 +50,13 @@ data class Transaction(
     val accountId: Long? = null,         // FK a accounts (banco vs efectivo)
     val notes: String = "",              // Notas adicionales del usuario (nuevo)
     val isIncome: Boolean = false,       // true para ingresos, false para gastos
-    val rawPreview: String               // primeros 140 chars del SMS original
+    val rawPreview: String,              // primeros 140 chars del SMS original
+    // Transferencias internas (Banco <-> Efectivo): ambas piernas se marcan isTransfer = true y
+    // comparten transferGroupId. Una transferencia NO es ingreso ni gasto real, así que se excluye
+    // de los totales/análisis de ingreso/gasto (ver TransactionDao), pero SÍ mueve el saldo de cada
+    // cuenta (la pierna de salida resta, la de entrada suma) para mantener el saldo derivado correcto.
+    val isTransfer: Boolean = false,
+    val transferGroupId: String? = null
 ) {
     companion object {
         // Helper para crear desde timestamp
@@ -66,7 +73,9 @@ data class Transaction(
             rawPreview: String,
             categoryId: Long? = null,
             accountId: Long? = null,
-            isIncome: Boolean = false
+            isIncome: Boolean = false,
+            isTransfer: Boolean = false,
+            transferGroupId: String? = null
         ): Transaction {
             val instant = Instant.ofEpochMilli(ts)
             val zonedDateTime = instant.atZone(ZoneId.of("America/Bogota"))
@@ -88,6 +97,8 @@ data class Transaction(
                 categoryId = categoryId,
                 accountId = accountId,
                 isIncome = isIncome,
+                isTransfer = isTransfer,
+                transferGroupId = transferGroupId,
                 rawPreview = rawPreview
             )
         }

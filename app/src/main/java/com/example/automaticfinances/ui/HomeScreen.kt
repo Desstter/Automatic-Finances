@@ -17,12 +17,17 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -62,11 +67,13 @@ fun HomeScreen(
     onAddTransactionClick: () -> Unit = {},
     onAddVoiceClick: () -> Unit = {},
     onAddIncomeClick: () -> Unit = {},
+    onAddTransferClick: () -> Unit = {},
     onViewHistoryClick: () -> Unit = {},
     onBankBalanceClick: () -> Unit = {},
     onCashBalanceClick: () -> Unit = {},
     onRefresh: () -> Unit = {},
-    onSearchQueryChange: (String) -> Unit = {}
+    onSearchQueryChange: (String) -> Unit = {},
+    onReviewClick: () -> Unit = {}
 ) {
     val state by stateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -94,7 +101,7 @@ fun HomeScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             EnhancedTopAppBar(
-                title = "Automatic Finances",
+                title = remember { timeBasedGreeting() },
                 searchQuery = state.searchQuery,
                 onSearchQueryChange = onSearchQueryChange,
                 isSearchActive = isSearchActive,
@@ -116,6 +123,11 @@ fun HomeScreen(
                         label = "Ingreso",
                         icon = Icons.AutoMirrored.Filled.TrendingUp,
                         onClick = onAddIncomeClick
+                    ),
+                    SpeedDialAction(
+                        label = "Transferencia",
+                        icon = Icons.Default.SwapHoriz,
+                        onClick = onAddTransferClick
                     ),
                     SpeedDialAction(
                         label = "Gasto",
@@ -143,6 +155,17 @@ fun HomeScreen(
                         ExpandableBanner(visible = systemHealth.needsUserAttention) {
                             Box(modifier = Modifier.padding(horizontal = Spacing.screen)) {
                                 CompactServiceStatusCard(onOpenNotifAccess = onOpenNotifAccess)
+                            }
+                        }
+                    }
+
+                    item(key = "pendingReview") {
+                        ExpandableBanner(visible = state.pendingReviewCount > 0) {
+                            Box(modifier = Modifier.padding(horizontal = Spacing.screen)) {
+                                PendingReviewCard(
+                                    count = state.pendingReviewCount,
+                                    onClick = onReviewClick
+                                )
                             }
                         }
                     }
@@ -276,23 +299,46 @@ fun CompactTransactionItem(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
+            .drawBehind {
+                if (categoryColor != null && !transaction.isTransfer) {
+                    val barW = 3.dp.toPx()
+                    val vPad = 6.dp.toPx()
+                    drawRoundRect(
+                        color = categoryColor.copy(alpha = 0.75f),
+                        topLeft = Offset(0f, vPad),
+                        size = Size(barW, size.height - vPad * 2f),
+                        cornerRadius = CornerRadius(2.dp.toPx()),
+                    )
+                }
+            }
             .padding(horizontal = Spacing.screen, vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Category avatar — tinted by category color
+        // Avatar — a transfer is an internal money move (no category), so it gets a neutral swap
+        // glyph; everything else is tinted by its category color.
         Box(
             modifier = Modifier
                 .size(Sizes.avatarMd)
                 .clip(CircleShape)
                 .background(
-                    (categoryColor ?: MaterialTheme.colorScheme.primary).copy(alpha = 0.14f)
+                    if (transaction.isTransfer) MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
+                    else (categoryColor ?: MaterialTheme.colorScheme.primary).copy(alpha = 0.14f)
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = transaction.categoryIcon ?: "•",
-                style = MaterialTheme.typography.titleMedium
-            )
+            if (transaction.isTransfer) {
+                Icon(
+                    imageVector = Icons.Default.SwapHoriz,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(18.dp)
+                )
+            } else {
+                Text(
+                    text = transaction.categoryIcon ?: "•",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
         }
 
         Spacer(Modifier.width(Spacing.md))
@@ -308,6 +354,7 @@ fun CompactTransactionItem(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = when {
+                        transaction.isTransfer -> Icons.Default.SwapHoriz
                         transaction.source.startsWith("notif") -> Icons.Default.SmartToy
                         transaction.source == "manual" -> Icons.Default.Edit
                         else -> Icons.Default.PhoneAndroid
@@ -315,6 +362,7 @@ fun CompactTransactionItem(
                     // The icon encodes the entry source, which isn't repeated in the text, so it
                     // carries meaning for screen readers.
                     contentDescription = when {
+                        transaction.isTransfer -> "Transferencia entre cuentas"
                         transaction.source.startsWith("notif") -> "Detectado automáticamente"
                         transaction.source == "manual" -> "Entrada manual"
                         else -> "Otro origen"
@@ -325,7 +373,7 @@ fun CompactTransactionItem(
                 Spacer(Modifier.width(Spacing.xs))
                 Text(
                     text = buildString {
-                        append(transaction.categoryName ?: "Sin categoría")
+                        append(if (transaction.isTransfer) "Transferencia" else transaction.categoryName ?: "Sin categoría")
                         append(" · ")
                         append(transaction.time)
                     },
@@ -342,19 +390,28 @@ fun CompactTransactionItem(
         Text(
             text = buildString {
                 when {
+                    transaction.isTransfer -> {}
                     transaction.isIncome -> append("+ ")
-                    transaction.type == "TRANSFERENCIA" -> {}
                     else -> append("− ")
                 }
                 append(numberFormat.format(transaction.amountCents / 100.0))
             },
             style = FinanceTypography.moneySmall.copy(fontWeight = FontWeight.SemiBold),
             color = when {
+                transaction.isTransfer -> MaterialTheme.colorScheme.secondary
                 transaction.isIncome -> FinanceTheme.colors.profit
-                transaction.type == "TRANSFERENCIA" -> MaterialTheme.colorScheme.secondary
-                else -> MaterialTheme.colorScheme.onSurface
+                else -> FinanceTheme.colors.loss
             }
         )
+    }
+}
+
+private fun timeBasedGreeting(): String {
+    val hour = java.time.LocalTime.now(java.time.ZoneId.of("America/Bogota")).hour
+    return when (hour) {
+        in 5..11 -> "Buenos días"
+        in 12..17 -> "Buenas tardes"
+        else -> "Buenas noches"
     }
 }
 
@@ -441,6 +498,52 @@ fun EnhancedTopAppBar(
             },
             scrollBehavior = scrollBehavior
         )
+    }
+}
+
+/**
+ * Home banner for the "Por revisar" queue (PROD-1). Surfaces only when low-confidence captures are
+ * waiting. Tapping opens the review screen; these captures do not affect the saldo until confirmed.
+ */
+@Composable
+private fun PendingReviewCard(
+    count: Int,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.tertiaryContainer
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.lg),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (count == 1) "1 captura por revisar"
+                    else "$count capturas por revisar",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(Spacing.xxs))
+                Text(
+                    text = "No afectan tu saldo hasta que las confirmes",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(Modifier.width(Spacing.md))
+
+            FilledTonalButton(onClick = onClick) {
+                Text("Revisar")
+            }
+        }
     }
 }
 

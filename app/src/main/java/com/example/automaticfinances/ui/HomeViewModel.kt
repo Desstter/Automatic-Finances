@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.db.CategoryAccuracy
 import com.example.automaticfinances.data.repo.CategoryRepository
+import com.example.automaticfinances.data.repo.PendingTransactionRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.TransactionWithCategory
 import com.example.automaticfinances.data.repo.UserCategoryPreferenceRepository
@@ -45,7 +46,9 @@ data class HomeState(
     val intelligenceActive: Boolean = false,
     val totalPreferences: Int = 0,
     val overallAccuracy: Float = 0f,
-    val categoryAccuracyStats: List<CategoryAccuracy> = emptyList()
+    val categoryAccuracyStats: List<CategoryAccuracy> = emptyList(),
+    // Low-confidence captures awaiting review (PROD-1). Drives the Home banner.
+    val pendingReviewCount: Int = 0
 )
 
 @HiltViewModel
@@ -54,7 +57,8 @@ class HomeViewModel @Inject constructor(
     private val categoryRepository: CategoryRepository,
     private val preferenceRepository: UserCategoryPreferenceRepository,
     private val accountRepository: AccountRepository,
-    private val openingBalanceRepository: OpeningBalanceRepository
+    private val openingBalanceRepository: OpeningBalanceRepository,
+    private val pendingTransactionRepository: PendingTransactionRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -63,7 +67,17 @@ class HomeViewModel @Inject constructor(
     init {
         initializeAccounts()
         observeData()
+        observePendingReview()
         loadIntelligenceData()
+    }
+
+    /** Live count of captures waiting in the "Por revisar" queue, for the Home banner. */
+    private fun observePendingReview() {
+        viewModelScope.launch {
+            pendingTransactionRepository.observeCount().collect { count ->
+                _state.value = _state.value.copy(pendingReviewCount = count)
+            }
+        }
     }
 
     // Unfiltered source data, cached so that search changes re-derive the visible list in
@@ -97,7 +111,10 @@ class HomeViewModel @Inject constructor(
                     val monthStart = currentDate.withDayOfMonth(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
                     val monthEnd = currentDate.withDayOfMonth(currentDate.lengthOfMonth()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
 
-                    val monthlyTransactions = transactions.filter { it.date in monthStart..monthEnd }
+                    // Transfers move money between accounts; they are neither income nor expense,
+                    // so they are excluded from the monthly snapshot (they still affect balances).
+                    val monthlyTransactions = transactions
+                        .filter { it.date in monthStart..monthEnd && !it.isTransfer }
                     val monthlyIncome = monthlyTransactions.filter { it.isIncome }.sumOf { it.amountCents }
                     val monthlyExpenses = monthlyTransactions.filter { !it.isIncome }.sumOf { it.amountCents }
 

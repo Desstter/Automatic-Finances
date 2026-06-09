@@ -16,7 +16,15 @@ class AddTransactionUseCase @Inject constructor(
     private val openingBalanceRepo: OpeningBalanceRepository,
     private val transactionRunner: TransactionRunner
 ) {
-    suspend operator fun invoke(tx: Transaction) {
+    /**
+     * Persists [tx] (enriched with account + category) and adjusts the affected balance.
+     *
+     * @return the enriched transaction that was actually inserted, or null if nothing new was
+     *   persisted — i.e. a re-delivered duplicate (insert ignored) or a RETIRO (handled as a dual
+     *   entry, whose category is fixed and not worth surfacing for feedback). Callers that want to
+     *   react to a genuinely-new capture (e.g. the PROD-2 category-chips notification) key off this.
+     */
+    suspend operator fun invoke(tx: Transaction): Transaction? {
         // Enrich with account + category. The parser produces "pure" transactions (no DB
         // coupling), so account and category are resolved here. Pre-set values (e.g. from a
         // manual entry where the user picked a category) are always preserved.
@@ -26,10 +34,11 @@ class AddTransactionUseCase @Inject constructor(
         // transaction guarantees the financial invariant survives a crash/failure mid-operation:
         // we never end up with a persisted row whose balance effect was lost, nor (for a RETIRO)
         // a bank leg applied without its matching cash leg.
-        transactionRunner.runInTransaction {
+        return transactionRunner.runInTransaction {
             // Handle special case: RETIRO (ATM withdrawal)
             if (enriched.type == "RETIRO") {
                 handleWithdrawalTransfer(enriched)
+                null
             } else {
                 // Normal transaction processing.
                 // Only recompute the balance if the row was actually inserted; a re-delivered
@@ -37,6 +46,9 @@ class AddTransactionUseCase @Inject constructor(
                 val inserted = transactionRepo.insert(enriched)
                 if (inserted) {
                     enriched.accountId?.let { openingBalanceRepo.recalculateAccountBalance(it) }
+                    enriched
+                } else {
+                    null
                 }
             }
         }
@@ -87,35 +99,61 @@ class AddTransactionUseCase @Inject constructor(
     }
     
     /**
-     * Handles ATM withdrawals as transfers from Bank to Cash
-     * Creates two transactions: withdrawal from bank + deposit to cash
+     * Handles ATM withdrawals as an internal transfer from Bank to Cash, mirroring [TransferUseCase].
+     *
+     * Creates two legs sharing a [Transaction.transferGroupId]:
+     *  - a bank leg (money leaves the bank: `isIncome = false` → balance −), and
+     *  - a cash leg (money enters cash: `isIncome = true` → balance +).
+     *
+     * Both legs are flagged `isTransfer = true`, which (a) excludes them from every income/expense
+     * total, category total and chart (all those `TransactionDao` queries filter `isTransfer = 0`) —
+     * a withdrawal is neither a real expense nor a real income, just a relocation of money — while
+     * (b) still moving each account's derived balance (the balance recompute does NOT filter
+     * transfers), and (c) letting the detail screen edit/delete/restore the pair atomically via the
+     * shared group id.
      */
     private suspend fun handleWithdrawalTransfer(withdrawal: Transaction) {
         // Get bank and cash accounts
         val bankAccount = accountRepo.getBankAccount()
         val cashAccount = accountRepo.getCashAccount()
-        
+
+        // Stable group id shared by both legs (and used as the leg-id prefix), so a re-delivered
+        // notification dedupes to the same pair instead of double-moving money.
+        val groupId = withdrawal.id
+
         if (bankAccount == null || cashAccount == null) {
-            // Fallback: treat as normal expense if accounts don't exist
-            if (transactionRepo.insert(withdrawal)) {
-                withdrawal.accountId?.let { openingBalanceRepo.recalculateAccountBalance(it) }
+            // No Banco/Efectivo accounts to relocate between: still record the withdrawal as a
+            // transfer-flagged outflow so it moves the balance but never counts as a real expense.
+            val fallback = withdrawal.copy(
+                type = "TRANSFERENCIA",
+                categoryId = null,
+                isIncome = false,
+                isTransfer = true,
+                transferGroupId = groupId
+            )
+            if (transactionRepo.insert(fallback)) {
+                fallback.accountId?.let { openingBalanceRepo.recalculateAccountBalance(it) }
             }
             return
         }
-        
-        // 1. Create withdrawal transaction (from bank)
+
+        // 1. Bank leg — money leaves the bank.
         val bankWithdrawal = withdrawal.copy(
-            id = "${withdrawal.id}_BANK",
+            id = "${groupId}_BANK",
             accountId = bankAccount.id,
-            type = "GASTO", // Treat as expense from bank
-            description = withdrawal.description
+            type = "TRANSFERENCIA",
+            description = withdrawal.description,
+            categoryId = null,
+            isIncome = false,
+            isTransfer = true,
+            transferGroupId = groupId
         )
-        
-        // 2. Create corresponding cash deposit transaction
+
+        // 2. Cash leg — the same money enters the cash account.
         val cashDeposit = Transaction.fromTimestamp(
-            id = "${withdrawal.id}_CASH",
+            id = "${groupId}_CASH",
             ts = withdrawal.ts,
-            type = "INGRESO",
+            type = "TRANSFERENCIA",
             description = "Efectivo - ${withdrawal.description}",
             amountCents = withdrawal.amountCents,
             currency = withdrawal.currency,
@@ -123,11 +161,13 @@ class AddTransactionUseCase @Inject constructor(
             dstLast4 = "CASH",
             source = withdrawal.source,
             rawPreview = withdrawal.rawPreview,
-            categoryId = categoryRepo.getDefaultCategoryId("INGRESO", "Efectivo"),
+            categoryId = null,
             accountId = cashAccount.id,
-            isIncome = true
+            isIncome = true,
+            isTransfer = true,
+            transferGroupId = groupId
         )
-        
+
         // Insert both legs, then recompute each affected account's cached balance from source.
         // The recompute reflects whatever legs were actually inserted (re-deliveries are ignored),
         // so it stays idempotent without per-row deltas.

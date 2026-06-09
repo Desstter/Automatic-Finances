@@ -59,7 +59,7 @@ class CategorySuggestionViewModel @Inject constructor(
                                        transaction.categoryName == "Otros"
                     
                     if (shouldSuggest) {
-                        val suggestion: CategorySuggestion? = categoryRepository.getIntelligentCategorySuggestion(transaction.description)
+                        val suggestion: CategorySuggestion? = categoryRepository.getIntelligentCategorySuggestion(transaction.description, transaction.isIncome)
                         if (suggestion != null && suggestion.confidence > 0.3f) {
                             pendingSuggestions.add(
                                 TransactionSuggestion(

@@ -1,5 +1,11 @@
 package com.example.automaticfinances.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -22,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.automaticfinances.ui.theme.FinanceTheme
+import com.example.automaticfinances.ui.theme.MotionTokens
+import com.example.automaticfinances.ui.theme.Spacing
 import java.text.NumberFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,6 +47,12 @@ fun BalanceOverviewCard(
     modifier: Modifier = Modifier
 ) {
     var showBalances by remember { mutableStateOf(true) }
+
+    val animatedBalance by animateFloatAsState(
+        targetValue = totalBalanceCents / 100f,
+        animationSpec = tween(durationMillis = 800, easing = MotionTokens.EmphasizedDecelerate),
+        label = "totalBalance",
+    )
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -63,19 +77,19 @@ fun BalanceOverviewCard(
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = if (showBalances) {
-                            numberFormat.format(totalBalanceCents / 100.0)
-                        } else {
-                            "• • • • •"
-                        },
-                        style = com.example.automaticfinances.ui.theme.FinanceTypography.moneyLarge.copy(fontSize = 30.sp),
-                        color = if (totalBalanceCents >= 0) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.error
-                        }
-                    )
+                    AnimatedContent(
+                        targetState = showBalances,
+                        transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) },
+                        label = "balanceVisibility",
+                    ) { show ->
+                        Text(
+                            text = if (show) numberFormat.format(animatedBalance.toDouble())
+                                   else "• • • • •",
+                            style = com.example.automaticfinances.ui.theme.FinanceTypography.moneyLarge.copy(fontSize = 30.sp),
+                            color = if (totalBalanceCents >= 0) MaterialTheme.colorScheme.onPrimaryContainer
+                                    else MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
 
                 IconButton(
@@ -210,6 +224,14 @@ private fun MonthlyBreakdownSection(
     onViewHistoryClick: () -> Unit
 ) {
     val monthlyBalance = monthlyIncome - monthlyExpenses
+    val spendingRate = if (monthlyIncome > 0) {
+        (monthlyExpenses.toFloat() / monthlyIncome.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+    val animatedRate by animateFloatAsState(
+        targetValue = spendingRate,
+        animationSpec = tween(durationMillis = 1000, easing = MotionTokens.EmphasizedDecelerate),
+        label = "spendingRate",
+    )
 
     Column {
         Row(
@@ -260,6 +282,41 @@ private fun MonthlyBreakdownSection(
                 showBalance = showBalances,
                 numberFormat = numberFormat,
                 modifier = Modifier.weight(1f)
+            )
+        }
+
+        if (monthlyIncome > 0 && showBalances) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            val progressColor = when {
+                spendingRate >= 1f -> FinanceTheme.colors.loss
+                spendingRate > 0.8f -> MaterialTheme.colorScheme.tertiary
+                else -> FinanceTheme.colors.profit
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "del ingreso gastado",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "${(spendingRate * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = progressColor,
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            LinearProgressIndicator(
+                progress = { animatedRate },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = progressColor,
+                trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
             )
         }
     }

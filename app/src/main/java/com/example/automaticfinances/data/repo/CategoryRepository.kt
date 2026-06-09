@@ -2,35 +2,39 @@ package com.example.automaticfinances.data.repo
 
 import com.example.automaticfinances.data.db.Category
 import com.example.automaticfinances.data.db.CategoryDao
+import com.example.automaticfinances.data.db.CategoryRule
+import com.example.automaticfinances.data.db.CategoryRuleDao
 import com.example.automaticfinances.data.db.CategoryWithCount
 import com.example.automaticfinances.data.db.CategorySuggestion
 import com.example.automaticfinances.data.db.DefaultCategories
+import com.example.automaticfinances.data.db.DefaultCategoryRules
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 
 class CategoryRepository @Inject constructor(
     private val dao: CategoryDao,
+    private val ruleDao: CategoryRuleDao,
     private val preferenceRepo: UserCategoryPreferenceRepository
 ) {
-    
+
     fun getAllActive(): Flow<List<Category>> = dao.getAllActive()
-    
+
     fun getActiveByType(isIncome: Boolean): Flow<List<Category>> = dao.getActiveByType(isIncome)
-    
+
     fun getCategoriesWithCount(): Flow<List<CategoryWithCount>> = dao.getCategoriesWithTransactionCount()
-    
+
     fun getCategoriesWithCountByType(isIncome: Boolean): Flow<List<CategoryWithCount>> = dao.getCategoriesWithTransactionCountByType(isIncome)
-    
+
     suspend fun getById(id: Long): Category? = dao.getById(id)
-    
+
     suspend fun getAllActiveSync(): List<Category> = dao.getAllActiveSync()
-    
+
     suspend fun getActiveSyncByType(isIncome: Boolean): List<Category> = dao.getActiveSyncByType(isIncome)
-    
+
     suspend fun insert(category: Category): Long = dao.insert(category)
-    
+
     suspend fun update(category: Category) = dao.update(category)
-    
+
     suspend fun delete(categoryId: Long) {
         // Verificar si hay transacciones asociadas antes de eliminar
         val transactionCount = dao.countTransactionsInCategory(categoryId)
@@ -43,7 +47,7 @@ class CategoryRepository @Inject constructor(
             category?.let { dao.delete(it) }
         }
     }
-    
+
     suspend fun canDelete(categoryId: Long): Pair<Boolean, String> {
         dao.getById(categoryId) ?: return Pair(false, "Categoría no encontrada")
 
@@ -58,24 +62,53 @@ class CategoryRepository @Inject constructor(
             Pair(true, "Esta categoría se eliminará permanentemente.")
         }
     }
-    
+
     suspend fun initializeDefaultCategories() {
         val defaultCount = dao.countDefaultCategories()
         if (defaultCount == 0) {
             dao.insertAll(DefaultCategories.list)
         }
     }
-    
+
+    /**
+     * Seeds the default keyword rules on a fresh install (MANT-2). Fresh installs create the schema
+     * at the current version and never run migrations, so the rule table starts empty — only when it
+     * is empty do we populate it. After the user deletes some defaults the table is no longer empty,
+     * so we never re-add them (mirrors [initializeDefaultCategories]'s intent-respecting behavior).
+     */
+    suspend fun initializeDefaultRules() {
+        if (ruleDao.count() == 0) {
+            ruleDao.insertAll(DefaultCategoryRules.list)
+        }
+    }
+
+    // ---- Editable rule management (surfaced in the rule-editor UI) ----
+
+    fun getAllRules(): Flow<List<CategoryRule>> = ruleDao.getAll()
+
+    suspend fun addRule(keyword: String, categoryName: String, isIncome: Boolean) {
+        val normalized = normalizeKeyword(keyword)
+        if (normalized.isBlank()) return
+        ruleDao.insert(
+            CategoryRule(
+                keyword = normalized,
+                categoryName = categoryName,
+                isIncome = isIncome,
+                isDefault = false,
+            )
+        )
+    }
+
+    suspend fun deleteRule(id: Long) = ruleDao.deleteById(id)
+
     suspend fun getDefaultCategoryId(transactionType: String, description: String): Long? {
         // 1. PRIORIDAD: Verificar si el usuario ya tiene una preferencia aprendida
         getLearnedCategoryId(description)?.let { return it }
 
-        // 2. FALLBACK: Usar sistema de reglas por palabras clave
-        return if (transactionType == "INGRESO") {
-            getIncomeKeywordBasedCategoryId(description)
-        } else {
-            getExpenseKeywordBasedCategoryId(description)
-        }
+        // 2. FALLBACK: Usar sistema de reglas por palabras clave (tabla editable).
+        // Toda variante de ingreso ("INGRESO", "INGRESO_NOMINA", "INGRESO_TRANSFERENCIA", …) se
+        // resuelve contra las reglas de ingreso; el resto contra las de gasto.
+        return keywordBasedCategoryId(description, isIncomeType(transactionType))
     }
 
     /**
@@ -92,16 +125,17 @@ class CategoryRepository @Inject constructor(
             null
         }
     }
-    
-    suspend fun getIntelligentCategorySuggestion(description: String): CategorySuggestion? {
+
+    suspend fun getIntelligentCategorySuggestion(description: String, isIncome: Boolean = false): CategorySuggestion? {
         // Primero verificar aprendizaje del usuario
         val suggestion = preferenceRepo.suggestCategory(description)
         if (suggestion != null && suggestion.confidence > 0.5f) {
             return suggestion
         }
-        
-        // Si no hay aprendizaje, usar palabras clave pero con menor confianza
-        val keywordCategoryId = getExpenseKeywordBasedCategoryId(description)
+
+        // Si no hay aprendizaje, usar palabras clave pero con menor confianza. Ahora respeta el tipo
+        // (ingreso/gasto) en vez de mirar siempre reglas de gasto.
+        val keywordCategoryId = keywordBasedCategoryId(description, isIncome)
         if (keywordCategoryId != null) {
             val categories = dao.getAllActiveSync()
             val category = categories.find { it.id == keywordCategoryId }
@@ -116,142 +150,66 @@ class CategoryRepository @Inject constructor(
                 )
             }
         }
-        
+
         return null
     }
-    
+
+    /**
+     * Builds the 2–3 category chips offered in the capture-feedback notification (PROD-2): the
+     * auto-assigned category first (so a tap confirms it), then the user's most-used categories of the
+     * same type as alternatives. Returns distinct categories, capped at [limit].
+     */
+    suspend fun suggestCategoriesForCapture(assignedId: Long?, isIncome: Boolean, limit: Int = 3): List<Category> {
+        val byUsage = dao.getCategoriesWithCountByTypeSync(isIncome).map { it.toCategory() }
+        if (byUsage.isEmpty()) return emptyList()
+        val assigned = assignedId?.let { id -> byUsage.find { it.id == id } }
+        val ordered = buildList {
+            assigned?.let { add(it) }
+            addAll(byUsage.filter { it.id != assigned?.id })
+        }
+        return ordered.take(limit)
+    }
+
     suspend fun learnFromUserCategoryChoice(merchant: String, categoryId: Long) {
         preferenceRepo.learnFromUserChoice(merchant, categoryId)
     }
-    
+
     suspend fun getCategoryAccuracyStats() = preferenceRepo.getCategoryAccuracyStats()
-    
-    private suspend fun getExpenseKeywordBasedCategoryId(description: String): Long? {
-        val categories = dao.getAllActiveSync()
+
+    private fun isIncomeType(transactionType: String): Boolean =
+        transactionType.startsWith("INGRESO", ignoreCase = true)
+
+    private fun normalizeKeyword(keyword: String): String =
+        keyword.lowercase().trim().replace(Regex("\\s+"), " ")
+
+    /**
+     * Table-driven categorization (MANT-2). Picks the rule whose keyword appears in [description] and
+     * is the most specific (longest keyword wins; ties broken by lowest id for determinism), but only
+     * if it points at a currently-active category of the requested type. Falls back to the type's
+     * default bucket ("Otros gastos" / "Otros ingresos").
+     */
+    private suspend fun keywordBasedCategoryId(description: String, isIncome: Boolean): Long? {
+        val categories = dao.getActiveSyncByType(isIncome)
         val descriptionLower = description.lowercase()
-        
-        return when {
-            // Comida por fuera
-            descriptionLower.contains("rappi") || 
-            descriptionLower.contains("uber eats") || 
-            descriptionLower.contains("domicilio") ||
-            descriptionLower.contains("restaurant") ||
-            descriptionLower.contains("pizza") ||
-            descriptionLower.contains("burger") -> 
-                categories.find { it.name == "Comida por fuera" }?.id
-            
-            // Gasolina/Transporte
-            descriptionLower.contains("estacion") ||
-            descriptionLower.contains("gasolina") ||
-            descriptionLower.contains("combustible") ||
-            descriptionLower.contains("esso") ||
-            descriptionLower.contains("mobil") -> 
-                categories.find { it.name == "Gasolina" }?.id
-            
-            descriptionLower.contains("taxi") ||
-            descriptionLower.contains("uber") ||
-            descriptionLower.contains("beat") ||
-            descriptionLower.contains("transporte") -> 
-                categories.find { it.name == "Transporte" }?.id
-            
-            // Salud
-            descriptionLower.contains("farmacia") ||
-            descriptionLower.contains("drogas") ||
-            descriptionLower.contains("clinica") ||
-            descriptionLower.contains("hospital") ||
-            descriptionLower.contains("medico") -> 
-                categories.find { it.name == "Salud" }?.id
-            
-            // Entretenimiento
-            descriptionLower.contains("cine") ||
-            descriptionLower.contains("netflix") ||
-            descriptionLower.contains("spotify") ||
-            descriptionLower.contains("juego") -> 
-                categories.find { it.name == "Entretenimiento" }?.id
-            
-            // Servicios
-            descriptionLower.contains("agua") ||
-            descriptionLower.contains("luz") ||
-            descriptionLower.contains("gas") ||
-            descriptionLower.contains("internet") ||
-            descriptionLower.contains("telefono") -> 
-                categories.find { it.name == "Servicios" }?.id
-            
-            // Supermercado/Comida obligatoria
-            descriptionLower.contains("exito") ||
-            descriptionLower.contains("carulla") ||
-            descriptionLower.contains("olimpica") ||
-            descriptionLower.contains("supermercado") ||
-            descriptionLower.contains("mercado") -> 
-                categories.find { it.name == "Comida obligatoria" }?.id
-            
-            // Ropa
-            descriptionLower.contains("zara") ||
-            descriptionLower.contains("h&m") ||
-            descriptionLower.contains("ropa") ||
-            descriptionLower.contains("nike") ||
-            descriptionLower.contains("adidas") -> 
-                categories.find { it.name == "Ropa" }?.id
-            
-            else -> categories.find { it.name == "Otros gastos" }?.id
-        }
-    }
-    
-    private suspend fun getIncomeKeywordBasedCategoryId(description: String): Long? {
-        val categories = dao.getActiveSyncByType(isIncome = true)
-        val descriptionLower = description.lowercase()
-        
-        return when {
-            // Salario/Nómina
-            descriptionLower.contains("salario") ||
-            descriptionLower.contains("nomina") ||
-            descriptionLower.contains("sueldo") ||
-            descriptionLower.contains("pago laboral") -> 
-                categories.find { it.name == "Salario" }?.id
-                
-            // Freelance/Trabajo independiente (maps to Venta personal)
-            descriptionLower.contains("freelance") ||
-            descriptionLower.contains("honorarios") ||
-            descriptionLower.contains("consultoria") ||
-            descriptionLower.contains("trabajo independiente") -> 
-                categories.find { it.name == "Venta personal" }?.id
-                
-            // Ventas
-            descriptionLower.contains("venta") ||
-            descriptionLower.contains("vendido") ||
-            descriptionLower.contains("comercio") ||
-            descriptionLower.contains("negocio") -> 
-                categories.find { it.name == "Venta personal" }?.id
-                
-            // Regalos/Donaciones
-            descriptionLower.contains("regalo") ||
-            descriptionLower.contains("donacion") ||
-            descriptionLower.contains("obsequio") ||
-            descriptionLower.contains("familiar") -> 
-                categories.find { it.name == "Regalo" }?.id
-                
-            // Subsidios
-            descriptionLower.contains("subsidio") ||
-            descriptionLower.contains("auxilio") ||
-            descriptionLower.contains("ayuda") ||
-            descriptionLower.contains("apoyo gobierno") -> 
-                categories.find { it.name == "Subsidio" }?.id
-                
-            // Bonos/Premios
-            descriptionLower.contains("bono") ||
-            descriptionLower.contains("premio") ||
-            descriptionLower.contains("incentivo") ||
-            descriptionLower.contains("comision") -> 
-                categories.find { it.name == "Bonos" }?.id
-                
-            // Transferencia recibida (genérico)
-            descriptionLower.contains("transferencia") ||
-            descriptionLower.contains("recibido") ||
-            descriptionLower.contains("deposito") ||
-            descriptionLower.contains("consignacion") -> 
-                categories.find { it.name == "Salario" }?.id // Default para transferencias
-                
-            else -> categories.find { it.name == "Otros ingresos" }?.id
-        }
+
+        val match = ruleDao.getByType(isIncome)
+            .filter { rule -> rule.keyword.isNotBlank() && descriptionLower.contains(rule.keyword) }
+            .sortedWith(compareByDescending<CategoryRule> { it.keyword.length }.thenBy { it.id })
+            .firstNotNullOfOrNull { rule -> categories.find { it.name == rule.categoryName }?.id }
+
+        if (match != null) return match
+
+        val defaultName = if (isIncome) "Otros ingresos" else "Otros gastos"
+        return categories.find { it.name == defaultName }?.id
     }
 }
+
+private fun CategoryWithCount.toCategory(): Category = Category(
+    id = id,
+    name = name,
+    color = color,
+    icon = icon,
+    isDefault = isDefault,
+    isActive = isActive,
+    isIncome = isIncome,
+)

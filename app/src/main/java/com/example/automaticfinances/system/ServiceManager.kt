@@ -58,6 +58,20 @@ object ServiceManager {
     }
 
     /**
+     * Opens this app's system details page, where the user can grant a previously-denied runtime
+     * permission (e.g. RECEIVE_SMS) even after "don't ask again". Used to recover SMS capture, which
+     * has no in-app re-request once permanently denied.
+     */
+    fun openAppDetailsSettings(context: Context) {
+        runCatching {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.parse("package:${context.packageName}"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        }
+    }
+
+    /**
      * True if the app is exempt from battery optimizations (Doze). When false, aggressive OEMs are
      * free to kill the process and unbind the notification listener while idle, which is exactly how
      * bank notifications get dropped. The SMS receiver still works without this, but app-push banks

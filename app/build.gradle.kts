@@ -87,6 +87,12 @@ android {
         compose = true
         buildConfig = true
     }
+
+    // Bundle the exported Room schemas into the test APK assets so MigrationTestHelper can load
+    // them at runtime (FIN-4 migration test). Without this the helper can't find e.g. 13.json.
+    sourceSets {
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
 }
 
 // Export Room schemas so migrations can be validated with MigrationTestHelper going forward.
@@ -146,6 +152,8 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    // Room MigrationTestHelper: validates migrations against the exported schemas (FIN-4 test).
+    androidTestImplementation(libs.androidx.room.testing)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)

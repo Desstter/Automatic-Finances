@@ -146,6 +146,9 @@ fun TransactionDetailScreen(
                     onDescriptionChange = viewModel::updateDescription,
                     onNotesChange = viewModel::updateNotes,
                     onCategorySelected = viewModel::selectCategory,
+                    onAccountSelected = viewModel::selectAccount,
+                    onOriginSelected = viewModel::selectOriginAccount,
+                    onDestSelected = viewModel::selectDestAccount,
                     categoryFor = viewModel::getCategoryById,
                     modifier = Modifier.padding(padding)
                 )

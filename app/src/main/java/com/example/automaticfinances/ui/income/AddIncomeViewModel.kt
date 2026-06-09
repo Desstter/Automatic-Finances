@@ -1,5 +1,6 @@
 package com.example.automaticfinances.ui.income
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.db.Category
@@ -8,7 +9,9 @@ import com.example.automaticfinances.data.db.Account
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.AccountRepository
+import com.example.automaticfinances.data.repo.UnparsedSmsRepository
 import com.example.automaticfinances.domain.AddTransactionUseCase
+import com.example.automaticfinances.navigation.Routes
 import com.example.automaticfinances.utils.parseColombiaCents
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -55,12 +58,23 @@ data class AddIncomeState(
 class AddIncomeViewModel @Inject constructor(
     private val addTransactionUseCase: AddTransactionUseCase,
     private val categoryRepository: CategoryRepository,
-    private val accountRepository: AccountRepository
+    private val accountRepository: AccountRepository,
+    private val unparsedSmsRepository: UnparsedSmsRepository,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-    
-    private val _state = MutableStateFlow(AddIncomeState())
+
+    // Set when opened to rescue a message from "Mensajes no reconocidos"; deleted on a successful save.
+    private val rescuedUnparsedId: String? =
+        savedStateHandle.get<String>(Routes.ARG_UNPARSED_ID)?.takeIf { it.isNotBlank() }
+
+    private val _state = MutableStateFlow(
+        AddIncomeState(
+            amount = savedStateHandle.get<String>(Routes.ARG_PREFILL_AMOUNT).orEmpty(),
+            description = savedStateHandle.get<String>(Routes.ARG_PREFILL_DESC).orEmpty(),
+        )
+    )
     val state: StateFlow<AddIncomeState> = _state.asStateFlow()
-    
+
     init {
         loadIncomeCategories()
         loadAccounts()
@@ -225,7 +239,10 @@ class AddIncomeViewModel @Inject constructor(
                     currentState.description.lowercase().trim(),
                     currentState.selectedCategoryId!!
                 )
-                
+
+                // Rescued from "Mensajes no reconocidos": remove it now that it's a real row.
+                rescuedUnparsedId?.let { runCatching { unparsedSmsRepository.delete(it) } }
+
                 _state.value = _state.value.copy(
                     isLoading = false,
                     isSuccess = true
