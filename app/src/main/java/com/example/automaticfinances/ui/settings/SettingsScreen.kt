@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,7 +27,10 @@ import androidx.compose.material.icons.filled.Brightness3
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.BrightnessHigh
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
@@ -35,6 +41,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Switch
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -54,17 +61,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.automaticfinances.data.preferences.AccentColor
 import com.example.automaticfinances.data.preferences.ThemeMode
 import com.example.automaticfinances.ui.components.common.SectionCard
 import com.example.automaticfinances.ui.components.common.SectionHeader
 import com.example.automaticfinances.ui.theme.Sizes
 import com.example.automaticfinances.ui.theme.Spacing
 import com.example.automaticfinances.ui.theme.ThemeViewModel
+import com.example.automaticfinances.ui.theme.label
+import com.example.automaticfinances.ui.theme.swatch
 import kotlinx.coroutines.launch
 
 /**
@@ -88,6 +102,8 @@ fun SettingsScreen(
     insightsViewModel: InsightsSettingsViewModel = hiltViewModel(),
 ) {
     val themeMode by themeViewModel.themeMode.collectAsStateWithLifecycle()
+    val accentColor by themeViewModel.accentColor.collectAsStateWithLifecycle()
+    val storedName by themeViewModel.userName.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val context = androidx.compose.ui.platform.LocalContext.current
     val systemHealth by com.example.automaticfinances.system.SystemConfigurationChecker
@@ -150,6 +166,41 @@ fun SettingsScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
         ) {
+            item {
+                SectionHeader(title = "Personalización")
+                SectionCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SettingIconBadge(Icons.Default.Person)
+                        Spacer(Modifier.size(Spacing.md))
+                        Text(
+                            "Tu nombre",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                    Spacer(Modifier.size(Spacing.md))
+                    NameField(
+                        storedName = storedName,
+                        onNameChange = themeViewModel::setUserName,
+                    )
+                    Spacer(Modifier.size(Spacing.lg))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SettingIconBadge(Icons.Default.ColorLens)
+                        Spacer(Modifier.size(Spacing.md))
+                        Text(
+                            "Color de acento",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                    Spacer(Modifier.size(Spacing.md))
+                    AccentColorSelector(
+                        selected = accentColor,
+                        onSelect = themeViewModel::setAccentColor,
+                    )
+                }
+            }
+
             item {
                 SectionHeader(title = "Apariencia")
                 SectionCard {
@@ -333,6 +384,73 @@ fun SettingsScreen(
                 TextButton(onClick = { backupViewModel.restartApp() }) { Text("Reiniciar ahora") }
             },
         )
+    }
+}
+
+@Composable
+private fun NameField(
+    storedName: String,
+    onNameChange: (String) -> Unit,
+) {
+    // Seed the local field once from the persisted value, then treat local state as the source of
+    // truth so per-keystroke persistence never fights what the user is typing.
+    var initialized by remember { mutableStateOf(false) }
+    var text by remember { mutableStateOf("") }
+    LaunchedEffect(storedName) {
+        if (!initialized) {
+            text = storedName
+            initialized = true
+        }
+    }
+    OutlinedTextField(
+        value = text,
+        onValueChange = {
+            text = it
+            onNameChange(it)
+        },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        placeholder = { Text("¿Cómo te saludamos?") },
+    )
+}
+
+@Composable
+private fun AccentColorSelector(
+    selected: AccentColor,
+    onSelect: (AccentColor) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        AccentColor.entries.forEach { accent ->
+            val isSelected = accent == selected
+            Box(
+                modifier = Modifier
+                    .size(Sizes.avatarSm)
+                    .clip(CircleShape)
+                    .background(accent.swatch())
+                    .then(
+                        if (isSelected) Modifier.border(
+                            width = 3.dp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            shape = CircleShape,
+                        ) else Modifier
+                    )
+                    .clickable { onSelect(accent) }
+                    .semantics { contentDescription = accent.label() },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = androidx.compose.ui.graphics.Color.White,
+                        modifier = Modifier.size(Sizes.iconSm),
+                    )
+                }
+            }
+        }
     }
 }
 

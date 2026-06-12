@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.automaticfinances.data.preferences.AccentColor
 import com.example.automaticfinances.data.preferences.ThemeMode
 import com.example.automaticfinances.data.preferences.ThemeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -38,6 +39,34 @@ class ThemeViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000L),
             initialValue = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
         )
+
+    // Acento personal (color de marca elegido por el usuario)
+    val accentColor: StateFlow<AccentColor> = themeRepository.accentColor
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000L),
+            initialValue = AccentColor.GOLD
+        )
+
+    fun setAccentColor(accent: AccentColor) {
+        viewModelScope.launch {
+            themeRepository.setAccentColor(accent)
+        }
+    }
+
+    // Nombre del usuario para el saludo personalizado
+    val userName: StateFlow<String> = themeRepository.userName
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000L),
+            initialValue = ""
+        )
+
+    fun setUserName(name: String) {
+        viewModelScope.launch {
+            themeRepository.setUserName(name)
+        }
+    }
     
     // Computed state que determina si debe usar tema oscuro
     @Composable
@@ -54,6 +83,12 @@ class ThemeViewModel @Inject constructor(
     @Composable
     fun getUseDynamicColor(): Boolean {
         return useDynamicColor.collectAsState().value
+    }
+
+    // Obtener acento personal actual
+    @Composable
+    fun getAccentColor(): AccentColor {
+        return accentColor.collectAsState().value
     }
     
     // Cambiar a modo específico

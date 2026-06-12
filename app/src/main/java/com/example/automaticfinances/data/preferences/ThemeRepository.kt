@@ -22,6 +22,20 @@ enum class ThemeMode {
     DARK     // Tema oscuro forzado
 }
 
+/**
+ * Color de acento elegido por el usuario para personalizar la marca de la app.
+ * GOLD es el "Oro Refinado" por defecto (no aplica override y deja funcionar el dynamic color).
+ * Los demás reemplazan los tokens primary del esquema. La paleta de cada uno vive en
+ * `ui/theme/Accent.kt`.
+ */
+enum class AccentColor {
+    GOLD,      // Oro Refinado (marca por defecto)
+    EMERALD,   // Verde esmeralda
+    OCEAN,     // Azul océano
+    VIOLET,    // Violeta
+    CORAL      // Coral
+}
+
 // DataStore extension for Context
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "theme_preferences")
 
@@ -30,6 +44,8 @@ class ThemeRepository(private val context: Context) {
     companion object {
         private val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
         private val DYNAMIC_COLOR_KEY = booleanPreferencesKey("use_dynamic_color")
+        private val ACCENT_COLOR_KEY = stringPreferencesKey("accent_color")
+        private val USER_NAME_KEY = stringPreferencesKey("user_name")
     }
     
     // Flow para observar cambios en el tema
@@ -59,6 +75,33 @@ class ThemeRepository(private val context: Context) {
     suspend fun setUseDynamicColor(useDynamicColor: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[DYNAMIC_COLOR_KEY] = useDynamicColor
+        }
+    }
+
+    // Color de acento personal (marca de la app)
+    val accentColor: Flow<AccentColor> = context.dataStore.data.map { preferences ->
+        val name = preferences[ACCENT_COLOR_KEY] ?: AccentColor.GOLD.name
+        try {
+            AccentColor.valueOf(name)
+        } catch (e: IllegalArgumentException) {
+            AccentColor.GOLD // Fallback seguro
+        }
+    }
+
+    suspend fun setAccentColor(accentColor: AccentColor) {
+        context.dataStore.edit { preferences ->
+            preferences[ACCENT_COLOR_KEY] = accentColor.name
+        }
+    }
+
+    // Nombre del usuario, usado para personalizar el saludo de la Home.
+    val userName: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[USER_NAME_KEY] ?: ""
+    }
+
+    suspend fun setUserName(name: String) {
+        context.dataStore.edit { preferences ->
+            preferences[USER_NAME_KEY] = name.trim()
         }
     }
     

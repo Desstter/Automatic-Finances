@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -101,7 +102,7 @@ fun HomeScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             EnhancedTopAppBar(
-                title = remember { timeBasedGreeting() },
+                title = remember(state.userName) { greeting(state.userName) },
                 searchQuery = state.searchQuery,
                 onSearchQueryChange = onSearchQueryChange,
                 isSearchActive = isSearchActive,
@@ -183,6 +184,14 @@ fun HomeScreen(
                                 onCashClick = onCashBalanceClick,
                                 onViewHistoryClick = onViewHistoryClick
                             )
+                        }
+                    }
+
+                    state.proactiveInsight?.let { insight ->
+                        item(key = "insight") {
+                            Box(modifier = Modifier.padding(horizontal = Spacing.screen)) {
+                                ProactiveInsightCard(insight = insight)
+                            }
                         }
                     }
 
@@ -412,6 +421,51 @@ private fun timeBasedGreeting(): String {
         in 5..11 -> "Buenos días"
         in 12..17 -> "Buenas tardes"
         else -> "Buenas noches"
+    }
+}
+
+/** Time-based greeting, personalized with the user's first name when set in Ajustes. */
+private fun greeting(userName: String): String {
+    val base = timeBasedGreeting()
+    val firstName = userName.trim().substringBefore(' ').trim()
+    return if (firstName.isNotEmpty()) "$base, $firstName" else base
+}
+
+/** Proactive month-pace nudge on the dashboard. Tinted green (on track) or amber (overspending). */
+@Composable
+private fun ProactiveInsightCard(insight: ProactiveInsight) {
+    val container = if (insight.isPositive)
+        FinanceTheme.colors.profitContainer else FinanceTheme.colors.warningContainer
+    val onContainer = if (insight.isPositive)
+        FinanceTheme.colors.onProfitContainer else FinanceTheme.colors.onWarningContainer
+    val icon = if (insight.isPositive)
+        Icons.AutoMirrored.Filled.TrendingDown else Icons.AutoMirrored.Filled.TrendingUp
+
+    Surface(
+        shape = RoundedCornerShape(Spacing.md),
+        color = container,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.card),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = onContainer,
+                modifier = Modifier.size(Sizes.iconMd)
+            )
+            Spacer(Modifier.size(Spacing.md))
+            Text(
+                text = insight.message,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = onContainer
+            )
+        }
     }
 }
 

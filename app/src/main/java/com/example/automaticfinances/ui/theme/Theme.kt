@@ -12,6 +12,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.example.automaticfinances.data.preferences.AccentColor
 
 // ===========================================
 // AutomaticFinances - Material 3 Theme ("Oro Refinado", estilo expresivo)
@@ -26,11 +27,12 @@ import androidx.core.view.WindowCompat
 fun FinanceTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     useDynamicColor: Boolean = false,
+    accentColor: AccentColor = AccentColor.GOLD,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
 
-    val colorScheme = when {
+    val baseScheme = when {
         useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && darkTheme ->
             dynamicDarkColorScheme(context)
         useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !darkTheme ->
@@ -38,6 +40,10 @@ fun FinanceTheme(
         darkTheme -> DarkColorSchemeFallback
         else -> LightColorSchemeFallback
     }
+
+    // El acento personal reemplaza los tokens primary. GOLD es no-op, así que el dynamic color
+    // sigue mandando cuando el usuario no eligió un acento propio.
+    val colorScheme = baseScheme.withAccent(accentColor, darkTheme)
 
     val financeColors = getFinanceColors(darkTheme)
 

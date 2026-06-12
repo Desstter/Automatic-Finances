@@ -42,8 +42,19 @@ fun CategoryManagementScreen(
 ) {
     val viewModel: CategoryManagementViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Surface errors instead of dropping them: show, then clear so the same
+    // error can fire again later.
+    LaunchedEffect(state.error) {
+        state.error?.let { error ->
+            snackbarHostState.showSnackbar(error)
+            viewModel.clearError()
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Categorías", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
@@ -168,16 +179,6 @@ fun CategoryManagementScreen(
                 }
             }
         )
-    }
-    
-    // Error Snackbar
-    state.error?.let { error ->
-        LaunchedEffect(error) {
-            // Aquí podrías mostrar un Snackbar si tuvieras SnackbarHost
-            // Por simplicidad, limpiaremos el error después de un tiempo
-            kotlinx.coroutines.delay(3000)
-            viewModel.clearError()
-        }
     }
 }
 

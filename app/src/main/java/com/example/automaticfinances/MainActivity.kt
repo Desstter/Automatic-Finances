@@ -66,7 +66,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             FinanceTheme(
                 darkTheme = themeViewModel.isDarkTheme(),
-                useDynamicColor = themeViewModel.getUseDynamicColor()
+                useDynamicColor = themeViewModel.getUseDynamicColor(),
+                accentColor = themeViewModel.getAccentColor()
             ) {
                 var onboardingDone by remember { mutableStateOf(onboardingPreferences.isCompleted) }
 

@@ -15,7 +15,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -23,7 +22,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.automaticfinances.data.db.Account
 import com.example.automaticfinances.data.db.AccountType
+import com.example.automaticfinances.ui.components.common.FormErrorCard
+import com.example.automaticfinances.ui.components.common.SaveButton
+import com.example.automaticfinances.ui.components.common.SectionCard
+import com.example.automaticfinances.ui.theme.FinanceShapes
 import com.example.automaticfinances.ui.theme.FinanceTheme
+import com.example.automaticfinances.ui.theme.FinanceTypography
+import com.example.automaticfinances.ui.theme.Sizes
+import com.example.automaticfinances.ui.theme.Spacing
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -46,20 +52,16 @@ fun TransferScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Transferencia", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
+                title = {
+                    Text(
+                        "Transferencia",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
-                    }
-                },
-                actions = {
-                    TextButton(onClick = { viewModel.save() }, enabled = state.canSave) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            modifier = Modifier.padding(end = 4.dp),
-                        )
-                        Text("Guardar")
                     }
                 },
             )
@@ -69,8 +71,8 @@ fun TransferScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = Spacing.screen, vertical = Spacing.section),
+            verticalArrangement = Arrangement.spacedBy(Spacing.section),
         ) {
             item {
                 Text(
@@ -83,22 +85,21 @@ fun TransferScreen(
 
             // Amount
             item {
-                Card {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Monto", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = state.amount,
-                            onValueChange = viewModel::setAmount,
-                            label = { Text("Cantidad en COP") },
-                            prefix = { Text("$") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            isError = state.amountError != null,
-                            supportingText = state.amountError?.let { { Text(it) } },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
+                SectionCard {
+                    Text("Monto", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(Spacing.sm))
+                    OutlinedTextField(
+                        value = state.amount,
+                        onValueChange = viewModel::setAmount,
+                        label = { Text("Cantidad en COP") },
+                        prefix = { Text("$") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = state.amountError != null,
+                        supportingText = state.amountError?.let { { Text(it) } },
+                        singleLine = true,
+                        shape = FinanceShapes.textField,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
 
@@ -147,31 +148,33 @@ fun TransferScreen(
 
             // Note
             item {
-                Card {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Nota (opcional)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = state.note,
-                            onValueChange = viewModel::setNote,
-                            label = { Text("Ej: Retiro cajero, ahorro...") },
-                            maxLines = 3,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
+                SectionCard {
+                    Text("Nota (opcional)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(Spacing.sm))
+                    OutlinedTextField(
+                        value = state.note,
+                        onValueChange = viewModel::setNote,
+                        label = { Text("Ej: Retiro cajero, ahorro...") },
+                        maxLines = 3,
+                        shape = FinanceShapes.textField,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
 
-            if (state.error != null) {
-                item {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                        Text(
-                            text = state.error!!,
-                            modifier = Modifier.padding(16.dp),
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                        )
-                    }
-                }
+            state.error?.let { error ->
+                item { FormErrorCard(message = error) }
+            }
+
+            item {
+                SaveButton(
+                    text = "Transferir",
+                    onClick = { viewModel.save() },
+                    enabled = state.canSave,
+                    loading = state.isLoading,
+                    loadingText = "Transfiriendo…",
+                    modifier = Modifier.padding(vertical = Spacing.sm),
+                )
             }
         }
     }
@@ -186,48 +189,49 @@ private fun AccountPickerCard(
     onSelected: (Long) -> Unit,
     numberFormat: NumberFormat,
 ) {
-    Card {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(12.dp))
-            accounts.forEach { account ->
-                val selected = account.id == selectedId
-                val icon = if (account.type == AccountType.BANK) Icons.Default.AccountBalance else Icons.Default.Payments
-                Card(
-                    onClick = { onSelected(account.id) },
+    SectionCard {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(Spacing.md))
+        accounts.forEach { account ->
+            val selected = account.id == selectedId
+            val icon = if (account.type == AccountType.BANK) Icons.Default.AccountBalance else Icons.Default.Payments
+            Surface(
+                onClick = { onSelected(account.id) },
+                shape = MaterialTheme.shapes.medium,
+                color = if (selected) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceContainerHigh,
+                border = if (selected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Spacing.xs),
+            ) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    colors = if (selected) {
-                        CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                    } else {
-                        CardDefaults.cardColors()
-                    },
-                    border = if (selected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                        .padding(Spacing.lg),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                account.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                            )
-                            Text(
-                                "Saldo: ${numberFormat.format(account.balanceCents / 100.0)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        if (selected) {
-                            Icon(Icons.Default.Check, contentDescription = "Seleccionada", tint = MaterialTheme.colorScheme.primary)
-                        }
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = if (selected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            account.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        )
+                        Text(
+                            "Saldo: ${numberFormat.format(account.balanceCents / 100.0)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (selected) {
+                        Icon(Icons.Default.Check, contentDescription = "Seleccionada", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -243,11 +247,10 @@ private fun TransferPreviewCard(
     numberFormat: NumberFormat,
 ) {
     if (origin == null || dest == null) return
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Después de la transferencia", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+    SectionCard(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh) {
+        Text("Después de la transferencia", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(Spacing.sm))
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             BalanceRow(
                 label = origin.name,
                 before = origin.balanceCents,
@@ -269,24 +272,23 @@ private fun BalanceRow(label: String, before: Long, after: Long, numberFormat: N
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         Text(
             numberFormat.format(before / 100.0),
-            style = MaterialTheme.typography.bodySmall,
+            style = FinanceTypography.moneySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Icon(
             Icons.AutoMirrored.Filled.ArrowRightAlt,
             contentDescription = null,
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(Sizes.iconSm),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
             numberFormat.format(after / 100.0),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
+            style = FinanceTypography.moneySmall.copy(fontWeight = FontWeight.SemiBold),
             color = if (after >= 0) FinanceTheme.colors.profit else MaterialTheme.colorScheme.error,
         )
     }

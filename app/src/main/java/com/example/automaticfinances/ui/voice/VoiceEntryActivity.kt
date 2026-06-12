@@ -15,6 +15,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
 import com.example.automaticfinances.ui.theme.FinanceTheme
+import com.example.automaticfinances.ui.theme.ThemeViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 
@@ -28,6 +29,7 @@ import kotlinx.coroutines.delay
 class VoiceEntryActivity : ComponentActivity() {
 
     private val viewModel: VoiceEntryViewModel by viewModels()
+    private val themeViewModel: ThemeViewModel by viewModels()
 
     private val micPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -39,7 +41,11 @@ class VoiceEntryActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            FinanceTheme {
+            FinanceTheme(
+                darkTheme = themeViewModel.isDarkTheme(),
+                useDynamicColor = themeViewModel.getUseDynamicColor(),
+                accentColor = themeViewModel.getAccentColor(),
+            ) {
                 val state by viewModel.state.collectAsState()
                 val categories by viewModel.categories.collectAsState()
 

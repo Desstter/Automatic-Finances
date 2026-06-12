@@ -1,6 +1,6 @@
 # AutomaticFinances
 
-An Android app that reads your bank notifications and builds a fully categorized expense ledger — automatically, in real time, with no manual input.
+clagiAn Android app that reads your bank notifications and builds a fully categorized expense ledger — automatically, in real time, with no manual input.
 
 Deployed at [automatic-finances.moonhellal.com](https://automatic-finances.moonhellal.com) via GitHub Actions CI/CD.
 

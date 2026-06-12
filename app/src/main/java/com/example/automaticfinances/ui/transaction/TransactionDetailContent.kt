@@ -1,16 +1,12 @@
 package com.example.automaticfinances.ui.transaction
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
@@ -27,8 +23,13 @@ import androidx.compose.ui.unit.dp
 import com.example.automaticfinances.data.db.Account
 import com.example.automaticfinances.data.db.AccountType
 import com.example.automaticfinances.data.db.Category
+import com.example.automaticfinances.ui.components.common.CategoryChipsGrid
+import com.example.automaticfinances.ui.components.common.SectionCard
+import com.example.automaticfinances.ui.theme.FinanceShapes
 import com.example.automaticfinances.ui.theme.FinanceTheme
 import com.example.automaticfinances.ui.theme.FinanceTypography
+import com.example.automaticfinances.ui.theme.Sizes
+import com.example.automaticfinances.ui.theme.Spacing
 import java.text.NumberFormat
 
 // Stateless body of the transaction-detail screen. Everything here receives its data via [state]
@@ -72,7 +73,7 @@ internal fun TransactionDetailContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surface)
-                .padding(24.dp),
+                .padding(Spacing.xxl),
             horizontalAlignment = Alignment.Start
         ) {
             Text(
@@ -80,13 +81,27 @@ internal fun TransactionDetailContent(
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            // Sign + color follow the movement type, matching the convention used in every
+            // list: green +ingreso, red −gasto, neutral transfer (a transfer moves money,
+            // it doesn't gain or lose it).
             Text(
-                text = numberFormat.format(transaction.amountCents / 100.0),
+                text = buildString {
+                    when {
+                        state.isTransfer -> {}
+                        transaction.isIncome -> append("+ ")
+                        else -> append("− ")
+                    }
+                    append(numberFormat.format(transaction.amountCents / 100.0))
+                },
                 style = FinanceTypography.moneyLarge,
-                color = FinanceTheme.colors.loss
+                color = when {
+                    state.isTransfer -> MaterialTheme.colorScheme.secondary
+                    transaction.isIncome -> FinanceTheme.colors.profit
+                    else -> FinanceTheme.colors.loss
+                }
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(Spacing.xs))
             Text(
                 text = "${transaction.date} · ${transaction.time}",
                 style = FinanceTypography.dateTime,
@@ -98,8 +113,8 @@ internal fun TransactionDetailContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(Spacing.screen),
+            verticalArrangement = Arrangement.spacedBy(Spacing.section)
         ) {
             TransactionDetailCards(
                 state = state,
@@ -189,75 +204,47 @@ private fun TransactionDetailCards(
 ) {
     val transaction = state.transaction!!
 
-    // Card con información básica
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+    // Card con información básica. El monto y la fecha ya viven en el hero de arriba,
+    // así que aquí solo va lo que el hero no muestra: tipo de movimiento y tarjeta/cuenta.
+    SectionCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                shape = FinanceShapes.statusIndicator,
+                color = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Text(
-                    text = numberFormat.format(transaction.amountCents / 100.0),
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold
+                    text = transaction.type,
+                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                ) {
-                    Text(
-                        text = transaction.type,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
             }
+        }
 
+        if (transaction.srcLast4 != null || transaction.dstLast4 != null) {
+            Spacer(modifier = Modifier.height(Spacing.md))
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    Icons.Default.CalendarToday,
+                    Icons.Default.CreditCard,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(Sizes.iconSm),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(Spacing.sm))
                 Text(
-                    text = "${transaction.date} a las ${transaction.time}",
+                    text = when {
+                        transaction.srcLast4 != null && transaction.dstLast4 != null ->
+                            "De *${transaction.srcLast4} a *${transaction.dstLast4}"
+                        transaction.srcLast4 != null -> "Tarjeta *${transaction.srcLast4}"
+                        else -> "A cuenta *${transaction.dstLast4}"
+                    },
                     style = MaterialTheme.typography.bodyLarge
                 )
-            }
-
-            if (transaction.srcLast4 != null || transaction.dstLast4 != null) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.CreditCard,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = when {
-                            transaction.srcLast4 != null && transaction.dstLast4 != null ->
-                                "De *${transaction.srcLast4} a *${transaction.dstLast4}"
-                            transaction.srcLast4 != null -> "Tarjeta *${transaction.srcLast4}"
-                            else -> "A cuenta *${transaction.dstLast4}"
-                        },
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                }
             }
         }
     }
@@ -274,117 +261,101 @@ private fun TransactionDetailCards(
 
     // Descripción. Para transferencias se deriva automáticamente de las cuentas, así que se muestra
     // de solo lectura para no contradecir el origen/destino seleccionados.
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text(
-                text = "Descripción",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+    SectionCard {
+        Text(
+            text = "Descripción",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
 
-            if (state.isEditMode && !state.isTransfer) {
-                OutlinedTextField(
-                    value = state.description,
-                    onValueChange = onDescriptionChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    singleLine = true
-                )
-            } else {
-                Text(
-                    text = state.description,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
+        if (state.isEditMode && !state.isTransfer) {
+            OutlinedTextField(
+                value = state.description,
+                onValueChange = onDescriptionChange,
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                shape = FinanceShapes.textField,
+                singleLine = true
+            )
+        } else {
+            Text(
+                text = state.description,
+                style = MaterialTheme.typography.bodyLarge
+            )
         }
     }
 
     // Categoría (editable) — una transferencia no tiene categoría (no es ingreso ni gasto).
     if (!state.isTransfer) {
-        Card(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = "Categoría",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+        SectionCard {
+            Text(
+                text = "Categoría",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(Spacing.sm))
 
-                if (state.isEditMode) {
-                    CategorySelector(
-                        categories = state.categories,
-                        selectedCategoryId = state.selectedCategoryId,
-                        onCategorySelected = onCategorySelected
+            if (state.isEditMode) {
+                CategorySelector(
+                    categories = state.categories,
+                    selectedCategoryId = state.selectedCategoryId,
+                    onCategorySelected = onCategorySelected
+                )
+            } else {
+                val category = state.selectedCategoryId?.let { categoryFor(it) }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = category?.icon ?: "•",
+                        style = MaterialTheme.typography.bodyLarge
                     )
-                } else {
-                    val category = state.selectedCategoryId?.let { categoryFor(it) }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = category?.icon ?: "•",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = category?.name ?: "Sin categoría",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = category?.color?.let {
-                                Color(android.graphics.Color.parseColor(it))
-                            } ?: MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(Spacing.sm))
+                    Text(
+                        text = category?.name ?: "Sin categoría",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = category?.color?.let {
+                            Color(android.graphics.Color.parseColor(it))
+                        } ?: MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         }
     }
 
     // Notas (editable)
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text(
-                text = "Notas",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+    SectionCard {
+        Text(
+            text = "Notas",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
 
-            if (state.isEditMode) {
-                OutlinedTextField(
-                    value = state.notes,
-                    onValueChange = onNotesChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Agregar notas...") },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    minLines = 3,
-                    maxLines = 5
+        if (state.isEditMode) {
+            OutlinedTextField(
+                value = state.notes,
+                onValueChange = onNotesChange,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Agregar notas...") },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                shape = FinanceShapes.textField,
+                minLines = 3,
+                maxLines = 5
+            )
+        } else {
+            if (state.notes.isNotBlank()) {
+                Text(
+                    text = state.notes,
+                    style = MaterialTheme.typography.bodyLarge
                 )
             } else {
-                if (state.notes.isNotBlank()) {
-                    Text(
-                        text = state.notes,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                } else {
-                    Text(
-                        text = "Sin notas",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                }
+                Text(
+                    text = "Sin notas",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -401,56 +372,54 @@ private fun AccountCard(
     val accounts = state.accounts
     fun nameOf(id: Long?): String = accounts.find { it.id == id }?.name ?: "—"
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = if (state.isTransfer) "Cuentas" else "Cuenta",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+    SectionCard {
+        Text(
+            text = if (state.isTransfer) "Cuentas" else "Cuenta",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
 
-            if (state.isTransfer) {
-                if (state.isEditMode) {
-                    Text("Desde", style = MaterialTheme.typography.labelLarge)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    AccountChipsRow(accounts, state.originAccountId, onOriginSelected)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("Hacia", style = MaterialTheme.typography.labelLarge)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    AccountChipsRow(accounts, state.destAccountId, onDestSelected)
-                } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = nameOf(state.originAccountId), style = MaterialTheme.typography.bodyLarge)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowRightAlt,
-                            contentDescription = "hacia",
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = nameOf(state.destAccountId), style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
+        if (state.isTransfer) {
+            if (state.isEditMode) {
+                Text("Desde", style = MaterialTheme.typography.labelLarge)
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                AccountChipsRow(accounts, state.originAccountId, onOriginSelected)
+                Spacer(modifier = Modifier.height(Spacing.md))
+                Text("Hacia", style = MaterialTheme.typography.labelLarge)
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                AccountChipsRow(accounts, state.destAccountId, onDestSelected)
             } else {
-                if (state.isEditMode) {
-                    AccountChipsRow(accounts, state.selectedAccountId, onAccountSelected)
-                } else {
-                    val account = accounts.find { it.id == state.selectedAccountId }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = if (account?.type == AccountType.BANK) Icons.Default.AccountBalance else Icons.Default.Payments,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = account?.name ?: "Sin cuenta",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = nameOf(state.originAccountId), style = MaterialTheme.typography.bodyLarge)
+                    Spacer(modifier = Modifier.width(Spacing.sm))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowRightAlt,
+                        contentDescription = "hacia",
+                        modifier = Modifier.size(Sizes.iconSm),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.sm))
+                    Text(text = nameOf(state.destAccountId), style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+        } else {
+            if (state.isEditMode) {
+                AccountChipsRow(accounts, state.selectedAccountId, onAccountSelected)
+            } else {
+                val account = accounts.find { it.id == state.selectedAccountId }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (account?.type == AccountType.BANK) Icons.Default.AccountBalance else Icons.Default.Payments,
+                        contentDescription = null,
+                        modifier = Modifier.size(Sizes.iconSm),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.sm))
+                    Text(
+                        text = account?.name ?: "Sin cuenta",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
                 }
             }
         }
@@ -482,6 +451,7 @@ private fun AccountChipsRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CategorySelector(
     categories: List<Category>,
@@ -490,70 +460,26 @@ private fun CategorySelector(
 ) {
     Column {
         // Opción "Sin categoría"
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onCategorySelected(null) },
-            colors = CardDefaults.cardColors(
-                containerColor = if (selectedCategoryId == null) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surface
-                }
-            )
-        ) {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        FilterChip(
+            selected = selectedCategoryId == null,
+            onClick = { onCategorySelected(null) },
+            label = { Text("Sin categoría") },
+            leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "Sin categoría",
-                    style = MaterialTheme.typography.bodyMedium
+                    modifier = Modifier.size(Sizes.iconSm)
                 )
             }
-        }
+        )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(Spacing.sm))
 
-        // Categorías en grid
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(categories) { category ->
-                Card(
-                    modifier = Modifier.clickable { onCategorySelected(category.id) },
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (selectedCategoryId == category.id) {
-                            Color(android.graphics.Color.parseColor(category.color)).copy(alpha = 0.3f)
-                        } else {
-                            MaterialTheme.colorScheme.surface
-                        }
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = category.icon,
-                            style = MaterialTheme.typography.headlineSmall
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = category.name,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(android.graphics.Color.parseColor(category.color))
-                        )
-                    }
-                }
-            }
-        }
+        // Mismo grid de chips que usan los formularios de gasto/ingreso.
+        CategoryChipsGrid(
+            categories = categories,
+            selectedCategoryId = selectedCategoryId,
+            onCategorySelected = { onCategorySelected(it) }
+        )
     }
 }

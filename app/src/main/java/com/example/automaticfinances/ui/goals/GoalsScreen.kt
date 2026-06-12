@@ -43,12 +43,20 @@ fun GoalsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
     var editingGoal by remember { mutableStateOf<FinancialGoal?>(null) }
-    
+    // Deleting a goal is destructive and has no undo, so it always asks first.
+    var goalPendingDelete by remember { mutableStateOf<GoalWithCategory?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
     LaunchedEffect(Unit) {
         viewModel.loadGoals()
     }
-    
+
+    LaunchedEffect(state.error) {
+        state.error?.let { snackbarHostState.showSnackbar(it) }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -104,7 +112,7 @@ fun GoalsScreen(
                         goalWithCategory = goalWithCategory,
                         onEdit = { editingGoal = goalWithCategory.toFinancialGoal() },
                         onComplete = { viewModel.markGoalAsCompleted(goalWithCategory.id) },
-                        onDelete = { viewModel.deleteGoal(goalWithCategory.id) },
+                        onDelete = { goalPendingDelete = goalWithCategory },
                         onUpdateProgress = { goalId, newAmount ->
                             viewModel.updateGoalProgress(goalId, newAmount)
                         }
@@ -150,6 +158,29 @@ fun GoalsScreen(
         )
     }
     
+    // Delete confirmation
+    goalPendingDelete?.let { goal ->
+        AlertDialog(
+            onDismissRequest = { goalPendingDelete = null },
+            title = { Text("Eliminar meta") },
+            text = { Text("¿Eliminar la meta \"${goal.name}\"? Esta acción no se puede deshacer.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteGoal(goal.id)
+                        goalPendingDelete = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text("Eliminar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { goalPendingDelete = null }) { Text("Cancelar") }
+            }
+        )
+    }
+
     // Loading state
     if (state.isLoading) {
         Box(
@@ -157,13 +188,6 @@ fun GoalsScreen(
             contentAlignment = Alignment.Center
         ) {
             CircularProgressIndicator()
-        }
-    }
-    
-    // Error handling
-    state.error?.let { error ->
-        LaunchedEffect(error) {
-            // Show snackbar or handle error
         }
     }
 }

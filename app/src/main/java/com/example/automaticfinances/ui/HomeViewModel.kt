@@ -10,8 +10,11 @@ import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.TransactionWithCategory
 import com.example.automaticfinances.data.repo.UserCategoryPreferenceRepository
 import com.example.automaticfinances.data.repo.AccountRepository
+import com.example.automaticfinances.data.repo.AnalyticsRepository
 import com.example.automaticfinances.data.repo.OpeningBalanceRepository
+import com.example.automaticfinances.data.preferences.ThemeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.YearMonth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,7 +51,19 @@ data class HomeState(
     val overallAccuracy: Float = 0f,
     val categoryAccuracyStats: List<CategoryAccuracy> = emptyList(),
     // Low-confidence captures awaiting review (PROD-1). Drives the Home banner.
-    val pendingReviewCount: Int = 0
+    val pendingReviewCount: Int = 0,
+    // Personalization: user's name (drives the greeting) + proactive month-pace insight.
+    val userName: String = "",
+    val proactiveInsight: ProactiveInsight? = null
+)
+
+/**
+ * A short, personal nudge shown on the dashboard about how this month's spending is pacing
+ * versus the previous month. [isPositive] tints it (profit green vs warning amber).
+ */
+data class ProactiveInsight(
+    val message: String,
+    val isPositive: Boolean
 )
 
 @HiltViewModel
@@ -58,7 +73,9 @@ class HomeViewModel @Inject constructor(
     private val preferenceRepository: UserCategoryPreferenceRepository,
     private val accountRepository: AccountRepository,
     private val openingBalanceRepository: OpeningBalanceRepository,
-    private val pendingTransactionRepository: PendingTransactionRepository
+    private val pendingTransactionRepository: PendingTransactionRepository,
+    private val analyticsRepository: AnalyticsRepository,
+    private val themeRepository: ThemeRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -68,8 +85,57 @@ class HomeViewModel @Inject constructor(
         initializeAccounts()
         observeData()
         observePendingReview()
+        observeUserName()
         loadIntelligenceData()
     }
+
+    /** Keeps the greeting name in sync with whatever the user set in Ajustes. */
+    private fun observeUserName() {
+        viewModelScope.launch {
+            themeRepository.userName.collect { name ->
+                _state.value = _state.value.copy(userName = name)
+            }
+        }
+    }
+
+    /**
+     * Builds the proactive month-pace insight from the spending projection. Returns null when
+     * there isn't enough signal yet (no projected spend) so the card simply doesn't show.
+     */
+    private suspend fun buildProactiveInsight(): ProactiveInsight? {
+        return try {
+            val prediction = analyticsRepository.getSpendingPrediction(YearMonth.now())
+            if (prediction.projectedTotalCents <= 0L) return null
+            val projected = formatCents(prediction.projectedTotalCents)
+            val pct = prediction.changeFromPreviousMonth
+            val absPct = kotlin.math.abs(pct).toInt()
+            when {
+                // No baseline yet (first month of use): keep it simple and neutral.
+                pct == 0f -> ProactiveInsight(
+                    message = "Vas en $projected proyectado para cerrar el mes.",
+                    isPositive = true
+                )
+                pct <= -10f -> ProactiveInsight(
+                    message = "Buen ritmo: a este paso cerrarás en $projected, $absPct% menos que el mes pasado.",
+                    isPositive = true
+                )
+                pct >= 10f -> ProactiveInsight(
+                    message = "Ojo al gasto: a este ritmo cerrarás en $projected, $absPct% más que el mes pasado.",
+                    isPositive = false
+                )
+                else -> ProactiveInsight(
+                    message = "Vas en $projected proyectado este mes, en línea con el anterior.",
+                    isPositive = true
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("HomeViewModel", "Error building proactive insight", e)
+            null
+        }
+    }
+
+    private fun formatCents(cents: Long): String =
+        java.text.NumberFormat.getCurrencyInstance(java.util.Locale("es", "CO")).format(cents / 100.0)
 
     /** Live count of captures waiting in the "Por revisar" queue, for the Home banner. */
     private fun observePendingReview() {
@@ -119,6 +185,7 @@ class HomeViewModel @Inject constructor(
                     val monthlyExpenses = monthlyTransactions.filter { !it.isIncome }.sumOf { it.amountCents }
 
                     val balanceSummary = openingBalanceRepository.getOpeningBalanceSummary()
+                    val insight = buildProactiveInsight()
 
                     _state.value = _state.value.copy(
                         categories = categories,
@@ -128,6 +195,7 @@ class HomeViewModel @Inject constructor(
                         bankBalanceCents = balanceSummary.bankCurrentBalanceCents,
                         cashBalanceCents = balanceSummary.cashCurrentBalanceCents,
                         totalBalanceCents = balanceSummary.totalCurrentBalanceCents,
+                        proactiveInsight = insight,
                         isLoading = false,
                         isRefreshing = false
                     )
