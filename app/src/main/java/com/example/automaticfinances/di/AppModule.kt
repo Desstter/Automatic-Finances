@@ -30,6 +30,7 @@ import com.example.automaticfinances.data.db.RoomTransactionRunner
 import com.example.automaticfinances.data.db.TransactionDao
 import com.example.automaticfinances.data.db.UnparsedSmsDao
 import com.example.automaticfinances.data.db.UserCategoryPreferenceDao
+import com.example.automaticfinances.data.preferences.AiPreferences
 import com.example.automaticfinances.data.preferences.InsightsPreferences
 import com.example.automaticfinances.data.preferences.ThemeRepository
 import com.example.automaticfinances.data.repo.AccountRepository
@@ -180,6 +181,11 @@ object AppModule {
     @Singleton
     fun provideInsightsPreferences(@ApplicationContext context: Context): InsightsPreferences =
         InsightsPreferences(context)
+
+    @Provides
+    @Singleton
+    fun provideAiPreferences(@ApplicationContext context: Context): AiPreferences =
+        AiPreferences(context)
 
     @Provides
     @Singleton

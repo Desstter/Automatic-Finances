@@ -84,12 +84,4 @@ class AccountRepository @Inject constructor(
             false
         }
     }
-    
-    // ========== MAINTENANCE OPERATIONS ==========
-
-    suspend fun deactivateAccount(accountId: Long) = accountDao.deactivateAccount(accountId)
-
-    suspend fun activateAccount(accountId: Long) = accountDao.activateAccount(accountId)
-
-    suspend fun getInactiveAccounts(): List<Account> = accountDao.getInactiveAccounts()
 }

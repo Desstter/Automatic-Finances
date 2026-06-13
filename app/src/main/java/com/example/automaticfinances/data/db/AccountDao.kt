@@ -122,17 +122,6 @@ interface AccountDao {
         WHERE source != 'notif:sms'
     """)
     suspend fun calculateCashBalanceFromTransactions(): Long
-    
-    // ========== MAINTENANCE OPERATIONS ==========
-    
-    @Query("UPDATE accounts SET isActive = 0 WHERE id = :accountId")
-    suspend fun deactivateAccount(accountId: Long)
-    
-    @Query("UPDATE accounts SET isActive = 1 WHERE id = :accountId")
-    suspend fun activateAccount(accountId: Long)
-    
-    @Query("SELECT * FROM accounts WHERE isActive = 0")
-    suspend fun getInactiveAccounts(): List<Account>
 }
 
 // Data classes for complex queries

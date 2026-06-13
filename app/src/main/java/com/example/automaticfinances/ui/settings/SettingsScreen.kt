@@ -31,6 +31,9 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
@@ -41,6 +44,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Switch
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
@@ -67,6 +71,10 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -114,6 +122,9 @@ fun SettingsScreen(
     val backupState by backupViewModel.state.collectAsStateWithLifecycle()
     val reviewCount by reviewViewModel.count.collectAsStateWithLifecycle()
     val digestEnabled by insightsViewModel.digestEnabled.collectAsStateWithLifecycle()
+    val aiAdvisorEnabled by insightsViewModel.aiAdvisorEnabled.collectAsStateWithLifecycle()
+    val aiApiKey by insightsViewModel.aiApiKey.collectAsStateWithLifecycle()
+    val aiModel by insightsViewModel.aiModel.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var showRestoreConfirm by remember { mutableStateOf(false) }
@@ -321,6 +332,17 @@ fun SettingsScreen(
             }
 
             item {
+                AiSettingsSection(
+                    enabled = aiAdvisorEnabled,
+                    apiKey = aiApiKey,
+                    model = aiModel,
+                    onEnabledChange = insightsViewModel::setAiAdvisorEnabled,
+                    onApiKeyChange = insightsViewModel::setAiApiKey,
+                    onModelChange = insightsViewModel::setAiModel,
+                )
+            }
+
+            item {
                 SectionHeader(title = "Copia de seguridad")
                 SectionCard(contentPadding = Spacing.none) {
                     SettingRow(
@@ -387,6 +409,73 @@ fun SettingsScreen(
     }
 }
 
+/**
+ * AI advisor settings: enable toggle + the DeepSeek key/model fields. The model id drives both the
+ * advisor and voice parsing; if no key is set the app still works via the Gemini build-time fallback.
+ */
+@Composable
+private fun AiSettingsSection(
+    enabled: Boolean,
+    apiKey: String,
+    model: String,
+    onEnabledChange: (Boolean) -> Unit,
+    onApiKeyChange: (String) -> Unit,
+    onModelChange: (String) -> Unit,
+) {
+    SectionHeader(title = "Inteligencia artificial")
+    SectionCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SettingIconBadge(Icons.Default.Psychology)
+            Spacer(Modifier.size(Spacing.md))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Asesor financiero IA",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    "Análisis y consejos con DeepSeek en tus reportes",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.size(Spacing.sm))
+            Switch(
+                checked = enabled,
+                onCheckedChange = onEnabledChange,
+            )
+        }
+        Spacer(Modifier.size(Spacing.lg))
+        Text(
+            "Clave de API de DeepSeek",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+        )
+        Spacer(Modifier.size(Spacing.sm))
+        ApiKeyField(
+            storedKey = apiKey,
+            onKeyChange = onApiKeyChange,
+        )
+        Spacer(Modifier.size(Spacing.lg))
+        Text(
+            "Modelo",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+        )
+        Spacer(Modifier.size(Spacing.sm))
+        ModelField(
+            storedModel = model,
+            onModelChange = onModelChange,
+        )
+        Spacer(Modifier.size(Spacing.sm))
+        Text(
+            "Tu clave se guarda solo en este dispositivo. La voz y el asesor usan este modelo.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 private fun NameField(
     storedName: String,
@@ -411,6 +500,68 @@ private fun NameField(
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
         placeholder = { Text("¿Cómo te saludamos?") },
+    )
+}
+
+@Composable
+private fun ApiKeyField(
+    storedKey: String,
+    onKeyChange: (String) -> Unit,
+) {
+    // Same seed-once pattern as NameField so per-keystroke persistence never fights the user.
+    var initialized by remember { mutableStateOf(false) }
+    var text by remember { mutableStateOf("") }
+    var revealed by remember { mutableStateOf(false) }
+    LaunchedEffect(storedKey) {
+        if (!initialized) {
+            text = storedKey
+            initialized = true
+        }
+    }
+    OutlinedTextField(
+        value = text,
+        onValueChange = {
+            text = it
+            onKeyChange(it)
+        },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        placeholder = { Text("sk-...") },
+        visualTransformation = if (revealed) VisualTransformation.None else PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        trailingIcon = {
+            IconButton(onClick = { revealed = !revealed }) {
+                Icon(
+                    imageVector = if (revealed) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                    contentDescription = if (revealed) "Ocultar clave" else "Mostrar clave",
+                )
+            }
+        },
+    )
+}
+
+@Composable
+private fun ModelField(
+    storedModel: String,
+    onModelChange: (String) -> Unit,
+) {
+    var initialized by remember { mutableStateOf(false) }
+    var text by remember { mutableStateOf("") }
+    LaunchedEffect(storedModel) {
+        if (!initialized) {
+            text = storedModel
+            initialized = true
+        }
+    }
+    OutlinedTextField(
+        value = text,
+        onValueChange = {
+            text = it
+            onModelChange(it)
+        },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        placeholder = { Text("deepseek-chat") },
     )
 }
 

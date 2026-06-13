@@ -24,6 +24,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.automaticfinances.data.models.AdvisorUiState
 import com.example.automaticfinances.ui.components.*
 import com.example.automaticfinances.ui.components.charts.*
 import com.example.automaticfinances.ui.components.common.PremiumEmptyState
@@ -44,6 +45,7 @@ fun FinancialDashboardScreen(
     onNavigateToGoals: () -> Unit = {},
     onNavigateToReports: () -> Unit = {},
     onNavigateToBudgetDetail: (budgetId: Long) -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -118,6 +120,18 @@ fun FinancialDashboardScreen(
                 )
             }
             
+            // AI advisor (DeepSeek → Gemini fallback) — narrative analysis on top of the raw KPIs.
+            if (state.aiAdvisor !is AdvisorUiState.Hidden) {
+                item {
+                    AiAdvisorCard(
+                        state = state.aiAdvisor,
+                        onRefresh = { viewModel.loadAiInsights(force = true) },
+                        onRetry = { viewModel.loadAiInsights(force = true) },
+                        onOpenSettings = onNavigateToSettings,
+                    )
+                }
+            }
+
             // Analysis Mode Tabs
             item {
                 AnalysisModeTabs(
@@ -133,8 +147,8 @@ fun FinancialDashboardScreen(
                         FinancialChartsSection(
                             chartData = state.chartData,
                             onChartTypeChanged = viewModel::selectChartType,
-                            onCategoryClick = viewModel::onCategoryClicked,
-                            onBudgetClick = viewModel::onBudgetClicked,
+                            onCategoryClick = {},
+                            onBudgetClick = {},
                             initialExpanded = state.isChartsExpanded
                         )
                     }
@@ -143,7 +157,7 @@ fun FinancialDashboardScreen(
                     item {
                         IncomeChartsSection(
                             incomeChartData = state.incomeChartData,
-                            onCategoryClick = viewModel::onCategoryClicked
+                            onCategoryClick = {}
                         )
                     }
                 }

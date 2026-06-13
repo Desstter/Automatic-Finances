@@ -40,6 +40,7 @@ import com.example.automaticfinances.ui.openingbalance.OpeningBalanceManagementS
 import com.example.automaticfinances.ui.settings.SettingsScreen
 import com.example.automaticfinances.ui.unparsed.UnparsedSmsScreen
 import com.example.automaticfinances.ui.review.ReviewScreen
+import com.example.automaticfinances.ui.suggestions.CategorySuggestionScreen
 import com.example.automaticfinances.ui.components.BottomNavigationWrapper
 import com.example.automaticfinances.utils.UnparsedTransactionHints
 
@@ -72,6 +73,7 @@ object Routes {
     const val SETTINGS = "settings"
     const val UNPARSED_SMS = "unparsed_sms"
     const val REVIEW_QUEUE = "review_queue"
+    const val CATEGORY_SUGGESTIONS = "category_suggestions"
 
     // Optional prefill args, shared by the manual gasto/ingreso flows so a message rescued from
     // "Mensajes no reconocidos" can open the form half-filled. All optional (default ""), so plain
@@ -181,10 +183,13 @@ fun AppNavigation(
                 },
                 onReviewClick = {
                     navController.navigate(Routes.REVIEW_QUEUE)
+                },
+                onViewSuggestionsClick = {
+                    navController.navigate(Routes.CATEGORY_SUGGESTIONS)
                 }
             )
         }
-        
+
         composable(Routes.TRANSACTION_DETAIL) { backStackEntry ->
             val transactionId = backStackEntry.arguments?.getString("transactionId") ?: ""
             TransactionDetailScreen(
@@ -248,10 +253,17 @@ fun AppNavigation(
                 },
                 onNavigateToBudgetDetail = { budgetId ->
                     navController.navigate(Routes.budgetDetail(budgetId.toString()))
+                },
+                onNavigateToSettings = {
+                    navController.navigate(Routes.SETTINGS) {
+                        popUpTo(Routes.HOME) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
             )
         }
-        
+
         composable(Routes.BUDGET_MANAGEMENT) {
             BudgetManagementScreen(
                 onNavigateBack = {
@@ -390,6 +402,14 @@ fun AppNavigation(
 
         composable(Routes.REVIEW_QUEUE) {
             ReviewScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(Routes.CATEGORY_SUGGESTIONS) {
+            CategorySuggestionScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 }

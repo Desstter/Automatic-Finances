@@ -11,11 +11,20 @@ plugins {
 // Gemini API key resolution order: CI env var -> Gradle property (local.properties) -> empty.
 // local.properties is gitignored, so the key never lands in VCS. A release build with an empty
 // key still compiles; the voice feature degrades gracefully and surfaces a clear error.
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
 val geminiApiKey: String = System.getenv("GEMINI_API_KEY")
-    ?: Properties().apply {
-        val f = rootProject.file("local.properties")
-        if (f.exists()) f.inputStream().use { load(it) }
-    }.getProperty("GEMINI_API_KEY")
+    ?: localProps.getProperty("GEMINI_API_KEY")
+    ?: ""
+
+// DeepSeek is the primary LLM backend. Same resolution order: CI env -> local.properties -> empty.
+// The key is normally supplied by the user at runtime (Settings); this build-time value is only a
+// convenience fallback for development/CI and never lands in VCS (local.properties is gitignored).
+val deepSeekApiKey: String = System.getenv("DEEPSEEK_API_KEY")
+    ?: localProps.getProperty("DEEPSEEK_API_KEY")
     ?: ""
 
 // --- CI/CD: values injected by GitHub Actions environment ---
@@ -39,8 +48,10 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Exposed to runtime via BuildConfig.GEMINI_API_KEY (see GeminiService).
+        // Exposed to runtime via BuildConfig (see GeminiService / DeepSeekService). The user can
+        // override the DeepSeek key from in-app Settings; these are build-time fallbacks only.
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        buildConfigField("String", "DEEPSEEK_API_KEY", "\"$deepSeekApiKey\"")
     }
 
     signingConfigs {

@@ -133,7 +133,6 @@ class CategorySuggestionViewModel @Inject constructor(
                     // Aprender de la corrección
                     preferenceRepository.markSuggestionAsWrong(
                         suggestion.merchantKey,
-                        suggestion.categoryId,
                         correctCategoryId
                     )
                 }

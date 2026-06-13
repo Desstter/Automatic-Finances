@@ -20,25 +20,12 @@ import javax.inject.Named
 import javax.inject.Singleton
 
 /**
- * Reason a Gemini call failed, so the UI can react appropriately (e.g. fall back to
- * manual entry on quota exhaustion vs. asking the user to retry on a transient network error).
+ * Backwards-compatible aliases. The canonical, provider-neutral types now live in
+ * [LlmModels]; Gemini was just the first backend. New code should prefer [LlmFailure] /
+ * [LlmException] directly.
  */
-enum class GeminiFailure {
-    MISSING_KEY,   // No API key configured in the build
-    NETWORK,       // No connectivity / timeout / I/O
-    AUTH,          // 401/403 — invalid or unauthorized key
-    QUOTA,         // 429 — free-tier daily/minute limit hit
-    BLOCKED,       // Safety filter blocked the prompt or response
-    EMPTY,         // 2xx but no usable candidate text
-    SERVER,        // 5xx
-    UNKNOWN,
-}
-
-class GeminiException(
-    val failure: GeminiFailure,
-    message: String,
-    cause: Throwable? = null,
-) : Exception(message, cause)
+typealias GeminiFailure = LlmFailure
+typealias GeminiException = LlmException
 
 /**
  * Thin, transport-only client for the Gemini `generateContent` endpoint. Tries each model in
@@ -96,13 +83,19 @@ class GeminiService @Inject constructor(
             ),
         )
 
+        val payload = try {
+            json.encodeToString(GeminiRequest.serializer(), requestBody)
+        } catch (e: Exception) {
+            throw GeminiException(GeminiFailure.UNKNOWN, "Could not serialize Gemini request", e)
+        }
+
         // The API key travels in the `x-goog-api-key` header rather than as a `?key=` query
         // parameter, so it does not leak into server/proxy access logs or request history.
         val url = "$BASE_URL/models/$model:generateContent"
         val httpRequest = Request.Builder()
             .url(url)
             .header("x-goog-api-key", apiKey)
-            .post(json.encodeToString(GeminiRequest.serializer(), requestBody).toRequestBody(jsonMediaType))
+            .post(payload.toRequestBody(jsonMediaType))
             .build()
 
         val responseText = try {
@@ -163,7 +156,14 @@ class GeminiService @Inject constructor(
     companion object {
         private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
-        private val RETRYABLE_FAILURES = setOf(GeminiFailure.QUOTA, GeminiFailure.SERVER)
+        // Failures where it's worth trying the NEXT model in the list rather than giving up: quota,
+        // a 5xx blip, or an UNKNOWN (e.g. a 404 if a model id is ever retired/unavailable). AUTH and
+        // BLOCKED still abort immediately — a different model won't fix a bad key or a content block.
+        private val RETRYABLE_FAILURES = setOf(
+            GeminiFailure.QUOTA,
+            GeminiFailure.SERVER,
+            GeminiFailure.UNKNOWN,
+        )
 
         // Tried in order: cheapest/fastest first, most capable last.
         val FALLBACK_MODELS = listOf(

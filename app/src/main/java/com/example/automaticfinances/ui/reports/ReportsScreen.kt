@@ -1,5 +1,6 @@
 package com.example.automaticfinances.ui.reports
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -41,6 +43,7 @@ fun ReportsScreen(
     modifier: Modifier = Modifier
 ) {
     val viewModel: ReportsViewModel = hiltViewModel()
+    val context = LocalContext.current
 
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -73,7 +76,20 @@ fun ReportsScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = { /* TODO: Export functionality */ }) {
+                    TextButton(
+                        enabled = !state.isLoading && state.summary != null,
+                        onClick = {
+                            val csv = viewModel.buildCsvExport()
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/csv"
+                                putExtra(Intent.EXTRA_SUBJECT, "Reporte de finanzas")
+                                putExtra(Intent.EXTRA_TEXT, csv)
+                            }
+                            context.startActivity(
+                                Intent.createChooser(shareIntent, "Exportar reporte")
+                            )
+                        }
+                    ) {
                         Text("Exportar")
                     }
                 }

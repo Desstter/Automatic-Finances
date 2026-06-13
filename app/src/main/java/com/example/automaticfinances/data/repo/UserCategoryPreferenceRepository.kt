@@ -60,9 +60,9 @@ class UserCategoryPreferenceRepository @Inject constructor(
         dao.reinforcePreference(normalizeMerchantKey(merchantKey), categoryId)
     }
     
-    suspend fun markSuggestionAsWrong(merchantKey: String, wrongCategoryId: Long, correctCategoryId: Long) {
+    suspend fun markSuggestionAsWrong(merchantKey: String, correctCategoryId: Long) {
         val normalizedKey = normalizeMerchantKey(merchantKey)
-        // Penalizar la sugerencia incorrecta
+        // Penalizar todas las preferencias distintas a la correcta para este merchant
         dao.penalizeWrongPreferences(normalizedKey, correctCategoryId)
         // Aprender la opción correcta
         learnFromUserChoice(merchantKey, correctCategoryId)
@@ -92,11 +92,5 @@ class UserCategoryPreferenceRepository @Inject constructor(
             .replace(Regex("\\s+"), " ")  // Múltiples espacios → un espacio
             .replace(Regex("[^a-z0-9 ]"), "")  // Solo letras, números y espacios
             .take(50)  // Limitar longitud
-    }
-    
-    // Limpiar preferencias obsoletas (para mantenimiento)
-    suspend fun cleanupOldPreferences(olderThanDays: Int = 90) {
-        val cutoffTime = System.currentTimeMillis() - (olderThanDays * 24 * 60 * 60 * 1000L)
-        // Aquí podrías agregar lógica para soft-delete preferencias muy antiguas y poco frecuentes
     }
 }

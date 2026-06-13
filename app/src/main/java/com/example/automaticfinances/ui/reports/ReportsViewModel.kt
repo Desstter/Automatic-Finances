@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.automaticfinances.data.repo.TransactionRepository
 import com.example.automaticfinances.data.repo.CategoryRepository
 import com.example.automaticfinances.data.repo.AnalyticsRepository
+import com.example.automaticfinances.utils.centsToCopString
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -476,10 +477,70 @@ class ReportsViewModel @Inject constructor(
     fun clearError() {
         _state.update { it.copy(error = null) }
     }
-    
+
     fun refreshData() {
         loadReports()
     }
+
+    /**
+     * Serializes the currently loaded report into a CSV string for sharing/export. Operates purely on
+     * the in-memory state (no I/O), so it can be called straight from the UI thread when the user taps
+     * "Exportar". Amounts are emitted in whole pesos via [centsToCopString].
+     */
+    fun buildCsvExport(): String {
+        val s = _state.value
+        val sb = StringBuilder()
+
+        sb.appendLine("Reporte;${periodLabel(s.selectedPeriod)}")
+        sb.appendLine()
+
+        s.summary?.let { summary ->
+            sb.appendLine("Resumen")
+            sb.appendLine("Concepto;Valor")
+            sb.appendLine("Total gastado;${summary.totalSpentCents.centsToCopString()}")
+            sb.appendLine("Total ingresos;${summary.totalIncomeCents.centsToCopString()}")
+            sb.appendLine("Balance neto;${summary.netBalanceCents.centsToCopString()}")
+            sb.appendLine("Promedio diario;${summary.dailyAverageCents.centsToCopString()}")
+            sb.appendLine("Transacciones;${summary.transactionCount}")
+            sb.appendLine("Categorias usadas;${summary.categoriesUsed}")
+            sb.appendLine()
+        }
+
+        if (s.categoryBreakdown.isNotEmpty()) {
+            sb.appendLine("Gastos por categoria")
+            sb.appendLine("Categoria;Monto;Transacciones;Porcentaje")
+            s.categoryBreakdown.forEach { c ->
+                sb.appendLine(
+                    "${csv(c.categoryName)};${c.amountCents.centsToCopString()};" +
+                        "${c.transactionCount};${c.percentage.roundToInt()}%"
+                )
+            }
+            sb.appendLine()
+        }
+
+        if (s.topTransactions.isNotEmpty()) {
+            sb.appendLine("Mayores gastos")
+            sb.appendLine("Descripcion;Categoria;Monto")
+            s.topTransactions.forEach { t ->
+                sb.appendLine(
+                    "${csv(t.description)};${csv(t.categoryName)};${t.amountCents.centsToCopString()}"
+                )
+            }
+        }
+
+        return sb.toString()
+    }
+
+    private fun periodLabel(period: ReportPeriod): String = when (period) {
+        ReportPeriod.CURRENT_MONTH -> "Mes actual"
+        ReportPeriod.LAST_MONTH -> "Mes pasado"
+        ReportPeriod.LAST_3_MONTHS -> "Ultimos 3 meses"
+        ReportPeriod.LAST_6_MONTHS -> "Ultimos 6 meses"
+        ReportPeriod.CURRENT_YEAR -> "Ano actual"
+    }
+
+    // Strip the field separator and newlines so a stray value can't break the CSV layout.
+    private fun csv(value: String): String = value.replace(';', ',').replace('\n', ' ').trim()
 }
 
 enum class ReportPeriod {

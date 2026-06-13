@@ -236,9 +236,6 @@ class FakeAccountDao : AccountDao {
     override suspend fun getAccountsWithMonthlyStats(): List<AccountWithStats> = throw NotImplementedError()
     override suspend fun calculateBankBalanceFromTransactions(): Long = throw NotImplementedError()
     override suspend fun calculateCashBalanceFromTransactions(): Long = throw NotImplementedError()
-    override suspend fun deactivateAccount(accountId: Long) = throw NotImplementedError()
-    override suspend fun activateAccount(accountId: Long) = throw NotImplementedError()
-    override suspend fun getInactiveAccounts(): List<Account> = throw NotImplementedError()
 }
 
 /**

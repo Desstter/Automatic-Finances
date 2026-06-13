@@ -74,7 +74,8 @@ fun HomeScreen(
     onCashBalanceClick: () -> Unit = {},
     onRefresh: () -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
-    onReviewClick: () -> Unit = {}
+    onReviewClick: () -> Unit = {},
+    onViewSuggestionsClick: () -> Unit = {}
 ) {
     val state by stateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -202,7 +203,7 @@ fun HomeScreen(
                                     totalPreferences = state.totalPreferences,
                                     overallAccuracy = state.overallAccuracy,
                                     categoryStats = state.categoryAccuracyStats,
-                                    onViewSuggestions = {}
+                                    onViewSuggestions = onViewSuggestionsClick
                                 )
                             }
                         }
