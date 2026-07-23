@@ -34,9 +34,6 @@ class FinancialDashboardViewModel @Inject constructor(
     private val _state = MutableStateFlow(FinancialDashboardState())
     val state: StateFlow<FinancialDashboardState> = _state.asStateFlow()
 
-    /** Report signature (month + key figures) the current advice was generated for; gates re-querying. */
-    private var lastAdvisedSignature: String? = null
-
     init {
         loadDashboardData()
         loadChartData()
@@ -63,17 +60,18 @@ class FinancialDashboardViewModel @Inject constructor(
                 return@launch
             }
 
-            val signature = "$month|${report.digest.spentMtdCents}|${report.digest.incomeMtdCents}|" +
-                "${report.digest.topCategoryCents}|${report.digest.expenseCount}|" +
-                "${report.subscriptions.size}|${report.anomalies.size}"
-
-            if (!force && signature == lastAdvisedSignature && _state.value.aiAdvisor is AdvisorUiState.Success) {
-                return@launch
+            // Fast path: on a normal open, if the persisted advice still matches the current figures,
+            // show it instantly — no Loading flash and, crucially, no LLM call. Only fall through to a
+            // network round-trip when forced (refresh/retry) or when the data has actually changed.
+            if (!force) {
+                financialAdvisorRepository.cachedAdviceFor(report)?.let { cached ->
+                    _state.update { it.copy(aiAdvisor = cached) }
+                    return@launch
+                }
             }
 
             _state.update { it.copy(aiAdvisor = AdvisorUiState.Loading) }
-            val result = financialAdvisorRepository.advise(report)
-            if (result is AdvisorUiState.Success) lastAdvisedSignature = signature
+            val result = financialAdvisorRepository.advise(report, force = force)
             _state.update { it.copy(aiAdvisor = result) }
         }
     }

@@ -46,11 +46,32 @@ class AiPreferences(private val context: Context) {
         context.aiDataStore.edit { it[KEY_ADVISOR] = enabled }
     }
 
+    /**
+     * Last advice the LLM produced, paired with the report signature it was generated for. Persisting
+     * this (instead of keeping it only in memory) is what stops the advisor from firing a fresh LLM
+     * call on every app open: an unchanged month reuses the cached narrative for free.
+     */
+    suspend fun getAdvisorCache(): Pair<String, String>? {
+        val prefs = context.aiDataStore.data.first()
+        val sig = prefs[KEY_ADVICE_SIG] ?: return null
+        val json = prefs[KEY_ADVICE_JSON] ?: return null
+        return sig to json
+    }
+
+    suspend fun setAdvisorCache(signature: String, json: String) {
+        context.aiDataStore.edit {
+            it[KEY_ADVICE_SIG] = signature
+            it[KEY_ADVICE_JSON] = json
+        }
+    }
+
     companion object {
         const val DEFAULT_MODEL = "deepseek-chat"
 
         private val KEY_API = stringPreferencesKey("deepseek_api_key")
         private val KEY_MODEL = stringPreferencesKey("deepseek_model")
         private val KEY_ADVISOR = booleanPreferencesKey("ai_advisor_enabled")
+        private val KEY_ADVICE_SIG = stringPreferencesKey("advisor_cache_signature")
+        private val KEY_ADVICE_JSON = stringPreferencesKey("advisor_cache_json")
     }
 }

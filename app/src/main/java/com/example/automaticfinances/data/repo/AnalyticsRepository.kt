@@ -310,9 +310,11 @@ class AnalyticsRepository @Inject constructor(
         )
         
         transactions.forEach { transaction ->
-            if (transaction.amountCents < 0) { // Only expenses
+            // Only real expenses: amountCents is always positive (sign lives in isIncome),
+            // and transfers (bank<->cash) must not count as spending.
+            if (!transaction.isIncome && !transaction.isTransfer) {
                 val dayOfWeek = getDayOfWeekSpanish(transaction.date)
-                daySpending[dayOfWeek] = daySpending.getOrDefault(dayOfWeek, 0L) + Math.abs(transaction.amountCents)
+                daySpending[dayOfWeek] = daySpending.getOrDefault(dayOfWeek, 0L) + transaction.amountCents
             }
         }
         
@@ -333,11 +335,13 @@ class AnalyticsRepository @Inject constructor(
         val merchantMap = mutableMapOf<String, MerchantData>()
         
         transactions.forEach { transaction ->
-            if (transaction.amountCents < 0) { // Only expenses
+            // Only real expenses: amountCents is always positive (sign lives in isIncome),
+            // and transfers (bank<->cash) must not count as spending.
+            if (!transaction.isIncome && !transaction.isTransfer) {
                 val merchant = cleanMerchantName(transaction.description)
                 val currentData = merchantMap[merchant] ?: MerchantData(0L, 0)
                 merchantMap[merchant] = MerchantData(
-                    currentData.totalSpent + Math.abs(transaction.amountCents),
+                    currentData.totalSpent + transaction.amountCents,
                     currentData.transactionCount + 1
                 )
             }
@@ -372,9 +376,11 @@ class AnalyticsRepository @Inject constructor(
         )
         
         transactions.forEach { transaction ->
-            if (transaction.amountCents < 0) { // Only expenses
+            // Only real expenses: amountCents is always positive (sign lives in isIncome),
+            // and transfers (bank<->cash) must not count as spending.
+            if (!transaction.isIncome && !transaction.isTransfer) {
                 val timePeriod = getTimePeriodSpanish(transaction.time)
-                timeSpending[timePeriod] = timeSpending.getOrDefault(timePeriod, 0L) + Math.abs(transaction.amountCents)
+                timeSpending[timePeriod] = timeSpending.getOrDefault(timePeriod, 0L) + transaction.amountCents
             }
         }
         

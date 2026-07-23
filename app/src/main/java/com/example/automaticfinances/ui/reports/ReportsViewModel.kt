@@ -80,9 +80,12 @@ class ReportsViewModel @Inject constructor(
             
             Log.d("ReportsViewModel", "Loading summary data for range: $startDateStr to $endDateStr")
             
-            // Use first() instead of collect to get single emission and complete
-            val transactions = transactionRepository.getByDateRange(startDateStr, endDateStr).first()
-            
+            // Use first() instead of collect to get single emission and complete.
+            // Exclude transfers (bank<->cash relocations): they are not income/expense.
+            val transactions = transactionRepository.getByDateRange(startDateStr, endDateStr)
+                .first()
+                .filter { !it.isTransfer }
+
             // Separate income and expenses for proper reporting
             val expenses = transactions.filter { !it.isIncome }
             val incomes = transactions.filter { it.isIncome }
@@ -130,9 +133,12 @@ class ReportsViewModel @Inject constructor(
             
             Log.d("ReportsViewModel", "Loading category breakdown for range: $startDateStr to $endDateStr")
             
-            // Use first() to get single emission and complete
-            val transactions = transactionRepository.getByDateRange(startDateStr, endDateStr).first()
-            
+            // Use first() to get single emission and complete.
+            // Exclude transfers so withdrawal legs don't land in the "Sin categoría" bucket.
+            val transactions = transactionRepository.getByDateRange(startDateStr, endDateStr)
+                .first()
+                .filter { !it.isTransfer }
+
             // Only consider expenses for category breakdown (not income)
             val expenseTransactions = transactions.filter { !it.isIncome }
             
@@ -216,11 +222,14 @@ class ReportsViewModel @Inject constructor(
             
             Log.d("ReportsViewModel", "Loading top transactions for range: $startDateStr to $endDateStr")
             
-            // Use first() to get single emission and complete
-            val transactions = transactionRepository.getByDateRange(startDateStr, endDateStr).first()
-            
+            // Use first() to get single emission and complete.
+            // Exclude transfers so a large withdrawal can't show up as a "top gasto".
+            val transactions = transactionRepository.getByDateRange(startDateStr, endDateStr)
+                .first()
+                .filter { !it.isTransfer }
+
             val categories = categoryRepository.getAllActiveSync()
-            
+
             // Get top expenses (not including income)
             val topTransactions = transactions
                 .filter { !it.isIncome } // Only expenses for "top spending" list

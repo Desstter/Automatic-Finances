@@ -4,7 +4,9 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -171,8 +173,12 @@ private fun IncomePieChartLegend(
     modifier: Modifier = Modifier,
     onItemClick: (CategorySpending) -> Unit = {}
 ) {
+    // Cap the height and scroll so all income categories stay reachable inside the height-capped
+    // chart container (mirrors SpendingPieChart's legend).
     Column(
-        modifier = modifier,
+        modifier = modifier
+            .heightIn(max = 280.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         categoryIncome.forEach { income ->

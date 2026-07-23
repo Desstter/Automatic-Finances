@@ -9,10 +9,18 @@ data class InsightsReport(
     val digest: MonthlyDigest,
     val subscriptions: List<Subscription>,
     val anomalies: List<Anomaly>,
+    /** Where the money actually went this month: top merchants by spend (MTD), highest first. */
+    val topMerchants: List<MerchantSpend> = emptyList(),
 ) {
     /** Estimated monthly cost of all detected recurring charges, in cents. */
     val subscriptionsMonthlyTotalCents: Long get() = subscriptions.sumOf { it.monthlyAmountCents }
 }
+
+/** A single named bucket of spending (category or merchant), a positive magnitude in cents. */
+data class CategorySpend(val name: String, val amountCents: Long)
+
+/** A single merchant's month-to-date spend, a positive magnitude in cents. */
+data class MerchantSpend(val name: String, val amountCents: Long)
 
 /**
  * Month-to-date summary plus an end-of-month projection from the current daily run-rate (PROD-9).
@@ -32,6 +40,8 @@ data class MonthlyDigest(
     val projectedVsLastMonthPct: Int,
     val topCategoryName: String?,
     val topCategoryCents: Long,
+    /** Spending broken down by category this month (MTD), highest first. */
+    val topCategories: List<CategorySpend> = emptyList(),
     val expenseCount: Int,
 ) {
     val transactionCount: Int get() = expenseCount

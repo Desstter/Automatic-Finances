@@ -54,9 +54,13 @@ class CategorySuggestionViewModel @Inject constructor(
                 val pendingSuggestions = mutableListOf<TransactionSuggestion>()
                 
                 for (transaction in allTransactions) {
-                    // Solo procesar transacciones que podrían beneficiarse de sugerencias
-                    val shouldSuggest = transaction.categoryId == null || 
-                                       transaction.categoryName == "Otros"
+                    // Solo procesar transacciones que podrían beneficiarse de sugerencias.
+                    // Las transferencias (retiros de cajero, banco<->efectivo) no son ni gasto ni
+                    // ingreso: tienen categoryId == null por diseño, así que hay que excluirlas
+                    // explícitamente para que no se ofrezcan como "Otros gastos/ingresos".
+                    val shouldSuggest = !transaction.isTransfer &&
+                                       (transaction.categoryId == null ||
+                                        transaction.categoryName == "Otros")
                     
                     if (shouldSuggest) {
                         val suggestion: CategorySuggestion? = categoryRepository.getIntelligentCategorySuggestion(transaction.description, transaction.isIncome)

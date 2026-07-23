@@ -44,10 +44,17 @@ class FinancialAdvisorRepository @Inject constructor(
      * returned [AdvisorUiState] so the dashboard can hide the section ([Hidden][AdvisorUiState.Hidden])
      * or offer the right recovery ([Error][AdvisorUiState.Error] carries the typed [LlmFailure]).
      */
-    suspend fun advise(report: InsightsReport, userName: String? = null): AdvisorUiState {
+    suspend fun advise(report: InsightsReport, userName: String? = null, force: Boolean = false): AdvisorUiState {
         if (!aiPreferences.isAdvisorEnabled()) return AdvisorUiState.Hidden
         // Nothing meaningful to analyze yet.
         if (report.digest.transactionCount == 0) return AdvisorUiState.Hidden
+
+        // Unless the user explicitly asked for a refresh, reuse the persisted narrative when the
+        // month's figures haven't moved. This is what keeps the advisor from calling the LLM on every
+        // single app open — only a genuine change in the data (new signature) triggers a fresh call.
+        if (!force) {
+            cachedAdviceFor(report)?.let { return it }
+        }
 
         return try {
             val raw = llmClient.generateStructuredJson(
@@ -57,13 +64,42 @@ class FinancialAdvisorRepository @Inject constructor(
                 temperature = 0.4,
             )
             val insights = json.decodeFromString(AdvisorResultDto.serializer(), raw).toDomainOrNull()
-            if (insights != null) AdvisorUiState.Success(insights)
-            else AdvisorUiState.Error(LlmFailure.EMPTY)
+            if (insights != null) {
+                aiPreferences.setAdvisorCache(signatureFor(report), raw)
+                AdvisorUiState.Success(insights)
+            } else AdvisorUiState.Error(LlmFailure.EMPTY)
         } catch (e: LlmException) {
             AdvisorUiState.Error(e.failure)
         } catch (e: Exception) {
             AdvisorUiState.Error(LlmFailure.UNKNOWN)
         }
+    }
+
+    /**
+     * The advice cached for [report] if its signature still matches, else null. Lets a caller (the
+     * dashboard) show the prior narrative instantly on open without a `Loading` flash or a network
+     * round-trip. Returns null when the advisor is disabled or there's nothing to analyze.
+     */
+    suspend fun cachedAdviceFor(report: InsightsReport): AdvisorUiState.Success? {
+        if (!aiPreferences.isAdvisorEnabled() || report.digest.transactionCount == 0) return null
+        val (sig, cachedJson) = aiPreferences.getAdvisorCache() ?: return null
+        if (sig != signatureFor(report)) return null
+        return try {
+            json.decodeFromString(AdvisorResultDto.serializer(), cachedJson).toDomainOrNull()
+                ?.let { AdvisorUiState.Success(it) }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * A compact fingerprint of the figures the advice depends on. Same signature → same narrative, so
+     * we can safely reuse the cache; any movement in spend/income/top-category/counts invalidates it.
+     */
+    fun signatureFor(report: InsightsReport): String {
+        val d = report.digest
+        return "${d.monthLabel}|${d.spentMtdCents}|${d.incomeMtdCents}|${d.topCategoryCents}|" +
+            "${d.expenseCount}|${report.subscriptions.size}|${report.anomalies.size}"
     }
 
     private fun systemInstruction(userName: String?): String {
@@ -77,13 +113,17 @@ class FinancialAdvisorRepository @Inject constructor(
 
             REGLAS:
             - "summary": 1 o 2 frases que resuman el estado del mes (ritmo de gasto, balance).
-            - "tips": entre 2 y 4 recomendaciones. Cada una con:
+            - "tips": entre 2 y 4 recomendaciones. Sé CONCRETO: cuando el resumen lo permita, menciona
+              la categoría o el comercio exacto y su monto (ej. "gastaste $120.000 en Rappi"), en vez
+              de consejos genéricos. Prioriza lo más relevante: la categoría/comercio donde más se va
+              la plata, suscripciones que se acumulan o cargos raros. Cada tip con:
                 - "title": titular muy corto (máx 6 palabras).
                 - "body": una frase concreta y accionable (máx 25 palabras).
                 - "tone": "POSITIVE" si es algo que va bien (ahorro, vas por debajo del mes pasado),
                   "WARNING" si es algo a vigilar (sobregasto, suscripciones, cargos raros),
                   "INFO" para contexto neutral.
-            - No inventes cifras que no estén en el resumen. No prometas rendimientos ni inversiones.
+            - Usa SOLO las cifras, categorías y comercios del resumen; no inventes datos. No juzgues
+              ni moralices sobre en qué se gasta, solo analiza. No prometas rendimientos ni inversiones.
             - No uses emojis. No uses markdown. Responde SOLO con el JSON.
         """.trimIndent()
     }
@@ -106,6 +146,15 @@ class FinancialAdvisorRepository @Inject constructor(
         }
         d.topCategoryName?.let {
             if (d.topCategoryCents > 0) sb.appendLine("- Categoría con más gasto: $it (${d.topCategoryCents.centsToCopString()}).")
+        }
+
+        if (d.topCategories.isNotEmpty()) {
+            sb.appendLine("- Gasto por categoría (de mayor a menor):")
+            d.topCategories.forEach { sb.appendLine("    • ${it.name}: ${it.amountCents.centsToCopString()}.") }
+        }
+        if (report.topMerchants.isNotEmpty()) {
+            sb.appendLine("- Dónde más gastaste (comercios):")
+            report.topMerchants.forEach { sb.appendLine("    • ${it.name}: ${it.amountCents.centsToCopString()}.") }
         }
 
         if (report.subscriptions.isNotEmpty()) {

@@ -5,7 +5,9 @@ import com.example.automaticfinances.data.db.Transaction
 import com.example.automaticfinances.data.db.TransactionDao
 import com.example.automaticfinances.data.models.Anomaly
 import com.example.automaticfinances.data.models.AnomalyKind
+import com.example.automaticfinances.data.models.CategorySpend
 import com.example.automaticfinances.data.models.InsightsReport
+import com.example.automaticfinances.data.models.MerchantSpend
 import com.example.automaticfinances.data.models.MonthlyDigest
 import com.example.automaticfinances.data.models.Subscription
 import com.example.automaticfinances.utils.centsToCopString
@@ -48,7 +50,28 @@ class InsightsRepository @Inject constructor(
             digest = buildDigest(all, today, categoryNames),
             subscriptions = detectSubscriptions(all, today, categoryNames),
             anomalies = detectAnomalies(all, today, categoryNames),
+            topMerchants = topMerchants(all, today),
         )
+    }
+
+    /**
+     * Month-to-date spend grouped by merchant (normalized), highest first. Lets the advisor name
+     * concrete places ("gastaste $X en …") instead of only the aggregate. Positive magnitudes.
+     */
+    private fun topMerchants(all: List<Transaction>, today: LocalDate): List<MerchantSpend> {
+        val curPrefix = monthPrefix(YearMonth.from(today))
+        return all
+            .filter { !it.isIncome && it.date.startsWith(curPrefix) }
+            .groupBy { normalizeMerchant(it.description) }
+            .filter { it.key.isNotBlank() }
+            .map { (_, charges) ->
+                MerchantSpend(
+                    name = displayName(charges.maxByOrNull { it.date + it.time }!!.description),
+                    amountCents = charges.sumOf { abs(it.amountCents) },
+                )
+            }
+            .sortedByDescending { it.amountCents }
+            .take(TOP_MERCHANTS)
     }
 
     // ---- PROD-9: monthly digest + run-rate projection ----
@@ -76,10 +99,14 @@ class InsightsRepository @Inject constructor(
             (((projected - lastMonthTotal).toDouble() / lastMonthTotal) * 100).roundToInt()
         } else 0
 
-        val topCategory = mtdExpenses
+        val categoryTotals = mtdExpenses
             .groupBy { it.categoryId }
             .mapValues { (_, txs) -> txs.sumOf { abs(it.amountCents) } }
-            .maxByOrNull { it.value }
+        val topCategory = categoryTotals.maxByOrNull { it.value }
+        val topCategories = categoryTotals.entries
+            .sortedByDescending { it.value }
+            .take(TOP_CATEGORIES)
+            .map { (catId, cents) -> CategorySpend(catId?.let { categoryNames[it] } ?: "Sin categoría", cents) }
 
         return MonthlyDigest(
             monthLabel = YearMonth.from(today).month
@@ -93,6 +120,7 @@ class InsightsRepository @Inject constructor(
             projectedVsLastMonthPct = projectedVsLastMonthPct,
             topCategoryName = topCategory?.key?.let { categoryNames[it] },
             topCategoryCents = topCategory?.value ?: 0L,
+            topCategories = topCategories,
             expenseCount = mtdExpenses.size,
         )
     }
@@ -243,5 +271,9 @@ class InsightsRepository @Inject constructor(
         private const val UNUSUAL_AMOUNT_FACTOR = 3.0
         // Don't nag about small absolute amounts even if they're a multiple of the average (< 30.000 COP).
         private const val UNUSUAL_AMOUNT_FLOOR_CENTS = 3_000_000L
+
+        // How many category / merchant buckets to feed the advisor so it can be specific.
+        private const val TOP_CATEGORIES = 6
+        private const val TOP_MERCHANTS = 8
     }
 }

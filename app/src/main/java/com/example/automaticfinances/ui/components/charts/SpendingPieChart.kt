@@ -4,6 +4,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -347,14 +349,19 @@ private fun AnimatedPieChartLegend(
     modifier: Modifier = Modifier
 ) {
     val nf = remember { NumberFormat.getCurrencyInstance(Locale("es", "CO")) }
-    
+
+    // The chart sits inside a height-capped container; without an internal scroll the lower legend
+    // rows get clipped when there are many categories. Cap the legend height and let it scroll so
+    // every category (including the grouped "Otros" bucket) stays reachable.
     Column(
-        modifier = modifier,
+        modifier = modifier
+            .heightIn(max = 280.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         categorySpending.forEachIndexed { index, spending ->
             val animationProgress = sectorAnimations.getOrElse(index) { 0f }
-            
+
             AnimatedPieChartLegendItem(
                 categorySpending = spending,
                 formatter = nf,

@@ -6,37 +6,42 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Ascending bars (Bogota gold) within the adaptive safe zone -->
+    <!-- Ascending bars with rounded tops, centered in the adaptive safe zone (Bogota gold) -->
     <path
-        android:pathData="M30,76 L30,64 Q30,62 32,62 L37,62 Q39,62 39,64 L39,76 Z
-                          M43,76 L43,56 Q43,54 45,54 L50,54 Q52,54 52,56 L52,76 Z
-                          M56,76 L56,48 Q56,46 58,46 L63,46 Q65,46 65,48 L65,76 Z
-                          M69,76 L69,38 Q69,36 71,36 L76,36 Q78,36 78,38 L78,76 Z">
+        android:pathData="M30,78 L30,67.5 Q30,65 32.5,65 L36.5,65 Q39,65 39,67.5 L39,78 Z
+                          M43,78 L43,58.5 Q43,56 45.5,56 L49.5,56 Q52,56 52,58.5 L52,78 Z
+                          M56,78 L56,49.5 Q56,47 58.5,47 L62.5,47 Q65,47 65,49.5 L65,78 Z
+                          M69,78 L69,40.5 Q69,38 71.5,38 L75.5,38 Q78,38 78,40.5 L78,78 Z">
         <aapt:attr name="android:fillColor">
             <gradient
                 android:type="linear"
-                android:startX="30"
-                android:startY="36"
-                android:endX="78"
-                android:endY="76">
-                <item android:color="#FFE8C87A" android:offset="0.0" />
-                <item android:color="#FFD4A853" android:offset="0.55" />
-                <item android:color="#FFA07828" android:offset="1.0" />
+                android:startX="54"
+                android:startY="38"
+                android:endX="54"
+                android:endY="78">
+                <item android:color="#FFF4D78F" android:offset="0.0" />
+                <item android:color="#FFE3B85E" android:offset="0.55" />
+                <item android:color="#FFBC8A33" android:offset="1.0" />
             </gradient>
         </aapt:attr>
     </path>
 
-    <!-- Rising trend line over the bars (warm cream) -->
+    <!-- Rising trend line tracing the bar peaks (warm cream) -->
     <path
-        android:pathData="M34.5,58 L47.5,50 L60.5,42 L73.5,32"
+        android:pathData="M34.5,61 L47.5,52 L60.5,43 L73.5,34"
         android:fillColor="#00000000"
-        android:strokeColor="#FFFAF7F2"
-        android:strokeWidth="3"
+        android:strokeColor="#FFFBF6ED"
+        android:strokeWidth="3.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
 
-    <!-- Highlighted data point at the peak -->
+    <!-- Soft golden halo behind the peak data point -->
     <path
-        android:fillColor="#FFFAF7F2"
-        android:pathData="M73.5,28 m-3.2,0 a3.2,3.2 0 1,0 6.4,0 a3.2,3.2 0 1,0 -6.4,0 Z" />
+        android:fillColor="#59F2BE48"
+        android:pathData="M68.5,34 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0 Z" />
+
+    <!-- Highlighted peak data point (warm cream) -->
+    <path
+        android:fillColor="#FFFBF6ED"
+        android:pathData="M70.5,34 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 Z" />
 </vector>
