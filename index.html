@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Automatic Finances</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f13;
+      --surface: #1a1a22;
+      --border: #2a2a38;
+      --accent: #7c6af7;
+      --accent-light: #a99cf5;
+      --green: #4ade80;
+      --text: #e2e0f0;
+      --muted: #8884a8;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .hero {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 80px 24px 48px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(124,106,247,0.12);
+      border: 1px solid rgba(124,106,247,0.3);
+      color: var(--accent-light);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #ffffff 30%, var(--accent-light));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 560px;
+      margin-bottom: 40px;
+    }
+
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      font-size: 15px;
+      padding: 12px 28px;
+      border-radius: 10px;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .cta:hover { background: var(--accent-light); transform: translateY(-2px); }
+
+    .section {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 24px 64px;
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 24px;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+    .feature-card:hover { border-color: var(--accent); }
+
+    .feature-icon {
+      font-size: 1.6rem;
+      margin-bottom: 10px;
+    }
+
+    .feature-card h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .feature-card p {
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+
+    .stack-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .tag {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--accent-light);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 8px;
+    }
+
+    .arch-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      font-family: 'Menlo', 'Monaco', monospace;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+
+    .arch-block .dir { color: var(--accent-light); }
+    .arch-block .file { color: var(--green); }
+    .arch-block .comment { color: #555570; }
+
+    footer {
+      text-align: center;
+      padding: 32px 24px;
+      color: var(--muted);
+      font-size: 13px;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="hero">
+    <div class="badge">Android · Kotlin</div>
+    <h1>Automatic Finances</h1>
+    <p class="subtitle">
+      App Android que parsea automáticamente las notificaciones SMS de Bancolombia para registrar y categorizar transacciones financieras en tiempo real, sin intervención manual.
+    </p>
+    <a class="cta" href="https://github.com/Desstter/Automatic-Finances" target="_blank" rel="noopener">
+      <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      Ver en GitHub
+    </a>
+  </div>
+
+  <div class="section">
+    <p class="section-title">Funcionalidades</p>
+    <div class="features">
+      <div class="feature-card">
+        <div class="feature-icon">📲</div>
+        <h3>Captura automática 24/7</h3>
+        <p>Servicio en primer plano que procesa todas las notificaciones de Bancolombia: compras, retiros, transferencias.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <h3>Parser inteligente</h3>
+        <p>Extrae monto, comercio, tipo de transacción y timestamp usando regex sobre el texto del SMS.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>ML de categorización</h3>
+        <p>Aprende de las correcciones del usuario y alcanza 80%+ de precisión en comercios recurrentes.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔐</div>
+        <h3>Deduplicación</h3>
+        <p>Hashes SHA-256 para evitar registros duplicados de la misma transacción.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Presupuestos mensuales</h3>
+        <p>Límites de gasto por categoría con alertas automáticas al acercarse al tope.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎯</div>
+        <h3>Metas financieras</h3>
+        <p>Objetivos de ahorro y reducción de gastos con seguimiento en tiempo real.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <p class="section-title">Stack tecnológico</p>
+    <div class="stack-grid">
+      <span class="tag">Kotlin</span>
+      <span class="tag">Jetpack Compose</span>
+      <span class="tag">Room Database v4</span>
+      <span class="tag">MVVM</span>
+      <span class="tag">Navigation Compose</span>
+      <span class="tag">Android Foreground Services</span>
+      <span class="tag">SHA-256</span>
+      <span class="tag">Android 8.0+</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <p class="section-title">Arquitectura</p>
+    <div class="arch-block">
+      <span class="dir">app/</span><br>
+      &nbsp;&nbsp;<span class="dir">├── service/</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">├── ForegroundSmsService.kt</span> &nbsp;<span class="comment">// Servicio persistente 24/7</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">└── SmsNotifListener.kt</span> &nbsp;<span class="comment">// Captura notificaciones</span><br>
+      &nbsp;&nbsp;<span class="dir">├── ml/</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">└── CategoryClassifier.kt</span> &nbsp;<span class="comment">// Modelo ML de categorización</span><br>
+      &nbsp;&nbsp;<span class="dir">├── data/</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">├── TransactionDao.kt</span> &nbsp;<span class="comment">// Room DAO</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">└── AppDatabase.kt</span> &nbsp;<span class="comment">// Room Database</span><br>
+      &nbsp;&nbsp;<span class="dir">└── ui/</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="file">└── screens/</span> &nbsp;<span class="comment">// Jetpack Compose screens</span>
+    </div>
+  </div>
+
+  <footer>
+    Proyecto de <a href="https://moonhellal.com" style="color:var(--accent-light);text-decoration:none;">moonhellal.com</a>
+    &nbsp;·&nbsp;
+    <a href="https://github.com/Desstter/Automatic-Finances" style="color:var(--accent-light);text-decoration:none;">GitHub</a>
+  </footer>
+
+</body>
+</html>
